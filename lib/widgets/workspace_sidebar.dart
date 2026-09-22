@@ -32,63 +32,33 @@ class WorkspaceSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<TaskProvider>();
-    final projects = provider.projects;
-    final user = provider.currentUser;
-
-    return SizedBox(
-      width: 284,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 22, 14, 22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Wordmark(ink: context.ink, soft: context.inkSoft),
-            const SizedBox(height: 30),
-            for (var i = 0; i < _destinations.length; i++)
-              _NavItem(
-                icon: _destinations[i].$1,
-                label: _destinations[i].$2,
-                selected: selectedIndex == i,
-                onTap: () => onSelect(i),
-              ),
-            const SizedBox(height: 28),
-            if (projects.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.only(left: 14, bottom: 10),
-                child: Text(
-                  'PROJECTS',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.4,
-                    color: context.inkFaint,
-                  ),
-                ),
-              ),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  children: [
-                    for (final project in projects)
-                      _ProjectItem(project: project, provider: provider),
-                  ],
-                ),
-              ),
-            ] else
-              const Spacer(),
-            const SizedBox(height: 12),
-            _ProfileFooter(
-              email: user?.email,
-              status: provider.cloudStatus,
-              onSettings: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
-              ),
-            ),
-          ],
+    return Container(
+      width: 280,
+      decoration: BoxDecoration(
+        color: context.card.withValues(alpha: 0.4),
+        border: Border(
+          right: BorderSide(color: context.hairline.withValues(alpha: 0.5), width: 1),
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 20),
+          _Wordmark(ink: context.ink, soft: context.inkSoft),
+          const SizedBox(height: 24),
+          ...List.generate(_destinations.length, (i) => _NavItem(
+            icon: _destinations[i].$1,
+            label: _destinations[i].$2,
+            selected: selectedIndex == i,
+            onTap: () => onSelect(i),
+          )),
+          const SizedBox(height: 20),
+          const _ProjectsSection(),
+          const Spacer(),
+          const SizedBox(height: 12),
+          _ProfileFooter(provider: context.watch<TaskProvider>()),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
@@ -144,7 +114,7 @@ class _Wordmark extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatefulWidget {
+class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
@@ -158,64 +128,35 @@ class _NavItem extends StatefulWidget {
   });
 
   @override
-  State<_NavItem> createState() => _NavItemState();
-}
-
-class _NavItemState extends State<_NavItem> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    final engaged = widget.selected || _hover;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: widget.selected
-                ? context.ink
-                : _hover
-                    ? context.fillSoft
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            // A faint shadow on the selected destination lifts it off the
-            // sidebar, so the active item reads as glass rather than flat ink.
-            boxShadow: widget.selected
-                ? [
-                    BoxShadow(
-                      color: context.ink.withValues(alpha: 0.16),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            color: selected ? context.ink : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
               Icon(
-                widget.icon,
-                size: 19,
-                color: widget.selected
-                    ? context.inkInverse
-                    : context.ink.withValues(alpha: engaged ? 1 : 0.6),
+                icon,
+                size: 20,
+                color: selected ? context.inkInverse : context.ink.withValues(alpha: 0.7),
               ),
               const SizedBox(width: 12),
               Text(
-                widget.label,
+                label,
                 style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight:
-                      widget.selected ? FontWeight.w600 : FontWeight.w500,
-                  color: widget.selected
-                      ? context.inkInverse
-                      : context.ink.withValues(alpha: engaged ? 1 : 0.66),
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected ? context.inkInverse : context.ink.withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -226,73 +167,112 @@ class _NavItemState extends State<_NavItem> {
   }
 }
 
-class _ProjectItem extends StatefulWidget {
+class _ProjectsSection extends StatelessWidget {
+  const _ProjectsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<TaskProvider>();
+    final projects = provider.projects;
+
+    if (projects.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 16, bottom: 8, right: 8),
+          child: Text(
+            'PROJECTS',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+              color: context.inkFaint,
+            ),
+          ),
+        ),
+        Flexible(
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: projects.length,
+            itemBuilder: (_, i) => _ProjectItem(project: projects[i], provider: provider),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProjectItem extends StatelessWidget {
   final Project project;
   final TaskProvider provider;
 
   const _ProjectItem({required this.project, required this.provider});
 
   @override
-  State<_ProjectItem> createState() => _ProjectItemState();
-}
-
-class _ProjectItemState extends State<_ProjectItem> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    final colorValue = widget.project.colorValue;
+    final colorValue = project.colorValue;
     final accent = colorValue == 0 ? context.inkSoft : Color(colorValue);
-    final count = widget.provider
-        .getTasksForProject(widget.project.id)
+    final count = provider
+        .getTasksForProject(project.id)
         .where((t) => !t.isDone)
         .length;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => SubjectWorkspacePage(subjectId: widget.project.id),
+            builder: (_) => SubjectWorkspacePage(subjectId: project.id),
           ),
         ),
+        borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(vertical: 1),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          duration: const Duration(milliseconds: 100),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: _hover ? context.fillSoft : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
             children: [
               Container(
-                width: 9,
-                height: 9,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  widget.project.title,
+                  project.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w500,
-                    color: context.ink.withValues(alpha: _hover ? 1 : 0.74),
+                    color: context.ink.withValues(alpha: 0.75),
                   ),
                 ),
               ),
               if (count > 0)
-                Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: context.inkFaint,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: accent,
+                    ),
                   ),
                 ),
             ],
@@ -304,34 +284,33 @@ class _ProjectItemState extends State<_ProjectItem> {
 }
 
 class _ProfileFooter extends StatelessWidget {
-  final String? email;
-  final String status;
-  final VoidCallback onSettings;
+  final TaskProvider provider;
 
-  const _ProfileFooter({
-    required this.email,
-    required this.status,
-    required this.onSettings,
-  });
+  const _ProfileFooter({required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    final signedIn = email != null;
+    final user = provider.currentUser;
+    final signedIn = user != null;
+    final email = user?.email;
+    final status = provider.cloudStatus;
+
     return Container(
-      padding: const EdgeInsets.all(6),
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: context.card.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.hairline),
+        color: context.card.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.hairline.withValues(alpha: 0.6)),
       ),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 17,
-            backgroundColor: context.ink,
+            radius: 16,
+            backgroundColor: context.ink.withValues(alpha: 0.9),
             child: Icon(
               signedIn ? Icons.person : Icons.cloud_off_outlined,
-              size: 17,
+              size: 16,
               color: context.inkInverse,
             ),
           ),
@@ -345,7 +324,7 @@ class _ProfileFooter extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: context.ink,
                   ),
@@ -354,15 +333,20 @@ class _ProfileFooter extends StatelessWidget {
                   signedIn ? status : 'Not signed in',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: context.inkFaint),
+                  style: TextStyle(fontSize: 10, color: context.inkFaint),
                 ),
               ],
             ),
           ),
           IconButton(
             tooltip: 'Settings',
-            onPressed: onSettings,
-            icon: Icon(Icons.settings_outlined, size: 19, color: context.inkSoft),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsPage()),
+            ),
+            icon: Icon(Icons.settings_outlined, size: 18, color: context.inkSoft),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
