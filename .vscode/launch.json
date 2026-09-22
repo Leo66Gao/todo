@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "todo_app (Web on port 5000)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d",
+        "chrome",
+        "--web-port=5000"
+      ]
+    },
+    {
+      "name": "todo_app (macOS)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d",
+        "macos"
+      ]
+    }
+  ]
+}

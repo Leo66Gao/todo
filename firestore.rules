@@ -1,0 +1,29 @@
+rules_version = '2';
+// users/{uid}/records/{id}: private workspace records.
+// kind: entity type; payload: bounded JSON string (max 700000 chars);
+// deleted: tombstone flag; updatedAt: server timestamp.
+// IDs encode kind + ':' + entity ID. User identity comes exclusively from path.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function validRecord(id) {
+      let d = request.resource.data;
+      return d.keys().hasAll(['kind', 'payload', 'deleted', 'updatedAt'])
+        && d.keys().hasOnly(['kind', 'payload', 'deleted', 'updatedAt'])
+        && d.kind in ['task', 'project', 'note', 'folder', 'settings']
+        && id.size() <= 200 && id.matches(d.kind + ':.*')
+        && d.payload is string && d.payload.size() <= 700000
+        && d.deleted is bool
+        && (!d.deleted || d.payload == '')
+        && d.updatedAt == request.time;
+    }
+    match /users/{uid}/records/{id} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validRecord(id);
+      // Deletion is represented by a validated tombstone to protect offline sync.
+      allow delete: if false;
+    }
+  }
+}

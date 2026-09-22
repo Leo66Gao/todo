@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/attachments/{noteId}/{fileId} {
+      function owner() { return request.auth != null && request.auth.uid == uid; }
+      function validFile() {
+        return request.resource.size <= 20 * 1024 * 1024
+          && request.resource.contentType is string
+          && request.resource.contentType.size() <= 150;
+      }
+      allow read, delete: if owner();
+      allow create, update: if owner() && validFile();
+    }
+  }
+}

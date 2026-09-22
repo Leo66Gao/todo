@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Personal study workspace — tasks, assignments, milestones, subjects and notes, synced across your devices.">
+  <meta name="google-signin-client_id" content="175450715918-18phogngikg20d6p6itjadhvt40nh4lq.apps.googleusercontent.com">
+
+  <!-- Preload Google Identity Services so OAuth popups open without delay -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- Warm the font connections before Flutter asks for Poppins. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="todo_app">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Todo — Study Workspace</title>
+  <link rel="manifest" href="manifest.json">
+  <!-- Brand accent pulled from the app logo's glass blue -->
+  <meta name="theme-color" content="#DCE9F5">
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

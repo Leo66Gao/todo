@@ -1,0 +1,15 @@
+#include "../../Flutter/Flutter-Release.xcconfig"
+#include "Warnings.xcconfig"
+
+// This Mac has no Apple Development certificate, so the app signs with a
+// stable self-signed identity ("Todo Local Signing") created in the login
+// keychain. A stable identity (rather than ad-hoc "-") is what lets macOS
+// grant the app keychain access, which Firebase Auth needs to store the
+// Google session — with an ad-hoc signature the keychain refuses.
+//
+// To sign with a real Apple ID instead: add your Apple ID in Xcode
+// (Settings > Accounts), pick the team in Signing & Capabilities, then set
+// CODE_SIGN_IDENTITY = Apple Development and DEVELOPMENT_TEAM = <team id>.
+CODE_SIGN_IDENTITY = Todo Local Signing
+CODE_SIGN_STYLE = Manual
+DEVELOPMENT_TEAM =
