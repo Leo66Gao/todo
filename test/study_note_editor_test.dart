@@ -9,6 +9,7 @@ import 'package:todo_app/screens/note_view_page.dart';
 import 'package:todo_app/screens/study_note_editor_page.dart';
 import 'package:todo_app/state/task_provider.dart';
 import 'package:todo_app/utils/note_content.dart';
+import 'package:todo_app/utils/record_size.dart';
 
 void main() {
   setUp(() {
@@ -31,7 +32,8 @@ void main() {
         providers: [ChangeNotifierProvider.value(value: provider)],
         child: MaterialApp(
           localizationsDelegates: const [FlutterQuillLocalizations.delegate],
-          home: StudyNoteEditorPage(note: note, initialSubjectId: initialSubjectId),
+          home: StudyNoteEditorPage(
+              note: note, initialSubjectId: initialSubjectId),
         ),
       ),
     );
@@ -54,9 +56,31 @@ void main() {
   });
 
   test('notePlainText strips legacy markdown', () {
-    expect(notePlainText('# Plan\n- find **sources**'),
-        contains('find sources'));
+    expect(
+        notePlainText('# Plan\n- find **sources**'), contains('find sources'));
     expect(notePlainText('co-op deadline'), contains('co-op deadline'));
+  });
+
+  test('saved note size includes generated links and metadata', () {
+    final document = Document.fromJson([
+      {'insert': '${List.filled(8000, 'https://example.com').join(' ')}\n'},
+    ]);
+    expect(recordFitsCloud({'content': documentToContent(document)}), isTrue);
+
+    final note = StudyNote(
+      id: 'large-note',
+      title: 'References',
+      content: documentToContent(documentWithAutoLinks(document)),
+    );
+    expect(recordFitsCloud(note.toJson()), isFalse);
+  });
+
+  test('legacy note links reject executable URI schemes', () {
+    expect(safeNoteLink('https://example.com')?.host, 'example.com');
+    expect(safeNoteLink('mailto:student@example.com')?.scheme, 'mailto');
+    expect(safeNoteLink('javascript:alert(1)'), isNull);
+    expect(safeNoteLink('data:text/html,hello'), isNull);
+    expect(safeNoteLink('//example.com'), isNull);
   });
 
   testWidgets('saving a new note stores a delta document with subject',
@@ -75,8 +99,7 @@ void main() {
     expect(note.updatedAt.isAfter(note.createdAt), isTrue);
   });
 
-  testWidgets('editing a legacy markdown note keeps its text',
-      (tester) async {
+  testWidgets('editing a legacy markdown note keeps its text', (tester) async {
     final provider = await pumpEditor(tester);
     provider.addNote(StudyNote(
       id: 'legacy-1',

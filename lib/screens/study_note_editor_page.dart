@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +7,7 @@ import '../models/study_note.dart';
 import '../state/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/note_content.dart';
+import '../utils/record_size.dart';
 import '../widgets/pill_dropdown.dart';
 import '../widgets/quill_theme.dart';
 
@@ -96,8 +95,8 @@ class _StudyNoteEditorPageState extends State<StudyNoteEditorPage> {
   }
 
   void _save() {
-    if (utf8.encode(documentToContent(_quill.document)).length >
-        650 * 1024) {
+    final note = _currentNote();
+    if (!recordFitsCloud(note.toJson())) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content:
@@ -107,7 +106,6 @@ class _StudyNoteEditorPageState extends State<StudyNoteEditorPage> {
       return;
     }
     final provider = context.read<TaskProvider>();
-    final note = _currentNote();
     if (_isNew) {
       provider.addNote(note);
     } else {
@@ -288,7 +286,8 @@ class _StudyNoteEditorPageState extends State<StudyNoteEditorPage> {
           // lists, …) fall back to buttonOptions.base — style both.
           iconTheme: quillToolbarIconTheme(context),
           buttonOptions: QuillSimpleToolbarButtonOptions(
-            base: QuillToolbarBaseButtonOptions(iconTheme: quillToolbarIconTheme(context)),
+            base: QuillToolbarBaseButtonOptions(
+                iconTheme: quillToolbarIconTheme(context)),
           ),
         ),
       ),
@@ -388,6 +387,4 @@ class _StudyNoteEditorPageState extends State<StudyNoteEditorPage> {
       ),
     );
   }
-
-  }
-
+}

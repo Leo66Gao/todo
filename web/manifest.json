@@ -6,7 +6,6 @@
     "background_color": "#F5F5F7",
     "theme_color": "#DCE9F5",
     "description": "Personal study workspace — tasks, assignments, milestones, subjects and notes, synced across your devices.",
-    "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
         {

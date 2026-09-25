@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import '../models/task.dart';
 import '../state/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/note_content.dart';
+import '../utils/record_size.dart';
 import '../widgets/quill_theme.dart';
 
 /// Notes editor for tasks and assignments — the same WYSIWYG experience as
@@ -63,7 +63,9 @@ class _TaskNotesEditorState extends State<_TaskNotesEditor> {
   }
 
   void _save() {
-    if (utf8.encode(documentToContent(_quill.document)).length > 650 * 1024) {
+    final content = documentToContent(documentWithAutoLinks(_quill.document));
+    final updatedRecord = {...widget.task.toJson(), 'notes': content};
+    if (!recordFitsCloud(updatedRecord)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content:
@@ -72,12 +74,7 @@ class _TaskNotesEditorState extends State<_TaskNotesEditor> {
       );
       return;
     }
-    context
-        .read<TaskProvider>()
-        .updateTaskNotes(
-            widget.task.id,
-            documentToContent(
-                documentWithAutoLinks(_quill.document)));
+    context.read<TaskProvider>().updateTaskNotes(widget.task.id, content);
     setState(() {
       _dirty = false;
       _allowPop = true;

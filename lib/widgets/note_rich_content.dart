@@ -44,7 +44,7 @@ class NoteRichContent extends StatelessWidget {
     return MarkdownBody(
       data: content,
       onTapLink: (_, href, __) async {
-        final uri = Uri.tryParse(href ?? '');
+        final uri = safeNoteLink(href);
         if (uri != null) await launchUrl(uri);
       },
       styleSheet: MarkdownStyleSheet(

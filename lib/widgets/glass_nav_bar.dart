@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_theme.dart';
 import 'glass_rim_painter.dart';
 import 'liquid_glass.dart';
 
@@ -91,8 +92,7 @@ class _GlassNavBarState extends State<GlassNavBar> {
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.55),
-                          borderRadius:
-                              BorderRadius.circular(_height / 2 - 6),
+                          borderRadius: BorderRadius.circular(_height / 2 - 6),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.08),
@@ -105,8 +105,8 @@ class _GlassNavBarState extends State<GlassNavBar> {
                       // the selection bubble carries the same edge light as
                       // the buttons: rim fade at BL/TR + dew glints
                       CustomPaint(
-                        painter: GlassEdgePainter(
-                            radius: _height / 2 - 6, dew: 0.8),
+                        painter:
+                            GlassEdgePainter(radius: _height / 2 - 6, dew: 0.8),
                       ),
                     ],
                   ),
@@ -116,8 +116,8 @@ class _GlassNavBarState extends State<GlassNavBar> {
                 //      so every icon sits exactly at its pill's center ----
                 Positioned.fill(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: _innerPadding),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: _innerPadding),
                     child: Row(
                       children: List.generate(GlassNavBar._items.length, (i) {
                         final (icon, label) = GlassNavBar._items[i];
@@ -133,8 +133,7 @@ class _GlassNavBarState extends State<GlassNavBar> {
                               onTap: () => _select(i),
                               child: Center(
                                 child: AnimatedScale(
-                                  duration:
-                                      const Duration(milliseconds: 200),
+                                  duration: const Duration(milliseconds: 200),
                                   curve: Curves.easeOutCubic,
                                   scale: selected ? 1.0 : 0.94,
                                   child: Icon(
@@ -142,7 +141,7 @@ class _GlassNavBarState extends State<GlassNavBar> {
                                     size: 22,
                                     color: selected
                                         ? Colors.black
-                                        : Colors.black38,
+                                        : context.ink.withValues(alpha: 0.7),
                                   ),
                                 ),
                               ),
@@ -364,8 +363,7 @@ class GlassSideRail extends StatelessWidget {
                             Icon(
                               icon,
                               size: 21,
-                              color:
-                                  selected ? Colors.black : Colors.black45,
+                              color: selected ? Colors.black : Colors.black45,
                             ),
                             const SizedBox(height: 4),
                             AnimatedDefaultTextStyle(
@@ -373,9 +371,7 @@ class GlassSideRail extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w600,
-                                color: selected
-                                    ? Colors.black
-                                    : Colors.black45,
+                                color: selected ? Colors.black : Colors.black45,
                               ),
                               child: Text(label, maxLines: 1),
                             ),

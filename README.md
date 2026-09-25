@@ -14,6 +14,9 @@ Use a port listed in your Google OAuth authorized JavaScript origins when
 testing Calendar sign-in. On macOS, AirPlay Receiver may occupy port 5000, so
 the example uses 5001.
 
+For a deployable web build, run `flutter build web --release`. Flutter creates
+`build/` and `.dart_tool/` as local build output; they can be regenerated.
+
 ## Sync across devices
 
 Sign in with Google (Settings → ACCOUNT) on each device with the **same

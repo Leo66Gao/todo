@@ -133,15 +133,15 @@ class NoteViewPage extends StatelessWidget {
                               color: context.inkSoft)),
                     ),
                   if (folder != null)
-                    _metaItem(Icon(Icons.folder_outlined,
-                        size: 14, color: context.inkFaint),
+                    _metaItem(
+                        Icon(Icons.folder_outlined,
+                            size: 14, color: context.inkFaint),
                         Text(folder.name,
                             style: TextStyle(
                                 fontSize: 12.5, color: context.inkSoft))),
                   Text(
                     'Updated ${DateFormat('MMM d').format(note.updatedAt)}',
-                    style:
-                        TextStyle(fontSize: 12.5, color: context.inkSoft),
+                    style: TextStyle(fontSize: 12.5, color: context.inkSoft),
                   ),
                 ],
               ),
@@ -159,7 +159,7 @@ class NoteViewPage extends StatelessWidget {
                 MarkdownBody(
                   data: note.content,
                   onTapLink: (_, href, __) async {
-                    final uri = Uri.tryParse(href ?? '');
+                    final uri = safeNoteLink(href);
                     if (uri != null) await launchUrl(uri);
                   },
                   styleSheet: MarkdownStyleSheet(
@@ -177,8 +177,7 @@ class NoteViewPage extends StatelessWidget {
                     blockquoteDecoration: BoxDecoration(
                       color: context.fillSoft,
                       borderRadius: BorderRadius.circular(8),
-                      border:
-                          const Border(left: BorderSide(width: 4)),
+                      border: const Border(left: BorderSide(width: 4)),
                     ),
                   ),
                 )

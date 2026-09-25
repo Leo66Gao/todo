@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
 import 'glass_rim_painter.dart';
 import 'liquid_glass.dart';
 
@@ -65,14 +66,14 @@ class GlassPillButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 24, color: Colors.black),
+              Icon(icon, size: 24, color: context.ink),
               const SizedBox(width: 10),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black,
+                  color: context.ink,
                 ),
               ),
             ],

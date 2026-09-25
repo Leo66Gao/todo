@@ -42,14 +42,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Rebuild only when the appearance setting actually changes.
-    final themeMode = context.select<TaskProvider, ThemeMode>((p) =>
-        switch (p.workspaceSettings.themeMode) {
-          'light' => ThemeMode.light,
-          'dark' => ThemeMode.dark,
-          _ => ThemeMode.system,
-        });
+    final themeMode = context.select<TaskProvider, ThemeMode>(
+        (p) => switch (p.workspaceSettings.themeMode) {
+              'light' => ThemeMode.light,
+              'dark' => ThemeMode.dark,
+              _ => ThemeMode.system,
+            });
     return MaterialApp(
-      title: 'Minimal ToDo',
+      title: 'Todo — Study Workspace',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       darkTheme: buildAppDarkTheme(),

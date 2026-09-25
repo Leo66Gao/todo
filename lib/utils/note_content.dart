@@ -21,9 +21,8 @@ Document documentFromContent(String content) {
   if (isQuillDelta(content)) {
     try {
       final decoded = jsonDecode(content);
-      final ops = decoded is List
-          ? decoded
-          : (decoded['ops'] as List?) ?? const [];
+      final ops =
+          decoded is List ? decoded : (decoded['ops'] as List?) ?? const [];
       return Document.fromJson(ops);
     } catch (_) {
       // fall through to plain text
@@ -34,6 +33,19 @@ Document documentFromContent(String content) {
 
 String documentToContent(Document document) =>
     jsonEncode(document.toDelta().toJson());
+
+/// Stored Markdown may come from an older device. Only launch ordinary web
+/// and email links; URI schemes such as javascript: must stay inert.
+Uri? safeNoteLink(String? href) {
+  if (href == null) return null;
+  final uri = Uri.tryParse(href);
+  if (uri == null) return null;
+  if ((uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty) {
+    return uri;
+  }
+  if (uri.scheme == 'mailto' && uri.path.isNotEmpty) return uri;
+  return null;
+}
 
 final RegExp _bareUrlRegExp = RegExp(
   r'(https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?)',
@@ -63,13 +75,13 @@ Document documentWithAutoLinks(Document document) {
     var cursor = 0;
     for (final match in matches) {
       if (match.start > cursor) {
-        result.add({...op.toJson(), 'insert': text.substring(cursor, match.start)});
+        result.add(
+            {...op.toJson(), 'insert': text.substring(cursor, match.start)});
       }
       final url = match.group(0)!;
-      final href =
-          url.startsWith('http://') || url.startsWith('https://')
-              ? url
-              : 'https://$url';
+      final href = url.startsWith('http://') || url.startsWith('https://')
+          ? url
+          : 'https://$url';
       final attrs = <String, dynamic>{...?op.attributes, 'link': href};
       result.add({'insert': url, 'attributes': attrs});
       cursor = match.end;
@@ -91,7 +103,8 @@ String notePlainText(String content) {
   }
   try {
     final decoded = jsonDecode(content);
-    final ops = decoded is List ? decoded : (decoded['ops'] as List?) ?? const [];
+    final ops =
+        decoded is List ? decoded : (decoded['ops'] as List?) ?? const [];
     final buffer = StringBuffer();
     for (final op in ops) {
       if (op is Map && op['insert'] is String) {

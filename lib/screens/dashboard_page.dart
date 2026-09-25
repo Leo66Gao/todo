@@ -167,6 +167,7 @@ class DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Settings',
                       icon: Icon(Icons.settings_outlined, color: context.ink),
                       onPressed: () {
                         Navigator.push(context,

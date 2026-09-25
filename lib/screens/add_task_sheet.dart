@@ -368,6 +368,7 @@ void showAddTaskDialog(BuildContext context,
                               fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                         IconButton(
+                            tooltip: 'Close task editor',
                             padding: EdgeInsets.zero,
                             constraints: BoxConstraints(),
                             onPressed: () => Navigator.pop(context),
