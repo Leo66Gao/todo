@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:todo_app/models/task.dart';
 import 'package:todo_app/services/cloud_sync_service.dart';
 
 void main() {
@@ -72,6 +73,91 @@ void main() {
     expect(
         (await db.doc('users/alice/records/task:a').get()).data()!['deleted'],
         true);
+  });
+  test('concurrent edits keep the server record and a visible local copy',
+      () async {
+    final db = FakeFirebaseFirestore();
+    String task(String title) => jsonEncode({
+          'id': 'a',
+          'title': title,
+          'date': '2026-08-10T00:00:00.000',
+          'googleEventId': 'original-event',
+        });
+    final base = task('Base');
+    final local = task('Local edit');
+    final remote = task('Remote edit');
+    await db.doc('users/alice/records/task:a').set({
+      'kind': 'task',
+      'payload': remote,
+      'deleted': false,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        'cloud.alice',
+        jsonEncode({
+          'records': {'task:a': local},
+          'pending': {'task:a': local},
+          'bases': {'task:a': base},
+          'pendingIds': {'task:a': 'conflict-copy-id'},
+          'lastSync': DateTime.now()
+              .subtract(const Duration(days: 1))
+              .millisecondsSinceEpoch,
+        }));
+    final sync = CloudSyncService(db);
+    addTearDown(sync.disconnect);
+    Map<String, String> view = {};
+    sync.onRecords = (records) => view = records;
+    await sync.connect('alice');
+    await settle();
+
+    expect((await db.doc('users/alice/records/task:a').get()).data()!['payload'],
+        remote);
+    final copy = (await db.doc('users/alice/records/task:conflict-copy-id').get())
+        .data()!['payload'] as String;
+    final decoded = jsonDecode(copy) as Map<String, dynamic>;
+    expect(decoded['id'], 'conflict-copy-id');
+    expect(decoded['title'], 'Local edit (conflict copy)');
+    expect(decoded['googleEventId'], isNull);
+    expect(decoded['isConflictCopy'], true);
+    expect(Task.fromJson(decoded).isConflictCopy, true);
+    expect(view.keys, containsAll(['task:a', 'task:conflict-copy-id']));
+    expect(jsonDecode(view['task:a']!)['title'], 'Remote edit');
+  });
+
+  test('a repeated conflict replay reuses its existing copy', () async {
+    final db = FakeFirebaseFirestore();
+    await db.doc('users/alice/records/settings:tags').set({
+      'kind': 'settings',
+      'payload': '["Remote"]',
+      'deleted': false,
+    });
+    final pending = jsonEncode({
+      'records': {'settings:tags': '["Local"]'},
+      'pending': {'settings:tags': '["Local"]'},
+      'bases': {'settings:tags': '["Base"]'},
+      'pendingIds': {'settings:tags': 'same-operation'},
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cloud.alice', pending);
+    final first = CloudSyncService(db);
+    await first.connect('alice');
+    await settle();
+    await first.disconnect();
+
+    await prefs.setString('cloud.alice', pending);
+    final replay = CloudSyncService(db);
+    addTearDown(replay.disconnect);
+    await replay.connect('alice');
+    await settle();
+
+    final docs = await db.collection('users/alice/records').get();
+    expect(docs.docs.length, 2);
+    expect((await db.doc('users/alice/records/settings:tags').get())
+        .data()!['payload'], '["Remote"]');
+    final note = (await db.doc('users/alice/records/note:same-operation').get())
+        .data()!['payload'] as String;
+    expect(jsonDecode(note)['content'], contains('["Local"]'));
   });
   test(
       'migration is idempotent and preserves existing cloud edits and deletions',

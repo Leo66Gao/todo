@@ -286,7 +286,8 @@ class TaskProvider extends ChangeNotifier {
       _calendarEnabled = true;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('calendar.enabled.${user.uid}', true);
-      for (final task in _tasks.where((task) => !task.isDone)) {
+      for (final task in _tasks.where(
+          (task) => !task.isDone && !task.isConflictCopy)) {
         await _storeCalendarAction(user.uid, _upsertAction(user.uid, task));
       }
       _startCalendarRetry();
@@ -338,7 +339,8 @@ class TaskProvider extends ChangeNotifier {
       _calendarOwnerUid = user.uid;
       _calendarEnabled = true;
       await prefs.setBool('calendar.enabled.${user.uid}', true);
-      for (final task in _tasks.where((task) => !task.isDone)) {
+      for (final task in _tasks.where(
+          (task) => !task.isDone && !task.isConflictCopy)) {
         await _storeCalendarAction(user.uid, _upsertAction(user.uid, task));
       }
       _startCalendarRetry();
@@ -575,7 +577,7 @@ class TaskProvider extends ChangeNotifier {
             unawaited(saveData());
           }
           await _enqueueCalendarDeletion(user.uid, task);
-        } else if (!task.isDone) {
+        } else if (!task.isDone && !task.isConflictCopy) {
           await _storeCalendarAction(user.uid, _upsertAction(user.uid, task));
         }
       }
@@ -626,7 +628,9 @@ class TaskProvider extends ChangeNotifier {
 
   Future<void> syncTaskToCalendar(Task task) async {
     final uid = _currentUser?.uid;
-    if (uid == null || !_calendarEnabled || task.isDone) return;
+    if (uid == null || !_calendarEnabled || task.isDone || task.isConflictCopy) {
+      return;
+    }
     final action = _upsertAction(uid, task);
     _calendarOutbox[calendarActionKey(action)] = action;
     await _persistCalendarOutbox(uid);
@@ -801,8 +805,9 @@ class TaskProvider extends ChangeNotifier {
           }
           unawaited(removeTaskFromCalendar(task));
         }
-      } else if (old == null ||
-          jsonEncode(old.toJson()) != jsonEncode(task.toJson())) {
+      } else if (!task.isConflictCopy &&
+          (old == null ||
+              jsonEncode(old.toJson()) != jsonEncode(task.toJson()))) {
         unawaited(syncTaskToCalendar(task));
       }
     }

@@ -20,6 +20,11 @@ notes, folders and task-form preferences — is stored per-account in Firestore
 are queued and replayed when the connection returns; deletions win over
 stale edits.
 
+If two devices edit the same saved item while apart, sync keeps the newer
+cloud item and saves the other version as a visible “conflict copy” for review.
+Conflicting workspace preferences are preserved in a note. Deletions still
+take precedence over stale edits.
+
 Data created before the first sign-in is offered for import automatically the
 first time an account signs in on that device.
 

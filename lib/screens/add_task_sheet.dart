@@ -482,6 +482,7 @@ void showAddTaskDialog(BuildContext context,
                                 googleEventId: existingTask.googleEventId,
                                 calendarEventRevision:
                                     existingTask.calendarEventRevision,
+                                isConflictCopy: existingTask.isConflictCopy,
                               );
 
                               var domino = false;

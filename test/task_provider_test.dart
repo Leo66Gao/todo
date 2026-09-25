@@ -251,6 +251,31 @@ void main() {
     });
   }
 
+  test('a sync conflict copy does not export a second Calendar event',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    var requests = 0;
+    final calendar = GoogleCalendarService.forTesting(MockClient((_) async {
+      requests++;
+      return http.Response('{}', 200,
+          headers: {'content-type': 'application/json'});
+    }), email: 'alice@example.com');
+    final provider = TaskProvider(calendarService: calendar);
+    addTearDown(provider.dispose);
+    await provider.ready;
+    provider.connectCalendarForTesting(_TestUser());
+
+    provider.addTask(Task(
+        id: 'copy',
+        title: 'Study (conflict copy)',
+        date: DateTime(2026, 8, 10),
+        isConflictCopy: true));
+    await flush();
+    await flush();
+
+    expect(requests, 0);
+  });
+
   test('updateTask replaces the task in place', () async {
     final provider = await makeProvider();
     await flush();

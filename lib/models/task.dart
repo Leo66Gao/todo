@@ -23,6 +23,7 @@ class Task {
   int remainingMinutes;
   String? googleEventId;
   int calendarEventRevision;
+  bool isConflictCopy;
   List<SubTask> subtasks;
 
   Task({
@@ -43,6 +44,7 @@ class Task {
     this.subtasks = const [],
     this.googleEventId,
     this.calendarEventRevision = 0,
+    this.isConflictCopy = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -63,6 +65,7 @@ class Task {
         'subtasks': subtasks.map((s) => s.toJson()).toList(),
         'googleEventId': googleEventId,
         'calendarEventRevision': calendarEventRevision,
+        'isConflictCopy': isConflictCopy,
       };
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -92,6 +95,7 @@ class Task {
       subtasks: loadedSubtasks,
       googleEventId: json['googleEventId'],
       calendarEventRevision: json['calendarEventRevision'] ?? 0,
+      isConflictCopy: json['isConflictCopy'] ?? false,
     );
   }
 }

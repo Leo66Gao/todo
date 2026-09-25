@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 /// One document per entity. Tombstones prevent stale offline devices from
 /// resurrecting deleted records. The durable outbox is isolated by Firebase UID.
@@ -15,6 +16,8 @@ class CloudSyncService {
   String? _uid;
   Map<String, String> _records = {};
   Map<String, String?> _pending = {};
+  Map<String, String?> _bases = {};
+  Map<String, String> _pendingIds = {};
   int? _lastSyncMillis;
   bool _flushing = false;
   bool _serverSeen = false;
@@ -38,6 +41,12 @@ class CloudSyncService {
         final data = jsonDecode(saved) as Map<String, dynamic>;
         _records = Map<String, String>.from(data['records'] as Map);
         _pending = Map<String, String?>.from(data['pending'] as Map);
+        _bases = data['bases'] is Map
+            ? Map<String, String?>.from(data['bases'] as Map)
+            : {};
+        _pendingIds = data['pendingIds'] is Map
+            ? Map<String, String>.from(data['pendingIds'] as Map)
+            : {};
         _lastSyncMillis = data['lastSync'] as int?;
       } catch (error) {
         // Preserve corrupt data for recovery; don't turn a parse failure into
@@ -45,10 +54,20 @@ class CloudSyncService {
         await prefs.setString('cloud.$uid.recovery', saved);
         _records = {};
         _pending = {};
+        _bases = {};
+        _pendingIds = {};
         _lastSyncMillis = null;
         onStatus?.call(
             'Recovering from cloud', 'A damaged device cache was backed up.');
       }
+    }
+    // Older caches have pending writes without operation IDs. Give them stable
+    // IDs before replay so a retry cannot create multiple conflict copies.
+    if (_pending.keys.any((key) => !_pendingIds.containsKey(key))) {
+      for (final key in _pending.keys) {
+        _pendingIds.putIfAbsent(key, () => const Uuid().v4());
+      }
+      await _persist();
     }
     _listen(generation);
     _retry =
@@ -135,6 +154,8 @@ class CloudSyncService {
     final encoded = jsonEncode({
       'records': _records,
       'pending': _pending,
+      'bases': _bases,
+      'pendingIds': _pendingIds,
       if (_lastSyncMillis != null) 'lastSync': _lastSyncMillis,
     });
     _disk = _disk.catchError((Object _) {}).then((_) async {
@@ -149,7 +170,10 @@ class CloudSyncService {
     if (changes.isEmpty) return;
     final generation = _generation;
     for (final entry in changes.entries) {
+      if (!_pending.containsKey(entry.key))
+        _bases[entry.key] = _records[entry.key];
       _pending[entry.key] = entry.value;
+      _pendingIds[entry.key] = const Uuid().v4();
       if (entry.value == null) {
         _records.remove(entry.key);
       } else {
@@ -168,6 +192,52 @@ class CloudSyncService {
         'deleted': payload == null,
         'updatedAt': FieldValue.serverTimestamp(),
       };
+
+  /// A conflicting local edit becomes a visible copy. Settings (which have a
+  /// fixed record ID) and unreadable payloads become notes containing the raw
+  /// local value so they can still be recovered by the user.
+  MapEntry<String, String>? _conflictCopy(
+      String key, String payload, String copyId) {
+    final kind = key.split(':').first;
+    try {
+      if (kind != 'settings') {
+        final value = Map<String, dynamic>.from(jsonDecode(payload) as Map);
+        value['id'] = copyId;
+        final nameKey = kind == 'folder' ? 'name' : 'title';
+        value[nameKey] = '${value[nameKey] ?? 'Untitled'} (conflict copy)';
+        if (kind == 'task') {
+          value['googleEventId'] = null;
+          value['calendarEventRevision'] = 0;
+          value['isConflictCopy'] = true;
+        }
+        final encoded = jsonEncode(value);
+        if (encoded.length <= 690000 && utf8.encode(encoded).length <= 900000) {
+          return MapEntry('$kind:$copyId', encoded);
+        }
+      }
+    } catch (_) {
+      // A malformed record can still be preserved in a readable note.
+    }
+    final now = DateTime.now().toIso8601String();
+    final note = jsonEncode({
+      'id': copyId,
+      'title': 'Sync conflict: $key',
+      'content': 'Local version of $key:\n\n$payload',
+      'createdAt': now,
+      'updatedAt': now,
+    });
+    if (note.length <= 690000 && utf8.encode(note).length <= 900000) {
+      return MapEntry('note:$copyId', note);
+    }
+    return null;
+  }
+
+  Future<void> _archiveOversizedConflict(
+      String uid, String operationId, String key, String payload) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cloud.$uid.conflict.$operationId',
+        jsonEncode({'key': key, 'payload': payload}));
+  }
 
   /// Import only missing documents. Existing records AND tombstones win;
   /// interrupted imports can be retried without duplicating or resurrecting data.
@@ -195,8 +265,14 @@ class CloudSyncService {
     try {
       while (_pending.isNotEmpty && generation == _generation) {
         final entries = _pending.entries.take(50).toList();
-        final deletedRemotely =
-            await database.runTransaction((transaction) async {
+        final operationIds = {
+          for (final entry in entries) entry.key: _pendingIds[entry.key]!
+        };
+        final bases = <String, String?>{
+          for (final entry in entries)
+            if (_bases.containsKey(entry.key)) entry.key: _bases[entry.key]
+        };
+        final outcome = await database.runTransaction((transaction) async {
           // Read all documents before writes. Deletion wins over any offline
           // edit to the same ID; recreating a task requires a fresh ID.
           final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
@@ -205,28 +281,119 @@ class CloudSyncService {
                 await transaction.get(collection.doc(entry.key));
           }
           final tombstones = <String>{};
+          final conflicts = <String, String>{};
+          final copies = <String, MapEntry<String, String>>{};
+          final oversized = <String>{};
           for (final entry in entries) {
-            if (snapshots[entry.key]!.data()?['deleted'] == true) {
+            final remote = snapshots[entry.key]!;
+            if (remote.data()?['deleted'] == true) {
               tombstones.add(entry.key);
-            } else {
-              transaction.set(
-                  collection.doc(entry.key), _document(entry.key, entry.value));
+              continue;
+            }
+            if (entry.value == null || !remote.exists) continue;
+            final remotePayload = remote.data()?['payload'] as String?;
+            if (remotePayload == entry.value) continue;
+            final baseKnown = bases.containsKey(entry.key);
+            if (baseKnown && remotePayload == bases[entry.key]) continue;
+            conflicts[entry.key] = remotePayload ?? '';
+          }
+          final candidates = <String, MapEntry<String, String>?>{
+            for (final entry in entries)
+              if (conflicts.containsKey(entry.key))
+                entry.key: _conflictCopy(
+                    entry.key, entry.value!, operationIds[entry.key]!)
+          };
+          // Read prospective copy documents before making any writes. Existing
+          // copies are kept when a transaction is retried after an ack failure.
+          final copySnapshots =
+              <String, DocumentSnapshot<Map<String, dynamic>>>{};
+          for (final key in conflicts.keys) {
+            final copy = candidates[key];
+            if (copy != null) {
+              copySnapshots[key] =
+                  await transaction.get(collection.doc(copy.key));
             }
           }
-          return tombstones;
+          for (final entry in entries) {
+            if (tombstones.contains(entry.key)) continue;
+            if (conflicts.containsKey(entry.key)) {
+              final copy = candidates[entry.key];
+              if (copy == null) {
+                oversized.add(entry.key);
+              } else {
+                final existing = copySnapshots[entry.key]!;
+                if (!existing.exists) {
+                  transaction.set(collection.doc(copy.key),
+                      _document(copy.key, copy.value));
+                }
+                copies[entry.key] = MapEntry(copy.key,
+                    existing.data()?['payload'] as String? ?? copy.value);
+              }
+            } else if (snapshots[entry.key]!.data()?['payload'] !=
+                    entry.value ||
+                !snapshots[entry.key]!.exists) {
+              transaction.set(
+                  collection.doc(entry.key), _document(entry.key, entry.value));
+            } else {
+              // This exact write already reached the server before an earlier
+              // attempt lost its acknowledgement.
+            }
+          }
+          return (
+            tombstones: tombstones,
+            conflicts: conflicts,
+            copies: copies,
+            oversized: oversized
+          );
         });
         if (generation != _generation) return;
+        for (final key in outcome.oversized) {
+          final entry = entries.firstWhere((entry) => entry.key == key);
+          await _archiveOversizedConflict(
+              _uid!, operationIds[key]!, key, entry.value!);
+        }
+        var recordsChanged = false;
         for (final entry in entries) {
-          if (deletedRemotely.contains(entry.key)) {
+          final sameOperation =
+              _pendingIds[entry.key] == operationIds[entry.key];
+          if (outcome.tombstones.contains(entry.key)) {
             _pending.remove(entry.key);
+            _bases.remove(entry.key);
+            _pendingIds.remove(entry.key);
             _records.remove(entry.key);
-          } else if (_pending.containsKey(entry.key) &&
-              _pending[entry.key] == entry.value) {
+            recordsChanged = true;
+          } else if (outcome.conflicts.containsKey(entry.key)) {
+            final copy = outcome.copies[entry.key];
+            if (copy != null) {
+              _records[copy.key] = copy.value;
+              recordsChanged = true;
+            }
+            if (sameOperation) {
+              _records[entry.key] = outcome.conflicts[entry.key]!;
+              _pending.remove(entry.key);
+              _bases.remove(entry.key);
+              _pendingIds.remove(entry.key);
+              recordsChanged = true;
+            }
+          } else if (sameOperation) {
             _pending.remove(entry.key);
+            _bases.remove(entry.key);
+            _pendingIds.remove(entry.key);
+          } else {
+            // Another local edit arrived while the transaction was running.
+            // Its base is the value just written by this transaction.
+            _bases[entry.key] = entry.value;
           }
         }
-        if (deletedRemotely.isNotEmpty) onRecords?.call(Map.of(_records));
+        if (recordsChanged) onRecords?.call(Map.of(_records));
         await _persist();
+        if (outcome.conflicts.isNotEmpty) {
+          onStatus?.call(
+              'Sync conflicts saved as copies',
+              outcome.oversized.isEmpty
+                  ? null
+                  : 'An oversized local version was backed up on this device.');
+        }
       }
       if (generation == _generation) {
         // A remote edit can arrive while this ID is protected by the outbox.
@@ -310,6 +477,8 @@ class CloudSyncService {
     _uid = null;
     _records = {};
     _pending = {};
+    _bases = {};
+    _pendingIds = {};
     _lastSyncMillis = null;
     _flushing = false;
     _serverSeen = false;
