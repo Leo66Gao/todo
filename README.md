@@ -3,23 +3,42 @@
 A personal study workspace — tasks, assignments, milestones, subjects and
 notes — with cross-device sync.
 
-## Run
+## Web app
+
+The web app lives in `webapp/` (Next.js, React, TypeScript, Tailwind CSS and
+Motion). It reads and writes the same Firebase records as the Flutter app, so
+both stay in sync.
+
+```sh
+cd webapp
+cp .env.example .env.local   # then fill in the Firebase web config
+npm install
+npm run dev -- --port 3100
+```
+
+`npm test` runs the unit tests (record encoding, dates, time entry, note
+text). `npm run build` writes a static site to `webapp/out/`, which Firebase
+Hosting serves (`firebase deploy --only hosting`). `.env.local` holds the
+Firebase web config and stays out of Git.
+
+Use a port listed in your Google OAuth authorized JavaScript origins when
+testing sign-in and Google Calendar. On macOS, AirPlay Receiver may occupy port
+5000.
+
+## Mobile app
 
 ```sh
 flutter pub get
-flutter run -d chrome --web-port=5001
+flutter run
 ```
 
-Use a port listed in your Google OAuth authorized JavaScript origins when
-testing Calendar sign-in. On macOS, AirPlay Receiver may occupy port 5000, so
-the example uses 5001.
-
-For a deployable web build, run `flutter build web --release`. Flutter creates
-`build/` and `.dart_tool/` as local build output; they can be regenerated.
+Flutter creates `build/` and `.dart_tool/` as local build output; they can be
+regenerated. The Flutter web build is no longer deployed; `webapp/` replaces
+it.
 
 ## Sync across devices
 
-Sign in with Google (Settings → ACCOUNT) on each device with the **same
+Sign in with Google (Settings → Account) on each device with the **same
 account**. Everything — tasks, assignments, subtasks/milestones, subjects,
 notes, folders and task-form preferences — is stored per-account in Firestore
 (`todo-sync` database) and streams to every signed-in device. Offline edits
