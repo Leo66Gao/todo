@@ -188,6 +188,62 @@ void main() {
         (await db.doc('users/alice/records/task:b').get()).data()!['deleted'],
         true);
   });
+  test('large migration keeps existing records across transaction chunks',
+      () async {
+    final db = FakeFirebaseFirestore();
+    await db.doc('users/alice/records/task:60').set({
+      'kind': 'task',
+      'payload': 'cloud version',
+      'deleted': false,
+    });
+    await db.doc('users/alice/records/task:61').set({
+      'kind': 'task',
+      'payload': '',
+      'deleted': true,
+    });
+    final sync = CloudSyncService(db);
+    addTearDown(sync.disconnect);
+    await sync.connect('alice');
+    await sync.importMissing({
+      for (var i = 0; i < 120; i++) 'task:$i': 'local $i',
+    });
+
+    final docs = await db.collection('users/alice/records').get();
+    expect(docs.docs.length, 120);
+    expect(
+        (await db.doc('users/alice/records/task:60').get()).data()!['payload'],
+        'cloud version');
+    expect(
+        (await db.doc('users/alice/records/task:61').get()).data()!['deleted'],
+        true);
+  });
+
+  test('timestamp-only snapshots do not rebuild the workspace', () async {
+    final db = FakeFirebaseFirestore();
+    final ref = db.doc('users/alice/records/task:a');
+    final initialTimestamp = DateTime.utc(2024);
+    final updatedTimestamp = initialTimestamp.add(const Duration(minutes: 1));
+    await ref.set({
+      'kind': 'task',
+      'payload': 'same content',
+      'deleted': false,
+      'updatedAt': Timestamp.fromDate(initialTimestamp),
+    });
+    final sync = CloudSyncService(db);
+    addTearDown(sync.disconnect);
+    var callbacks = 0;
+    sync.onRecords = (_) => callbacks++;
+    await sync.connect('alice');
+    await settle();
+    final initialCallbacks = callbacks;
+
+    await ref.update({'updatedAt': Timestamp.fromDate(updatedTimestamp)});
+    await settle();
+
+    expect(initialCallbacks, greaterThan(0));
+    expect(callbacks, initialCallbacks);
+    expect(sync.lastSyncMillis, updatedTimestamp.millisecondsSinceEpoch);
+  });
   test('persisted outbox replays only into its original account', () async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(

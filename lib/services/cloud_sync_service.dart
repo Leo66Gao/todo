@@ -20,7 +20,6 @@ class CloudSyncService {
   Map<String, String> _pendingIds = {};
   int? _lastSyncMillis;
   bool _flushing = false;
-  bool _serverSeen = false;
   int _generation = 0;
   Future<void> _disk = Future.value();
   void Function(Map<String, String>)? onRecords;
@@ -85,6 +84,9 @@ class CloudSyncService {
   void _listen(int generation) {
     _subscription?.cancel();
     final isFullSync = _lastSyncMillis == null || _records.isEmpty;
+    var checkedFullServerSnapshot = false;
+    var deliveredInitialRecords = false;
+    String? lastStatus;
     Query<Map<String, dynamic>> query = _collection;
     if (!isFullSync) {
       final overlapMs = _lastSyncMillis! > 5000 ? _lastSyncMillis! - 5000 : 0;
@@ -95,17 +97,29 @@ class CloudSyncService {
     _subscription =
         query.snapshots(includeMetadataChanges: true).listen((snapshot) {
       if (generation != _generation) return;
-      _serverSeen = !snapshot.metadata.isFromCache;
-      if (isFullSync && _serverSeen) {
+      var recordsChanged = false;
+      if (isFullSync &&
+          !snapshot.metadata.isFromCache &&
+          !checkedFullServerSnapshot) {
+        checkedFullServerSnapshot = true;
         final ids = snapshot.docs.map((doc) => doc.id).toSet();
+        final oldCount = _records.length;
         _records.removeWhere(
             (id, _) => !ids.contains(id) && !_pending.containsKey(id));
+        recordsChanged = _records.length != oldCount;
       }
       int? maxUpdated;
-      for (final doc in snapshot.docs) {
+      for (final change in snapshot.docChanges) {
+        final doc = change.doc;
         final id = doc.id;
+        if (change.type == DocumentChangeType.removed) {
+          if (isFullSync && !_pending.containsKey(id)) {
+            recordsChanged = _records.remove(id) != null || recordsChanged;
+          }
+          continue;
+        }
         final data = doc.data();
-        final ts = data['updatedAt'];
+        final ts = data?['updatedAt'];
         if (ts is Timestamp) {
           final ms = ts.millisecondsSinceEpoch;
           if (maxUpdated == null || ms > maxUpdated) maxUpdated = ms;
@@ -114,30 +128,43 @@ class CloudSyncService {
           if (maxUpdated == null || ms > maxUpdated) maxUpdated = ms;
         }
         if (_pending.containsKey(id)) continue;
-        if (data['deleted'] == true) {
-          _records.remove(id);
+        if (data?['deleted'] == true) {
+          recordsChanged = _records.remove(id) != null || recordsChanged;
         } else {
-          if (data['payload'] is String) {
-            _records[id] = data['payload'] as String;
+          if (data?['payload'] is String) {
+            final payload = data!['payload'] as String;
+            if (_records[id] != payload) {
+              _records[id] = payload;
+              recordsChanged = true;
+            }
           }
         }
       }
+      var watermarkChanged = false;
       if (maxUpdated != null && (maxUpdated > (_lastSyncMillis ?? 0))) {
         _lastSyncMillis = maxUpdated;
+        watermarkChanged = true;
       }
-      onRecords?.call(Map.of(_records));
-      unawaited(_persist().catchError((Object error) {
-        if (generation == _generation) {
-          onStatus?.call('Device storage needs attention', error.toString());
-        }
-      }));
-      onStatus?.call(
-          _pending.isNotEmpty
-              ? 'Changes waiting to sync'
-              : snapshot.metadata.isFromCache
-                  ? 'Offline · saved on this device'
-                  : 'Synced',
-          null);
+      if (recordsChanged || !deliveredInitialRecords) {
+        deliveredInitialRecords = true;
+        onRecords?.call(Map.of(_records));
+      }
+      if (recordsChanged || watermarkChanged) {
+        unawaited(_persist().catchError((Object error) {
+          if (generation == _generation) {
+            onStatus?.call('Device storage needs attention', error.toString());
+          }
+        }));
+      }
+      final status = _pending.isNotEmpty
+          ? 'Changes waiting to sync'
+          : snapshot.metadata.isFromCache
+              ? 'Offline · saved on this device'
+              : 'Synced';
+      if (status != lastStatus) {
+        lastStatus = status;
+        onStatus?.call(status, null);
+      }
     }, onError: (Object error) {
       if (generation != _generation) return;
       onStatus?.call('Sync needs attention', error.toString());
@@ -244,14 +271,24 @@ class CloudSyncService {
   Future<void> importMissing(Map<String, String> legacy) async {
     final collection = _collection;
     final generation = _generation;
-    for (final entry in legacy.entries) {
-      if (generation != _generation)
+    final entries = legacy.entries.toList();
+    for (var start = 0; start < entries.length; start += 50) {
+      if (generation != _generation) {
         throw StateError('Account changed during import.');
+      }
+      final end = start + 50 < entries.length ? start + 50 : entries.length;
+      final chunk = entries.sublist(start, end);
       await database.runTransaction((transaction) async {
-        final ref = collection.doc(entry.key);
-        final snapshot = await transaction.get(ref);
-        if (!snapshot.exists) {
-          transaction.set(ref, _document(entry.key, entry.value));
+        final existing = <String, bool>{};
+        for (final entry in chunk) {
+          existing[entry.key] =
+              (await transaction.get(collection.doc(entry.key))).exists;
+        }
+        for (final entry in chunk) {
+          if (!existing[entry.key]!) {
+            transaction.set(
+                collection.doc(entry.key), _document(entry.key, entry.value));
+          }
         }
       });
     }
@@ -410,6 +447,7 @@ class CloudSyncService {
         final snapshot =
             await query.get(const GetOptions(source: Source.server));
         if (generation != _generation) return;
+        var recordsChanged = isFull;
         if (isFull) {
           final remote = <String, String>{
             for (final doc in snapshot.docs)
@@ -430,9 +468,13 @@ class CloudSyncService {
             if (_pending.containsKey(doc.id)) continue;
             final data = doc.data();
             if (data['deleted'] == true) {
-              _records.remove(doc.id);
+              recordsChanged = _records.remove(doc.id) != null || recordsChanged;
             } else if (data['payload'] is String) {
-              _records[doc.id] = data['payload'] as String;
+              final payload = data['payload'] as String;
+              if (_records[doc.id] != payload) {
+                _records[doc.id] = payload;
+                recordsChanged = true;
+              }
             }
           }
         }
@@ -447,12 +489,13 @@ class CloudSyncService {
             if (maxUpdated == null || ms > maxUpdated) maxUpdated = ms;
           }
         }
+        var watermarkChanged = false;
         if (maxUpdated != null && (maxUpdated > (_lastSyncMillis ?? 0))) {
           _lastSyncMillis = maxUpdated;
+          watermarkChanged = true;
         }
-        _serverSeen = true;
-        onRecords?.call(Map.of(_records));
-        await _persist();
+        if (recordsChanged) onRecords?.call(Map.of(_records));
+        if (recordsChanged || watermarkChanged) await _persist();
         if (generation == _generation) {
           onStatus?.call(
               _pending.isEmpty ? 'Synced' : 'Changes waiting to sync', null);
@@ -481,6 +524,5 @@ class CloudSyncService {
     _pendingIds = {};
     _lastSyncMillis = null;
     _flushing = false;
-    _serverSeen = false;
   }
 }

@@ -88,8 +88,8 @@ class HomePageState extends State<HomePage> {
       const SubjectsPage(),
     ];
 
-    final provider = context.watch<TaskProvider>();
-    if (provider.isLoading) {
+    final isLoading = context.select<TaskProvider, bool>((p) => p.isLoading);
+    if (isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return LayoutBuilder(builder: (context, constraints) {
