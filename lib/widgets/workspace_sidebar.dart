@@ -122,11 +122,11 @@ class _Wordmark extends StatelessWidget {
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(14),
             child: Image.asset(
               'assets/logo.png',
-              width: 36,
-              height: 36,
+              width: 48,
+              height: 48,
               filterQuality: FilterQuality.high,
             ),
           ),
