@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
 import { Plus, Timer } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
-import type { Task } from "@/lib/model";
+import { hasExplicitDifficulty, type Task } from "@/lib/model";
 import { addDays, daysFromToday, dueLabel, formatDuration, isOverdue, today } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
@@ -197,7 +197,7 @@ function AssignmentRow({ task }: { task: Task }) {
                 </span>
               </span>
             )}
-            {task.difficulty > 1 && <span>Level {task.difficulty}</span>}
+            {hasExplicitDifficulty(task) && <span>Level {task.difficulty}</span>}
           </div>
         </div>
       </div>

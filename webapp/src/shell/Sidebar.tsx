@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { motion } from "motion/react";
 import { useDroppable } from "@dnd-kit/core";
 import {
   BookOpen,
@@ -23,7 +22,6 @@ import { createSubject, subjectMenu } from "@/features/subjects/subjectActions";
 import { useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { IconButton, Kbd } from "@/ui/controls";
-import { springs } from "@/ui/motion";
 import { ContextMenu, Tooltip } from "@/ui/overlay";
 import { useNavigate, useRoute, type Route } from "./nav";
 import { ui } from "./ui";
@@ -216,11 +214,7 @@ function NavItem({
       )}
     >
       {active && (
-        <motion.span
-          layoutId="nav-active"
-          transition={springs.snappy}
-          className="absolute inset-0 rounded-ctl bg-fill-strong/80 dark:bg-fill-strong"
-        />
+        <span className="absolute inset-0 rounded-ctl bg-fill-strong/80 dark:bg-fill-strong" />
       )}
       <span className={cn("relative flex [&>svg]:size-4", active ? "text-ink" : "text-ink-3")}>{icon}</span>
       <span className="relative flex-1 text-left">{label}</span>

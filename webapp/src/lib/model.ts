@@ -53,6 +53,12 @@ export interface Task {
   milestone?: { parentId: string; subtaskId: string };
 }
 
+/** Legacy records use difficulty 1 for an unset field. A selected Level 1
+ * keeps the same numeric value for Flutter compatibility and carries a flag. */
+export function hasExplicitDifficulty(task: Pick<Task, "difficulty" | "extra">): boolean {
+  return task.difficulty > 1 || (task.difficulty === 1 && task.extra?.difficultySelected === true);
+}
+
 export interface Project {
   id: string;
   title: string;

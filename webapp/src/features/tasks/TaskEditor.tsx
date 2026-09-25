@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Clock } from "lucide-react";
 import type { Priority, TaskType } from "@/lib/dart";
-import { isFieldVisible, type FieldId, type Task } from "@/lib/model";
+import { hasExplicitDifficulty, isFieldVisible, type FieldId, type Task } from "@/lib/model";
 import { formatClock, sameDay, startOfDay, today } from "@/lib/time";
 import { clockOf, parseTimeFromTitle, withClock, type ClockTime } from "@/lib/timeParse";
 import { ui, useUI, type EditorState } from "@/shell/ui";
@@ -64,7 +64,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     return (defaults.type ?? "todo") === "assignment" ? 120 : 30;
   });
   const [difficulty, setDifficulty] = useState(existing?.difficulty ?? 1);
-  const [difficultyActive, setDifficultyActive] = useState((existing?.difficulty ?? 1) > 1);
+  const [difficultyActive, setDifficultyActive] = useState(existing ? hasExplicitDifficulty(existing) : false);
   const [priority, setPriority] = useState<Priority>(existing?.priority ?? defaults.priority ?? "none");
   const [projectId, setProjectId] = useState<string | null>(
     existing?.projectId ?? defaults.projectId ?? null,
@@ -92,6 +92,9 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     const finalTitle = parsed.title.trim();
     const finalMinutes = !settings.showDuration && existing ? existing.durationMinutes : minutes;
     const startTime = effectiveTime ? withClock(date, effectiveTime) : null;
+    const extra = { ...(existing?.extra ?? defaults.extra) };
+    if (difficultyActive && difficulty === 1) extra.difficultySelected = true;
+    else delete extra.difficultySelected;
     const fields = {
       title: finalTitle,
       notes,
@@ -103,6 +106,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       projectId,
       durationMinutes: finalMinutes,
       category,
+      extra: Object.keys(extra).length ? extra : undefined,
     };
     if (!existing) {
       addTask(newTask({ ...defaults, ...fields, remainingMinutes: finalMinutes }));

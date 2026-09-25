@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { argbToCss, PRIORITIES, type Priority } from "@/lib/dart";
-import { encodeTask, recordFits, uuid, type Subtask, type Task } from "@/lib/model";
+import { encodeTask, hasExplicitDifficulty, recordFits, uuid, type Subtask, type Task } from "@/lib/model";
 import { dueLabel, formatDuration, relativeDay, startOfDay } from "@/lib/time";
 import { clockOf, withClock } from "@/lib/timeParse";
 import { useNavigate } from "@/shell/nav";
@@ -179,15 +179,28 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
     );
   }
   if (settings.showDifficulty) {
+    const selected = hasExplicitDifficulty(task);
+    const chooseDifficulty = (level: number | null) => {
+      const extra = { ...task.extra };
+      if (level === 1) extra.difficultySelected = true;
+      else delete extra.difficultySelected;
+      patchTask(task.id, {
+        difficulty: level ?? 1,
+        extra: Object.keys(extra).length ? extra : undefined,
+      });
+    };
     properties.push(
       <Property key="difficulty" label="Difficulty">
         <Menu
-          trigger={<ValueButton muted={task.difficulty <= 1}>{task.difficulty > 1 ? `Level ${task.difficulty}` : "None"}</ValueButton>}
-          items={[1, 2, 3, 4, 5].map((level) => ({
-            label: level === 1 ? "None" : `Level ${level}`,
-            checked: task.difficulty === level || (level === 1 && task.difficulty < 1),
-            onSelect: () => patchTask(task.id, { difficulty: level }),
-          }))}
+          trigger={<ValueButton muted={!selected}>{selected ? `Level ${task.difficulty}` : "None"}</ValueButton>}
+          items={[
+            { label: "None", checked: !selected, onSelect: () => chooseDifficulty(null) },
+            ...[1, 2, 3, 4, 5].map((level) => ({
+              label: `Level ${level}`,
+              checked: selected && task.difficulty === level,
+              onSelect: () => chooseDifficulty(level),
+            })),
+          ]}
         />
       </Property>,
     );
@@ -508,7 +521,7 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
             { label: "Same as assignment", checked: sub.difficulty == null, onSelect: () => updateSubtask(task.id, { ...sub, difficulty: null }) },
             { separator: true },
             ...[1, 2, 3, 4, 5].map((level) => ({
-              label: level === 1 ? "None" : `Level ${level}`,
+              label: `Level ${level}`,
               checked: sub.difficulty === level,
               onSelect: () => updateSubtask(task.id, { ...sub, difficulty: level }),
             })),

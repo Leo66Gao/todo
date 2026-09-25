@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -41,7 +42,7 @@ import { IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { AskHost, TooltipProvider } from "@/ui/overlay";
 import { toast, ToastHost } from "@/ui/toast";
-import { useNavigate, useRoute, type Route } from "./nav";
+import { routeHref, useNavigate, useRoute, type Route } from "./nav";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
 
@@ -105,12 +106,19 @@ const collision: CollisionDetection = (args) => {
 function Workspace() {
   const route = useRoute();
   const navigate = useNavigate();
+  const router = useRouter();
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
   const [dragging, setDragging] = useState<Task | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useKeyboard(route, navigate);
+
+  useEffect(() => {
+    for (const view of ["today", "week", "calendar", "assignments", "subjects", "notes", "settings"] as const) {
+      router.prefetch(routeHref({ view }));
+    }
+  }, [router]);
 
   const onDragStart = (e: DragStartEvent) => {
     const data = e.active.data.current as TaskDragData | undefined;
@@ -215,18 +223,12 @@ function Workspace() {
         </AnimatePresence>
 
         <main className="relative flex min-w-0 flex-1 flex-col">
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
+          <div className="flex min-h-0 flex-1 flex-col">
+            <View
               key={route.view === "subject" || route.view === "assignment" || route.view === "note" ? `${route.view}:${route.id}` : route.view}
-              className="flex min-h-0 flex-1 flex-col"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, transition: { duration: 0.08 } }}
-              transition={{ ...springs.panel, opacity: { duration: 0.16 } }}
-            >
-              <View route={route} />
-            </motion.div>
-          </AnimatePresence>
+              route={route}
+            />
+          </div>
         </main>
 
         <InspectorPanel />

@@ -300,7 +300,7 @@ export function DifficultyField({
         step={1}
         value={active ? level : 2}
         dormant={!active}
-        onChange={(v) => onChange(Math.max(2, v))}
+        onChange={onChange}
       />
       <span className="flex w-[62px] shrink-0 items-center justify-end gap-1 text-sm tnum">
         {active ? (

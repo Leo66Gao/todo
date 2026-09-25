@@ -26,7 +26,6 @@ import { useAllTasks } from "@/features/tasks/meta";
 import { createNote } from "@/features/notes/noteActions";
 import { createSubject } from "@/features/subjects/subjectActions";
 import { setThemeMode, useWorkspace } from "@/store/workspace";
-import { cn } from "@/ui/cn";
 import { Kbd } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Modal } from "@/ui/overlay";
@@ -81,19 +80,16 @@ function Palette() {
   const commands = useMemo<Command[]>(() => {
     const q = query.trim().toLowerCase();
     const out: Command[] = [];
-    if (q) {
-      out.push({
-        id: "create",
-        group: "",
-        title: `New task “${query.trim()}”`,
-        hint: "Opens the task form",
-        icon: <Plus />,
-        run: () => {
-          close();
-          ui.newTask({ title: query.trim() });
-        },
-      });
-    }
+    const destinations: Command[] = [
+      { id: "g:today", group: "Go to", title: "Today", hint: "1", icon: <Sun />, run: () => go({ view: "today" }) },
+      { id: "g:week", group: "Go to", title: "Week", hint: "2", icon: <Columns3 />, run: () => go({ view: "week" }) },
+      { id: "g:calendar", group: "Go to", title: "Calendar", hint: "3", icon: <CalendarDays />, run: () => go({ view: "calendar" }) },
+      { id: "g:assignments", group: "Go to", title: "Assignments", hint: "4", icon: <GraduationCap />, run: () => go({ view: "assignments" }) },
+      { id: "g:subjects", group: "Go to", title: "Subjects", hint: "5", icon: <BookOpen />, run: () => go({ view: "subjects" }) },
+      { id: "g:notes", group: "Go to", title: "Notes", hint: "6", icon: <FileText />, run: () => go({ view: "notes" }) },
+      { id: "g:settings", group: "Go to", title: "Settings", icon: <Settings />, run: () => go({ view: "settings" }) },
+    ];
+    out.push(...destinations.filter((item) => score(item.title, q) > 0 || (q && item.group.toLowerCase().startsWith(q))));
     const tasks = all
       .map((t) => ({ t, s: Math.max(score(t.title, q), q.length > 2 && plainText(t.notes).toLowerCase().includes(q) ? 20 : 0) }))
       .filter((x) => x.s > 0 && (q || !x.t.isDone))
@@ -151,13 +147,6 @@ function Palette() {
         icon: themeMode === "dark" ? <Sun /> : <Moon />,
         run: () => { close(); setThemeMode(themeMode === "dark" ? "light" : "dark"); },
       },
-      { id: "g:today", group: "Go to", title: "Today", hint: "1", icon: <Sun />, run: () => go({ view: "today" }) },
-      { id: "g:week", group: "Go to", title: "Week", hint: "2", icon: <Columns3 />, run: () => go({ view: "week" }) },
-      { id: "g:calendar", group: "Go to", title: "Calendar", hint: "3", icon: <CalendarDays />, run: () => go({ view: "calendar" }) },
-      { id: "g:assignments", group: "Go to", title: "Assignments", hint: "4", icon: <GraduationCap />, run: () => go({ view: "assignments" }) },
-      { id: "g:subjects", group: "Go to", title: "Subjects", hint: "5", icon: <BookOpen />, run: () => go({ view: "subjects" }) },
-      { id: "g:notes", group: "Go to", title: "Notes", hint: "6", icon: <FileText />, run: () => go({ view: "notes" }) },
-      { id: "g:settings", group: "Go to", title: "Settings", icon: <Settings />, run: () => go({ view: "settings" }) },
     ];
     out.push(...actions.filter((a) => score(a.title, q) > 0 || (q && a.group.toLowerCase().startsWith(q))));
     return out;
@@ -218,7 +207,7 @@ function Palette() {
                   <motion.span layoutId="palette-active" transition={springs.snappy} className="absolute inset-0 rounded-[8px] bg-fill" />
                 )}
                 <span className="relative flex size-4 items-center justify-center text-ink-3 [&>svg]:size-4">{c.icon}</span>
-                <span className={cn("relative min-w-0 flex-1 truncate", c.id === "create" && "font-medium")}>{c.title}</span>
+                <span className="relative min-w-0 flex-1 truncate">{c.title}</span>
                 {c.hint && <span className="relative shrink-0 text-xs text-ink-3">{c.hint}</span>}
                 {active === i && <CornerDownLeft className="relative size-3.5 text-ink-3" />}
               </button>

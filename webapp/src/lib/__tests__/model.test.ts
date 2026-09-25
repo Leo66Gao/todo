@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeSettings, decodeTask, defaultSettings, encodeSettings, encodeTask } from "@/lib/model";
+import { decodeSettings, decodeTask, defaultSettings, encodeSettings, encodeTask, hasExplicitDifficulty } from "@/lib/model";
 
 // Exactly what Flutter's Task.toJson() writes (see lib/models/task.dart).
 const flutterTask = {
@@ -39,6 +39,14 @@ describe("task records", () => {
   it("keeps fields it does not know about", () => {
     const task = decodeTask({ ...flutterTask, futureField: { a: 1 } });
     expect(encodeTask(task).futureField).toEqual({ a: 1 });
+  });
+
+  it("round-trips an explicitly selected Level 1 without changing legacy unset tasks", () => {
+    const legacy = decodeTask({ ...flutterTask, difficulty: 1 });
+    const selected = decodeTask({ ...flutterTask, difficulty: 1, difficultySelected: true });
+    expect(hasExplicitDifficulty(legacy)).toBe(false);
+    expect(hasExplicitDifficulty(selected)).toBe(true);
+    expect(encodeTask(selected)).toMatchObject({ difficulty: 1, difficultySelected: true });
   });
 
   it("fills Flutter's defaults for missing fields", () => {
