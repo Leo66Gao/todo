@@ -25,7 +25,7 @@ import 'calendar_outbox.dart';
 
 class TaskProvider extends ChangeNotifier {
   final StorageService _storage = StorageService();
-  final GoogleCalendarService _calendarService = GoogleCalendarService();
+  final GoogleCalendarService _calendarService;
   final _uuid = const Uuid();
 
   List<Task> _tasks = [];
@@ -77,8 +77,16 @@ class TaskProvider extends ChangeNotifier {
   static const _calendarRedirectKey = 'calendar.connectPending';
   late final Future<void> ready;
 
-  TaskProvider() {
+  TaskProvider({GoogleCalendarService? calendarService})
+      : _calendarService = calendarService ?? GoogleCalendarService() {
     ready = _initialize();
+  }
+
+  @visibleForTesting
+  void connectCalendarForTesting(User user) {
+    _currentUser = user;
+    _calendarOwnerUid = user.uid;
+    _calendarEnabled = true;
   }
 
   @override
@@ -500,6 +508,9 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
+  bool _hasCalendarExport(Task task) =>
+      task.googleEventId != null || hasPendingUpsert(_calendarOutbox, task.id);
+
   Future<void> _restoreCalendarForAccount(User user) async {
     final prefs = await SharedPreferences.getInstance();
     _calendarOwnerUid = user.uid;
@@ -537,7 +548,7 @@ class TaskProvider extends ChangeNotifier {
     _startCalendarRetry();
     if (calendarConnected) {
       for (final task in _tasks) {
-        if (task.isDone && task.googleEventId != null) {
+        if (task.isDone && _hasCalendarExport(task)) {
           // Only advance the lifecycle if there isn't already a pending delete
           // for this exact event (deletes are keyed by `delete:<eventId>`).
           final hasPendingDelete =
@@ -696,16 +707,24 @@ class TaskProvider extends ChangeNotifier {
       }
       if (action['operation'] == 'upsert') {
         final index = _tasks.indexWhere((task) => task.id == taskId);
-        if (index >= 0 && !_tasks[index].isDone) {
-          final id = resultingId ?? eventId;
-          // Stale-response guard: only attach the event if the task is still
-          // on the same revision this action was created from. A complete /
-          // reopen that happened while the request was in flight bumps the
-          // revision, and this stale ID must not attach to the new lifecycle.
-          final actionRevision = action['revision'] as int?;
-          final isStale = actionRevision != null &&
-              _tasks[index].calendarEventRevision != actionRevision;
-          if (!isStale && _tasks[index].googleEventId != id) {
+        final id = resultingId ?? eventId;
+        final actionRevision = action['revision'] as int?;
+        final isStale = index < 0 ||
+            _tasks[index].isDone ||
+            (actionRevision != null &&
+                _tasks[index].calendarEventRevision != actionRevision);
+        if (isStale) {
+          // The request may have created an event after the task was completed,
+          // deleted, or reopened. Keep a delete even if the upsert slot has
+          // since been replaced by a newer revision.
+          await _storeCalendarAction(uid, {
+            'operation': 'delete',
+            'taskId': taskId,
+            'eventId': id,
+            'revision': actionRevision,
+          });
+        } else {
+          if (_tasks[index].googleEventId != id) {
             _tasks[index].googleEventId = id;
             await saveData();
           }
@@ -735,6 +754,10 @@ class TaskProvider extends ChangeNotifier {
         await _persistCalendarOutbox(uid);
       }
     }
+    if (_calendarOutbox.isNotEmpty && firstError == null) {
+      // A stale upsert can enqueue its delete after the pass was snapshotted.
+      unawaited(_scheduleCalendarFlush());
+    }
     _syncError = firstError;
     notifyListeners();
   }
@@ -744,14 +767,16 @@ class TaskProvider extends ChangeNotifier {
     if (uid == null || !_calendarEnabled) return;
     final current = {for (final task in _tasks) task.id: task};
     for (final oldTask in before.values) {
-      if (!current.containsKey(oldTask.id) && oldTask.googleEventId != null) {
+      if (!current.containsKey(oldTask.id)) {
         unawaited(removeTaskFromCalendar(oldTask));
       }
     }
     for (final task in current.values) {
       final old = before[task.id];
       if (task.isDone) {
-        if (task.googleEventId != null && old?.isDone != true) {
+        if (old?.isDone != true &&
+            (task.googleEventId != null ||
+                (old != null && _hasCalendarExport(old)))) {
           if (old != null &&
               task.calendarEventRevision == old.calendarEventRevision) {
             task.calendarEventRevision++;
@@ -846,7 +871,7 @@ class TaskProvider extends ChangeNotifier {
 
   Future<void> clearWorkspace() async {
     if (_calendarEnabled) {
-      for (final task in _tasks.where((task) => task.googleEventId != null)) {
+      for (final task in _tasks) {
         unawaited(removeTaskFromCalendar(task));
       }
     }
@@ -926,13 +951,13 @@ class TaskProvider extends ChangeNotifier {
       final previous = _tasks[index];
       if (!previous.isDone &&
           task.isDone &&
-          task.googleEventId != null &&
+          _hasCalendarExport(previous) &&
           task.calendarEventRevision == previous.calendarEventRevision) {
         task.calendarEventRevision++;
       }
       _tasks[index] = task;
       if (_calendarEnabled) {
-        if (task.isDone && task.googleEventId != null) {
+        if (task.isDone) {
           unawaited(removeTaskFromCalendar(task));
         } else {
           unawaited(syncTaskToCalendar(task));
@@ -950,7 +975,7 @@ class TaskProvider extends ChangeNotifier {
       // Auto-complete if time runs out
       if (newRemainingMinutes <= 0 && !_tasks[index].isDone) {
         _tasks[index].isDone = true;
-        if (_tasks[index].googleEventId != null) {
+        if (_hasCalendarExport(_tasks[index])) {
           _tasks[index].calendarEventRevision++;
           if (_calendarEnabled) {
             unawaited(removeTaskFromCalendar(_tasks[index]));
@@ -970,7 +995,7 @@ class TaskProvider extends ChangeNotifier {
     final taskIndex = _tasks.indexWhere((t) => t.id == id);
     if (taskIndex != -1) {
       final task = _tasks[taskIndex];
-      if (_calendarEnabled && task.googleEventId != null) {
+      if (_calendarEnabled) {
         unawaited(removeTaskFromCalendar(task));
       }
       _tasks.removeAt(taskIndex);
@@ -993,7 +1018,7 @@ class TaskProvider extends ChangeNotifier {
       if (_tasks[index].isDone) {
         // A new revision prevents the next uncomplete from reusing a deleted
         // Google event ID, which Calendar retains as a cancellation tombstone.
-        if (_tasks[index].googleEventId != null) {
+        if (_hasCalendarExport(_tasks[index])) {
           _tasks[index].calendarEventRevision++;
           if (_calendarEnabled) {
             unawaited(removeTaskFromCalendar(_tasks[index]));

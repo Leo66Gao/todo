@@ -1,9 +1,22 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:todo_app/models/project.dart';
 import 'package:todo_app/models/task.dart';
+import 'package:todo_app/services/google_calendar_service.dart';
 import 'package:todo_app/state/task_provider.dart';
+
+class _TestUser extends Fake implements User {
+  @override
+  String get uid => 'alice';
+
+  @override
+  String? get email => 'alice@example.com';
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -147,6 +160,57 @@ void main() {
     // is confirmed; a fresh deterministic ID is derived from revision 1.
     expect(provider.tasks.first.calendarEventRevision, 1);
   });
+
+  for (final removeTask in [false, true]) {
+    test(
+        '${removeTask ? 'deleting' : 'completing'} during an in-flight Calendar export cleans up the created event',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final insertStarted = Completer<void>();
+      final finishInsert = Completer<void>();
+      final deletedIds = <String>[];
+      String? insertedId;
+      final client = MockClient((request) async {
+        if (request.method == 'PUT') {
+          return http.Response(
+              '{"error":{"code":404,"message":"missing"}}', 404,
+              headers: {'content-type': 'application/json'});
+        }
+        if (request.method == 'POST') {
+          insertedId = (jsonDecode(request.body) as Map)['id'] as String;
+          insertStarted.complete();
+          await finishInsert.future;
+          return http.Response(jsonEncode({'id': insertedId}), 200,
+              headers: {'content-type': 'application/json'});
+        }
+        if (request.method == 'DELETE') {
+          deletedIds.add(request.url.pathSegments.last);
+          return http.Response('', 204);
+        }
+        return http.Response('{}', 200,
+            headers: {'content-type': 'application/json'});
+      });
+      final provider = TaskProvider(
+          calendarService: GoogleCalendarService.forTesting(client,
+              email: 'alice@example.com'));
+      addTearDown(provider.dispose);
+      await provider.ready;
+      provider.connectCalendarForTesting(_TestUser());
+      provider.addTask(sampleTask(id: 'exporting'));
+      await insertStarted.future.timeout(const Duration(seconds: 2));
+
+      if (removeTask) {
+        provider.deleteTask('exporting');
+      } else {
+        provider.toggleTask('exporting');
+      }
+      finishInsert.complete();
+      for (var i = 0; i < 100 && deletedIds.isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(deletedIds, contains(insertedId));
+    });
+  }
 
   test('updateTask replaces the task in place', () async {
     final provider = await makeProvider();
