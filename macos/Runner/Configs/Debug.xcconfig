@@ -1,8 +1,0 @@
-#include "../../Flutter/Flutter-Debug.xcconfig"
-#include "Warnings.xcconfig"
-
-// See Release.xcconfig: a stable self-signed identity keeps keychain access
-// working for Firebase Auth on this machine.
-CODE_SIGN_IDENTITY = Todo Local Signing
-CODE_SIGN_STYLE = Manual
-DEVELOPMENT_TEAM =

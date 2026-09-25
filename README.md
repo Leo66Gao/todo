@@ -1,4 +1,4 @@
-# todo_app
+# Todo web app
 
 A personal study workspace — tasks, assignments, milestones, subjects and
 notes — with cross-device sync.
@@ -7,9 +7,12 @@ notes — with cross-device sync.
 
 ```sh
 flutter pub get
-flutter run -d chrome --web-port=5000  # web (fixed port for Google OAuth)
-flutter run -d macos                  # macOS (needs Xcode; see below)
+flutter run -d chrome --web-port=5001
 ```
+
+Use a port listed in your Google OAuth authorized JavaScript origins when
+testing Calendar sign-in. On macOS, AirPlay Receiver may occupy port 5000, so
+the example uses 5001.
 
 ## Sync across devices
 
@@ -27,18 +30,6 @@ take precedence over stale edits.
 
 Data created before the first sign-in is offered for import automatically the
 first time an account signs in on that device.
-
-## Mac app
-
-The `macos/` target is scaffolded and pre-configured:
-
-- URL scheme for Google Sign-In (reversed client ID from
-  `lib/firebase_options.dart`);
-- sandbox network entitlements for Firestore/Auth/Storage traffic.
-
-Building it requires full Xcode (`xcode-select --install`, then Xcode from the
-App Store) — `flutter run -d macos`. If Google Sign-In is unavailable on a
-platform, the app still runs with a local-only workspace.
 
 ## Customizing the task form
 
