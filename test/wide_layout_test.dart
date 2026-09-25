@@ -72,6 +72,19 @@ void main() {
         reason: 'the day title must share the strip\'s left gutter');
   });
 
+  testWidgets('wide navigation replaces the old page in the next frame',
+      (tester) async {
+    await pumpWideApp(tester);
+
+    await tester.tap(find.text('Week'));
+    await tester.pump();
+
+    expect(find.text('DAY BRIEFING'), findsNothing,
+        reason: 'the previous page should not keep painting during navigation');
+    expect(find.text('PROJECTS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a portrait-ish window falls back to the phone layout',
       (tester) async {
     // Wide in pixels but taller than it is wide: the side rail would squeeze
@@ -121,6 +134,23 @@ void main() {
     expect(find.text('DAY BRIEFING'), findsOneWidget);
     expect(tester.takeException(), isNull,
         reason: 'no overflow when the window is squarer');
+  });
+
+  testWidgets('a short wide window keeps sidebar navigation usable',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 500);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final appProvider = TaskProvider();
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(value: appProvider, child: const MyApp()),
+    );
+    await appProvider.ready;
+    await tester.pumpAndSettle();
+
+    expect(find.text('Week'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('adding a task in the wide layout updates the briefing rail',

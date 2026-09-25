@@ -103,10 +103,9 @@ class HomePageState extends State<HomePage> {
 
       final Widget page;
       if (isWide) {
-        // Mac / tablet: an editorial sidebar (destinations, projects,
-        // account) beside a real wide-screen stage. Today gets a flagship
-        // two-column layout with a day-briefing rail; the other sections
-        // keep their layouts but breathe in a comfortable reading width.
+        // On wide browsers, keep navigation beside the current page. Build
+        // only the selected page so switching tabs never paints two heavy
+        // pages at once during a crossfade.
         page = Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -115,27 +114,17 @@ class HomePageState extends State<HomePage> {
               onSelect: (index) => setState(() => _currentIndex = index),
             ),
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) =>
-                    FadeTransition(opacity: animation, child: child),
-                child: KeyedSubtree(
-                  key: ValueKey('wide-$_currentIndex'),
-                  child: _currentIndex == 0
-                      ? WideTodayView(
-                          selectedDate: _selectedDate,
-                          onDateChanged: _onDateChanged,
-                        )
-                      : Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1000),
-                            child: pages[_currentIndex],
-                          ),
-                        ),
-                ),
-              ),
+              child: _currentIndex == 0
+                  ? WideTodayView(
+                      selectedDate: _selectedDate,
+                      onDateChanged: _onDateChanged,
+                    )
+                  : Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1000),
+                        child: pages[_currentIndex],
+                      ),
+                    ),
             ),
           ],
         );

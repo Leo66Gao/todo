@@ -7,11 +7,8 @@ import '../screens/subject_workspace_page.dart';
 import '../state/task_provider.dart';
 import '../theme/app_theme.dart';
 
-/// The wide-screen navigation sidebar.
-///
-/// Replaces the phone's bottom glass bar and the old floating icon rail with a
-/// calm, editorial sidebar: a wordmark, labelled destinations with the
-/// selection sliding between them, a "Projects" group, and a profile footer.
+/// Navigation for wide browser windows. Sync activity only rebuilds the
+/// projects and account areas, leaving destination previews responsive.
 class WorkspaceSidebar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelect;
@@ -32,66 +29,85 @@ class WorkspaceSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<TaskProvider>();
-    final projects = provider.projects;
-    final user = provider.currentUser;
-
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       width: 284,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 22, 14, 22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Wordmark(ink: context.ink, soft: context.inkSoft),
-            const SizedBox(height: 30),
-            for (var i = 0; i < _destinations.length; i++)
-              _NavItem(
-                icon: _destinations[i].$1,
-                label: _destinations[i].$2,
-                selected: selectedIndex == i,
-                onTap: () => onSelect(i),
-              ),
-            const SizedBox(height: 28),
-            if (projects.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.only(left: 14, bottom: 10),
-                child: Text(
-                  'PROJECTS',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.4,
-                    color: context.inkFaint,
-                  ),
-                ),
-              ),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  children: [
-                    for (final project in projects)
-                      _ProjectItem(project: project, provider: provider),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: dark ? const Color(0xFF14161B) : const Color(0xFFFDFDFE),
+          border: Border(right: BorderSide(color: context.hairline)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 16, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Wordmark(ink: context.ink, soft: context.inkSoft),
+              Expanded(
+                child: CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          Divider(height: 1, color: context.hairline),
+                          const SizedBox(height: 22),
+                          const _SectionLabel('OVERVIEW'),
+                          const SizedBox(height: 8),
+                          for (var i = 0; i < _destinations.length; i++)
+                            _NavItem(
+                              icon: _destinations[i].$1,
+                              label: _destinations[i].$2,
+                              selected: selectedIndex == i,
+                              onTap: () {
+                                if (selectedIndex != i) onSelect(i);
+                              },
+                            ),
+                          const SizedBox(height: 20),
+                          const _SectionLabel('PROJECTS'),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+                    const _ProjectsList(),
                   ],
                 ),
               ),
-            ] else
-              const Spacer(),
-            const SizedBox(height: 12),
-            _ProfileFooter(
-              email: user?.email,
-              status: provider.cloudStatus,
-              onSettings: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              const SizedBox(height: 12),
+              Divider(height: 1, color: context.hairline),
+              const SizedBox(height: 12),
+              _AccountFooter(
+                onSettings: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(left: 14),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: context.inkFaint,
+          ),
+        ),
+      );
 }
 
 class _Wordmark extends StatelessWidget {
@@ -166,59 +182,61 @@ class _NavItemState extends State<_NavItem> {
 
   @override
   Widget build(BuildContext context) {
-    final engaged = widget.selected || _hover;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          decoration: BoxDecoration(
-            color: widget.selected
-                ? context.ink
-                : _hover
-                    ? context.fillSoft
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            // A faint shadow on the selected destination lifts it off the
-            // sidebar, so the active item reads as glass rather than flat ink.
-            boxShadow: widget.selected
-                ? [
-                    BoxShadow(
-                      color: context.ink.withValues(alpha: 0.16),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                widget.icon,
-                size: 19,
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent = dark ? const Color(0xFFB8CDE1) : const Color(0xFF41617E);
+    final foreground =
+        widget.selected || _hover ? context.ink : context.inkSoft;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Semantics(
+        selected: widget.selected,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: widget.onTap,
+            onHover: (hover) => setState(() => _hover = hover),
+            hoverColor: Colors.transparent,
+            splashFactory: NoSplash.splashFactory,
+            child: Ink(
+              height: 44,
+              decoration: BoxDecoration(
                 color: widget.selected
-                    ? context.inkInverse
-                    : context.ink.withValues(alpha: engaged ? 1 : 0.6),
+                    ? (dark ? const Color(0xFF272D36) : const Color(0xFFE8EFF7))
+                    : _hover
+                        ? (dark
+                            ? const Color(0xFF20242B)
+                            : const Color(0xFFF1F4F8))
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 12),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight:
-                      widget.selected ? FontWeight.w600 : FontWeight.w500,
-                  color: widget.selected
-                      ? context.inkInverse
-                      : context.ink.withValues(alpha: engaged ? 1 : 0.66),
-                ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: widget.selected ? accent : Colors.transparent,
+                      borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 13),
+                  Icon(widget.icon, size: 19, color: foreground),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          widget.selected ? FontWeight.w600 : FontWeight.w500,
+                      color: foreground,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -226,11 +244,43 @@ class _NavItemState extends State<_NavItem> {
   }
 }
 
+class _ProjectsList extends StatelessWidget {
+  const _ProjectsList();
+
+  @override
+  Widget build(BuildContext context) => Consumer<TaskProvider>(
+        builder: (context, provider, _) {
+          final projects = provider.projects;
+          final counts = <String, int>{};
+          for (final task in provider.tasks) {
+            if (!task.isDone && task.projectId != null) {
+              counts.update(
+                task.projectId!,
+                (count) => count + 1,
+                ifAbsent: () => 1,
+              );
+            }
+          }
+          return SliverList.builder(
+            itemCount: projects.length,
+            itemBuilder: (context, index) {
+              final project = projects[index];
+              return _ProjectItem(
+                key: ValueKey(project.id),
+                project: project,
+                count: counts[project.id] ?? 0,
+              );
+            },
+          );
+        },
+      );
+}
+
 class _ProjectItem extends StatefulWidget {
   final Project project;
-  final TaskProvider provider;
+  final int count;
 
-  const _ProjectItem({required this.project, required this.provider});
+  const _ProjectItem({super.key, required this.project, required this.count});
 
   @override
   State<_ProjectItem> createState() => _ProjectItemState();
@@ -243,62 +293,100 @@ class _ProjectItemState extends State<_ProjectItem> {
   Widget build(BuildContext context) {
     final colorValue = widget.project.colorValue;
     final accent = colorValue == 0 ? context.inkSoft : Color(colorValue);
-    final count = widget.provider
-        .getTasksForProject(widget.project.id)
-        .where((t) => !t.isDone)
-        .length;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => SubjectWorkspacePage(subjectId: widget.project.id),
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(11),
+          onHover: (hover) => setState(() => _hover = hover),
+          hoverColor: Colors.transparent,
+          splashFactory: NoSplash.splashFactory,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  SubjectWorkspacePage(subjectId: widget.project.id),
+            ),
           ),
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(vertical: 1),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            color: _hover ? context.fillSoft : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.project.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: context.ink.withValues(alpha: _hover ? 1 : 0.74),
+          child: Ink(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            decoration: BoxDecoration(
+              color: _hover
+                  ? (dark ? const Color(0xFF20242B) : const Color(0xFFF1F4F8))
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
-              if (count > 0)
-                Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: context.inkFaint,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.project.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: _hover ? context.ink : context.inkSoft,
+                    ),
                   ),
                 ),
-            ],
+                if (widget.count > 0)
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 22),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: dark
+                          ? const Color(0xFF292D35)
+                          : const Color(0xFFF0F2F5),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(
+                      '${widget.count}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: context.inkSoft,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AccountFooter extends StatelessWidget {
+  final VoidCallback onSettings;
+  const _AccountFooter({required this.onSettings});
+
+  @override
+  Widget build(BuildContext context) {
+    final account = context.select<TaskProvider, (String?, String)>(
+      (provider) => (provider.currentUser?.email, provider.cloudStatus),
+    );
+    return _ProfileFooter(
+      email: account.$1,
+      status: account.$2,
+      onSettings: onSettings,
     );
   }
 }
@@ -317,57 +405,64 @@ class _ProfileFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final signedIn = email != null;
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: context.card.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: context.hairline),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 17,
-            backgroundColor: context.ink,
-            child: Icon(
-              signedIn ? Icons.person : Icons.cloud_off_outlined,
-              size: 17,
-              color: context.inkInverse,
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: Tooltip(
+        message: 'Settings',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onSettings,
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(10, 9, 8, 9),
+            decoration: BoxDecoration(
+              color: dark ? const Color(0xFF1C1F25) : const Color(0xFFF4F6F9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: context.hairline),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  signedIn ? email! : 'Local workspace',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor:
+                      dark ? const Color(0xFF303946) : const Color(0xFFE1EAF3),
+                  child: Icon(
+                    signedIn ? Icons.person_outline : Icons.cloud_off_outlined,
+                    size: 16,
                     color: context.ink,
                   ),
                 ),
-                Text(
-                  signedIn ? status : 'Not signed in',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: context.inkFaint),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        signedIn ? email! : 'Local workspace',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: context.ink,
+                        ),
+                      ),
+                      Text(
+                        signedIn ? status : 'Not signed in',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            TextStyle(fontSize: 10.5, color: context.inkSoft),
+                      ),
+                    ],
+                  ),
                 ),
+                Icon(Icons.settings_outlined, size: 18, color: context.inkSoft),
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: onSettings,
-            icon: Icon(Icons.settings_outlined, size: 19, color: context.inkSoft),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
-
-

@@ -78,9 +78,9 @@ class CloudSyncService {
   /// (Re)subscribes to the live records stream.
   ///
   /// Initial sync (new device / empty cache) fetches all documents.
-  /// Active devices with cached records subscribe only to records where
-  /// `updatedAt > lastSync` (with a 5-second overlap), ensuring 0 unnecessary
-  /// document reads on restart or when other tasks are modified.
+  /// Active devices with cached records subscribe to records where
+  /// `updatedAt > lastSync - 5 seconds`. The overlap avoids missing writes
+  /// around a reconnect; matching records in that window can be read again.
   void _listen(int generation) {
     _subscription?.cancel();
     final isFullSync = _lastSyncMillis == null || _records.isEmpty;
