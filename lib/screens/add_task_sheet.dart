@@ -487,6 +487,7 @@ void showAddTaskDialog(BuildContext context,
                               var domino = false;
                               if (finalStartTime != null &&
                                   existingTask.startTime != null &&
+                                  sameDay(selectedDate, existingTask.date) &&
                                   (existingTask.startTime!.hour !=
                                           finalStartTime.hour ||
                                       existingTask.startTime!.minute !=
@@ -962,8 +963,9 @@ Future<bool?> _showDominoPreview(BuildContext context, TaskProvider provider,
 
   String newTimeFor(DateTime old) {
     final shifted = old.add(delta);
-    return formatClock(
-        DateTime(old.year, old.month, old.day, shifted.hour, shifted.minute));
+    return sameDay(old, shifted)
+        ? formatClock(shifted)
+        : DateFormat('MMM d, h:mm a').format(shifted);
   }
 
   return showDialog<bool>(

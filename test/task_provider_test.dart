@@ -267,6 +267,60 @@ void main() {
     expect(provider.tasks.first.isDone, true);
   });
 
+  test('domino shift carries tasks into the next day', () async {
+    final provider = await makeProvider();
+    addTearDown(provider.dispose);
+    await provider.ready;
+    final day = DateTime(2026, 8, 10);
+    provider.addTask(Task(
+        id: 'first',
+        title: 'First',
+        date: day,
+        startTime: DateTime(2026, 8, 10, 22)));
+    provider.addTask(Task(
+        id: 'later',
+        title: 'Later',
+        date: day,
+        startTime: DateTime(2026, 8, 10, 23, 30)));
+
+    provider.applyDominoShift(
+        excludeId: 'first',
+        day: day,
+        afterTime: DateTime(2026, 8, 10, 22),
+        delta: const Duration(hours: 2));
+
+    final shifted = provider.tasks.firstWhere((task) => task.id == 'later');
+    expect(shifted.date, DateTime(2026, 8, 11));
+    expect(shifted.startTime, DateTime(2026, 8, 11, 1, 30));
+  });
+
+  test('domino shift carries tasks into the previous day', () async {
+    final provider = await makeProvider();
+    addTearDown(provider.dispose);
+    await provider.ready;
+    final day = DateTime(2026, 8, 10);
+    provider.addTask(Task(
+        id: 'first',
+        title: 'First',
+        date: day,
+        startTime: DateTime(2026, 8, 10)));
+    provider.addTask(Task(
+        id: 'later',
+        title: 'Later',
+        date: day,
+        startTime: DateTime(2026, 8, 10, 0, 30)));
+
+    provider.applyDominoShift(
+        excludeId: 'first',
+        day: day,
+        afterTime: DateTime(2026, 8, 10),
+        delta: const Duration(hours: -2));
+
+    final shifted = provider.tasks.firstWhere((task) => task.id == 'later');
+    expect(shifted.date, DateTime(2026, 8, 9));
+    expect(shifted.startTime, DateTime(2026, 8, 9, 22, 30));
+  });
+
   test('subtask add, toggle and delete work', () async {
     final provider = await makeProvider();
     await flush();

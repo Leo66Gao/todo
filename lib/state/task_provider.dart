@@ -1138,13 +1138,8 @@ class TaskProvider extends ChangeNotifier {
       if (!other.startTime!.isAfter(afterTime)) continue;
 
       final shifted = other.startTime!.add(delta);
-      other.startTime = DateTime(
-        other.date.year,
-        other.date.month,
-        other.date.day,
-        shifted.hour,
-        shifted.minute,
-      );
+      other.date = DateTime(shifted.year, shifted.month, shifted.day);
+      other.startTime = shifted;
       changed = true;
       if (kDebugMode) {
         debugPrint('domino: "${other.title}" -> ${other.startTime}');
