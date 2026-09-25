@@ -57,6 +57,45 @@ void main() {
     expect(saved['settings:tags'], '42');
   });
 
+  test('damaged guest workspace is backed up and can be replaced safely',
+      () async {
+    SharedPreferences.setMockInitialValues({
+      'activeGuestWorkspace': '{broken',
+      'legacyOwner': 'previous-account',
+    });
+    final provider = TaskProvider();
+    addTearDown(provider.dispose);
+    await provider.ready;
+
+    expect(provider.tasks, isEmpty);
+    expect(provider.cloudError, contains('backed up'));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('activeGuestWorkspace.recovery'), '{broken');
+
+    provider.addTask(sampleTask());
+    await flush();
+    await flush();
+    expect(provider.tasks.single.id, 't1');
+    expect(jsonDecode(prefs.getString('activeGuestWorkspace')!),
+        contains('task:t1'));
+  });
+
+  test('damaged legacy list entries are backed up without hiding healthy tasks',
+      () async {
+    final healthy = sampleTask();
+    SharedPreferences.setMockInitialValues({
+      'tasks': [jsonEncode(healthy.toJson()), '{broken'],
+    });
+    final provider = TaskProvider();
+    addTearDown(provider.dispose);
+    await provider.ready;
+
+    expect(provider.tasks.single.id, 't1');
+    expect(provider.cloudError, contains('backed up'));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getStringList('tasks.recovery'), ['{broken']);
+  });
+
   test('loadData seeds default projects and tags when empty', () async {
     final provider = await makeProvider();
     await flush();

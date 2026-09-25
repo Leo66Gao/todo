@@ -433,25 +433,42 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<Map<String, String>?> _readGuestMap(
+      SharedPreferences prefs, String key) async {
+    final raw = prefs.get(key);
+    if (raw == null) return null;
+    try {
+      return Map<String, String>.from(jsonDecode(raw as String));
+    } catch (_) {
+      await prefs.setString('$key.recovery', raw.toString());
+      cloudError = 'Damaged device data was backed up for recovery.';
+      return null;
+    }
+  }
+
   Future<Map<String, String>> _readGuestRecords() async {
     final prefs = await SharedPreferences.getInstance();
-    final activeGuest = prefs.getString('activeGuestWorkspace');
-    if (activeGuest != null) {
-      return Map<String, String>.from(jsonDecode(activeGuest));
-    }
+    final activeGuest = await _readGuestMap(prefs, 'activeGuestWorkspace');
+    if (activeGuest != null) return activeGuest;
 
     // The old device workspace is only visible before it has been claimed by
     // the first account. Once claimed, signed-out work starts empty and is
     // stored independently under activeGuestWorkspace.
     if (prefs.getString('legacyOwner') != null) return {};
-    final guest = prefs.getString('guestWorkspace');
-    if (guest != null) return Map<String, String>.from(jsonDecode(guest));
+    final guest = await _readGuestMap(prefs, 'guestWorkspace');
+    if (guest != null) return guest;
+    final tasks = await _storage.loadTasks();
+    final projects = await _storage.loadProjects();
+    final tags = await _storage.loadTags();
+    if (_storage.hadRecovery) {
+      cloudError = 'Damaged device data was backed up for recovery.';
+    }
     return {
-      for (final t in await _storage.loadTasks())
+      for (final t in tasks)
         'task:${t.id}': jsonEncode(t.toJson()),
-      for (final p in await _storage.loadProjects())
+      for (final p in projects)
         'project:${p.id}': jsonEncode(p.toJson()),
-      'settings:tags': jsonEncode(await _storage.loadTags()),
+      'settings:tags': jsonEncode(tags),
     };
   }
 
