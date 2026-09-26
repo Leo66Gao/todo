@@ -1,18 +1,22 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, Clock } from "lucide-react";
+import { ArrowRight, CalendarDays, Clock, Flag, Hourglass, X } from "lucide-react";
+import { format } from "date-fns";
+import { argbToCss } from "@/lib/dart";
+import { parseQuickAdd, type TokenKind } from "@/lib/quickAdd";
 import type { Priority, TaskType } from "@/lib/dart";
 import { hasExplicitDifficulty, isFieldVisible, type FieldId, type Task } from "@/lib/model";
-import { formatClock, sameDay, startOfDay, today } from "@/lib/time";
-import { clockOf, parseTimeFromTitle, withClock, type ClockTime } from "@/lib/timeParse";
+import { formatClock, formatDuration, relativeDay, sameDay, startOfDay, today } from "@/lib/time";
+import { clockOf, withClock, type ClockTime } from "@/lib/timeParse";
 import { ui, useUI, type EditorState } from "@/shell/ui";
 import { addTask, applyDominoShift, newTask, updateTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, Kbd, Segmented } from "@/ui/controls";
 import { confirmDialog, Modal } from "@/ui/overlay";
 import { RichText } from "@/ui/RichText";
+import { springs } from "@/ui/motion";
 import { toast } from "@/ui/toast";
 import { useAllTasks } from "./meta";
 import {
@@ -72,17 +76,74 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
   const [category, setCategory] = useState(existing?.category ?? defaults.category ?? "General");
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  const parsed = settings.showTime ? parseTimeFromTitle(title) : { title: title.trim(), time: null };
+  // Words in the title can set the other fields ("essay due fri 3pm 2h").
+  // A field set by hand, or a suggestion dismissed, stops being read.
+  const [ignored, setIgnored] = useState<TokenKind[]>([]);
+  const ignore = (kind: TokenKind) => setIgnored((list) => (list.includes(kind) ? list : [...list, kind]));
+  const reading = !existing || title !== existing.title;
+  const parsed = useMemo(
+    () =>
+      parseQuickAdd(title, {
+        now: new Date(),
+        projects,
+        ignore: [
+          ...ignored,
+          ...(!reading ? (["date", "time", "duration", "subject", "priority"] as TokenKind[]) : []),
+          ...(!settings.showTime ? (["time"] as TokenKind[]) : []),
+          ...(!isFieldVisible(settings, "duration") ? (["duration"] as TokenKind[]) : []),
+          ...(!isFieldVisible(settings, "priority") ? (["priority"] as TokenKind[]) : []),
+          ...(projects.length === 0 || !isFieldVisible(settings, "subject") ? (["subject"] as TokenKind[]) : []),
+        ],
+      }),
+    [title, projects, ignored, reading, settings],
+  );
   const effectiveTime = parsed.time ?? time;
+  const effectiveDate = parsed.date ?? date;
+  const effectiveMinutes = parsed.minutes ?? minutes;
+  const effectiveProject = parsed.projectId ?? projectId;
+  const effectivePriority = parsed.priority ?? priority;
+  const effectiveType: TaskType = parsed.due && !existing && !ignored.includes("date") ? "assignment" : type;
   const canSave = parsed.title.trim().length > 0;
 
   const changeType = (next: TaskType) => {
     setType(next);
+    ignore("date");
     // Same defaults as the phone app when switching kinds.
-    setMinutes(next === "assignment" ? 120 : 30);
+    if (!parsed.minutes) setMinutes(next === "assignment" ? 120 : 30);
   };
 
   const hasWork = (d: Date) => allTasks.some((t) => !t.isDone && sameDay(t.date, d));
+  const pickDate = (d: Date) => {
+    setDate(d);
+    ignore("date");
+  };
+  const pickTime = (t: ClockTime | null) => {
+    setTime(t);
+    ignore("time");
+  };
+
+  // What the title set, shown under it; each can be dismissed.
+  const subject = projects.find((p) => p.id === parsed.projectId);
+  const chips: { kind: TokenKind; icon: ReactNode; label: string }[] = [];
+  for (const token of parsed.tokens) {
+    if (chips.some((c) => c.kind === token.kind)) continue;
+    if (token.kind === "date" && parsed.date)
+      chips.push({
+        kind: "date",
+        icon: <CalendarDays />,
+        label: `${parsed.due ? "Due " : ""}${Math.abs(parsed.date.getTime() - today().getTime()) < 2 * 86400000 ? relativeDay(parsed.date) : format(parsed.date, "EEE d MMM")}`,
+      });
+    if (token.kind === "time" && parsed.time) chips.push({ kind: "time", icon: <Clock />, label: formatClock(withClock(effectiveDate, parsed.time)) });
+    if (token.kind === "duration" && parsed.minutes) chips.push({ kind: "duration", icon: <Hourglass />, label: formatDuration(parsed.minutes) });
+    if (token.kind === "priority" && parsed.priority)
+      chips.push({ kind: "priority", icon: <Flag />, label: `${parsed.priority[0].toUpperCase()}${parsed.priority.slice(1)} priority` });
+    if (token.kind === "subject" && subject)
+      chips.push({
+        kind: "subject",
+        icon: <span className="m-[3px] size-2 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />,
+        label: subject.title,
+      });
+  }
 
   const save = async () => {
     if (!canSave) {
@@ -90,20 +151,20 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       return;
     }
     const finalTitle = parsed.title.trim();
-    const finalMinutes = !settings.showDuration && existing ? existing.durationMinutes : minutes;
-    const startTime = effectiveTime ? withClock(date, effectiveTime) : null;
+    const finalMinutes = !settings.showDuration && existing ? existing.durationMinutes : effectiveMinutes;
+    const startTime = effectiveTime ? withClock(effectiveDate, effectiveTime) : null;
     const extra = { ...(existing?.extra ?? defaults.extra) };
     if (difficultyActive && difficulty === 1) extra.difficultySelected = true;
     else delete extra.difficultySelected;
     const fields = {
       title: finalTitle,
       notes,
-      date: startTime ? startOfDay(startTime) : date,
+      date: startTime ? startOfDay(startTime) : effectiveDate,
       startTime,
-      type,
+      type: effectiveType,
       difficulty: difficultyActive ? difficulty : 1,
-      priority,
-      projectId,
+      priority: effectivePriority,
+      projectId: effectiveProject,
       durationMinutes: finalMinutes,
       category,
       extra: Object.keys(extra).length ? extra : undefined,
@@ -126,7 +187,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     if (
       startTime &&
       existing.startTime &&
-      sameDay(date, existing.date) &&
+      sameDay(effectiveDate, existing.date) &&
       (existing.startTime.getHours() !== startTime.getHours() ||
         existing.startTime.getMinutes() !== startTime.getMinutes())
     ) {
@@ -183,7 +244,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
         return (
           <Row label="Type">
             <Segmented
-              value={type}
+              value={effectiveType}
               onChange={changeType}
               className="w-[220px]"
               options={[
@@ -195,14 +256,14 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
         );
       case "date":
         return (
-          <Row label={type === "assignment" ? "Due" : "Date"}>
-            <DateField value={date} onChange={setDate} marks={hasWork} className="w-[200px]" />
+          <Row label={effectiveType === "assignment" ? "Due" : "Date"}>
+            <DateField value={effectiveDate} onChange={pickDate} marks={hasWork} className="w-[200px]" />
           </Row>
         );
       case "time":
         return (
           <Row label="Time">
-            <TimeField value={effectiveTime} onChange={setTime} className="w-[140px]" />
+            <TimeField value={effectiveTime} onChange={pickTime} className="w-[140px]" />
           </Row>
         );
       case "notes":
@@ -216,7 +277,14 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       case "duration":
         return (
           <Row label="Time needed">
-            <DurationField minutes={minutes} assignment={type === "assignment"} onChange={setMinutes} />
+            <DurationField
+              minutes={effectiveMinutes}
+              assignment={effectiveType === "assignment"}
+              onChange={(m) => {
+                setMinutes(m);
+                ignore("duration");
+              }}
+            />
           </Row>
         );
       case "difficulty":
@@ -239,14 +307,28 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       case "priority":
         return (
           <Row label="Priority">
-            <PriorityField value={priority} onChange={setPriority} />
+            <PriorityField
+              value={effectivePriority}
+              onChange={(p) => {
+                setPriority(p);
+                ignore("priority");
+              }}
+            />
           </Row>
         );
       case "subject":
         if (projects.length === 0) return null;
         return (
           <Row label="Subject">
-            <SubjectField value={projectId} projects={projects} onChange={setProjectId} className="w-[240px]" />
+            <SubjectField
+              value={effectiveProject}
+              projects={projects}
+              onChange={(id) => {
+                setProjectId(id);
+                ignore("subject");
+              }}
+              className="w-[240px]"
+            />
           </Row>
         );
       case "labels":
@@ -267,13 +349,13 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     const next = order[i + 1];
     if ((id === "date" && next === "time") || (id === "time" && next === "date")) {
       rows.push(
-        <Row key="when" label={type === "assignment" ? "Due" : "When"}>
+        <Row key="when" label={effectiveType === "assignment" ? "Due" : "When"}>
           <div className="flex gap-2">
             {(id === "date" ? ["date", "time"] : ["time", "date"]).map((f) =>
               f === "date" ? (
-                <DateField key="d" value={date} onChange={setDate} marks={hasWork} className="w-[200px]" />
+                <DateField key="d" value={effectiveDate} onChange={pickDate} marks={hasWork} className="w-[200px]" />
               ) : (
-                <TimeField key="t" value={effectiveTime} onChange={setTime} className="w-[128px]" />
+                <TimeField key="t" value={effectiveTime} onChange={pickTime} className="w-[128px]" />
               ),
             )}
           </div>
@@ -314,24 +396,45 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
               void save();
             }
           }}
-          placeholder="What needs to be done?"
+          placeholder={existing ? "What needs to be done?" : "What needs to be done? Try “essay due fri 3pm 2h”"}
           className="field-sizing-content block max-h-28 w-full resize-none bg-transparent text-lg font-medium outline-none placeholder:text-ink-4"
         />
-        <AnimatePresence initial={false}>
-          {parsed.time && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="flex items-center gap-1.5 pt-1.5 text-xs text-accent">
-                <Clock className="size-3.5" />
-                Starts at {formatClock(withClock(date, parsed.time))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <motion.div
+          initial={false}
+          animate={{ height: chips.length ? "auto" : 0, opacity: chips.length ? 1 : 0 }}
+          transition={springs.layout}
+          className="overflow-hidden"
+        >
+          <div className="flex flex-wrap gap-1.5 pt-2">
+            <AnimatePresence initial={false} mode="popLayout">
+              {chips.map((chip) => (
+                <motion.span
+                  key={chip.kind}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
+                  transition={springs.snappy}
+                  className="flex h-6 items-center gap-1 rounded-full bg-accent-soft pr-0.5 pl-2 text-xs font-medium text-accent [&>svg]:size-3.5"
+                >
+                  {chip.icon}
+                  {chip.label}
+                  <button
+                    type="button"
+                    aria-label={`Don’t use “${chip.label}”`}
+                    onClick={() => {
+                      ignore(chip.kind);
+                      titleRef.current?.focus();
+                    }}
+                    className="ml-0.5 flex size-5 items-center justify-center rounded-full text-accent/70 transition-colors hover:bg-accent/15 hover:text-accent"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </motion.span>
+              ))}
+            </AnimatePresence>
+          </div>
+        </motion.div>
       </div>
       <div className="scroll-area min-h-0 flex-1 space-y-3.5 border-t border-line px-5 py-4">{rows}</div>
       <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
