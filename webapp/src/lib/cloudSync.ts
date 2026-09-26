@@ -52,7 +52,9 @@ export class CloudSync {
   private bases: Pending = {};
   private pendingIds: Record<string, string> = {};
   private lastSyncMillis: number | null = null;
-  private flushing = false;
+  /** The upload pass in progress, shared by everyone who asks for one. */
+  private inflight: Promise<void> | null = null;
+  private lastFlushError: string | null = null;
   private generation = 0;
   private unsubscribe: Unsubscribe | null = null;
   private retry: ReturnType<typeof setInterval> | null = null;
@@ -301,9 +303,37 @@ export class CloudSync {
     }
   }
 
-  async flush(): Promise<void> {
-    if (!this.uid || this.flushing || !this.hasPending) return;
-    this.flushing = true;
+  /**
+   * Uploads pending changes and confirms them against the server. Resolves
+   * when every change is acknowledged; throws with the reason when some are
+   * still waiting (for example offline), so a caller can tell a local-only
+   * save from one that has reached the cloud.
+   */
+  async uploadNow(): Promise<void> {
+    // A pass already under way may have started before the latest changes.
+    for (let attempt = 0; attempt < 3 && this.hasPending; attempt++) {
+      this.lastFlushError = null;
+      await this.flush();
+      if (this.lastFlushError) break;
+    }
+    if (this.hasPending) {
+      throw new Error(this.lastFlushError ?? "Changes are still waiting to upload.");
+    }
+  }
+
+  flush(): Promise<void> {
+    if (!this.uid || (!this.hasPending && !this.inflight)) return Promise.resolve();
+    if (!this.inflight) {
+      const pass: Promise<void> = this.runFlush().finally(() => {
+        if (this.inflight === pass) this.inflight = null;
+      });
+      this.inflight = pass;
+    }
+    return this.inflight;
+  }
+
+  private async runFlush(): Promise<void> {
+    if (!this.hasPending) return;
     const generation = this.generation;
     const col = this.collectionRef;
     try {
@@ -464,10 +494,9 @@ export class CloudSync {
       }
     } catch (error) {
       if (generation === this.generation) {
+        this.lastFlushError = String(error);
         this.onStatus?.("Changes saved locally · retrying", String(error));
       }
-    } finally {
-      if (generation === this.generation) this.flushing = false;
     }
   }
 
@@ -485,6 +514,6 @@ export class CloudSync {
     this.bases = {};
     this.pendingIds = {};
     this.lastSyncMillis = null;
-    this.flushing = false;
+    this.inflight = null;
   }
 }

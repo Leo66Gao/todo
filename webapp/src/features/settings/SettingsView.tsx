@@ -16,6 +16,7 @@ import { ui } from "@/shell/ui";
 import { editNameColor, PALETTE } from "@/features/subjects/NameColorDialog";
 import {
   clearWorkspace,
+  UploadPendingError,
   connectCalendar,
   disconnectCalendar,
   importLocalData,
@@ -481,9 +482,18 @@ function DataSection() {
     });
     if (answer == null || Number(answer) !== a + b) return;
     setBusy(true);
-    await clearWorkspace();
-    setBusy(false);
-    toast("Workspace deleted");
+    try {
+      await clearWorkspace();
+      toast("Workspace deleted");
+    } catch (error) {
+      toast(
+        error instanceof UploadPendingError
+          ? "Deleted on this device. Your other devices follow once it uploads."
+          : `Couldn’t delete: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Group title="Data">

@@ -199,21 +199,25 @@ function applyRecords(records: Records) {
   baseline = encodeRecords();
 }
 
-let saveQueue: Promise<void> = Promise.resolve();
+let saveQueue: Promise<boolean> = Promise.resolve(true);
 let saveRetry: ReturnType<typeof setTimeout> | null = null;
 
-/** Saves are serialized so each one diffs against what was actually stored. */
-function saveData(): Promise<void> {
+/**
+ * Saves are serialized so each one diffs against what was actually stored.
+ * Resolves to whether the current state is stored (on this device, and queued
+ * for the cloud when signed in); a failed save is reported and retried.
+ */
+function saveData(): Promise<boolean> {
   saveQueue = saveQueue.then(writeChanges, writeChanges);
   return saveQueue;
 }
 
-async function writeChanges() {
+async function writeChanges(): Promise<boolean> {
   const next = encodeRecords();
   const changes: Record<string, string | null> = {};
   for (const [key, value] of Object.entries(next)) if (baseline[key] !== value) changes[key] = value;
   for (const key of Object.keys(baseline)) if (!(key in next)) changes[key] = null;
-  if (Object.keys(changes).length === 0) return;
+  if (Object.keys(changes).length === 0) return true;
   try {
     if (get().user && cloud) {
       await cloud.writeChanges(changes);
@@ -232,6 +236,7 @@ async function writeChanges() {
     if (saveRetry) clearTimeout(saveRetry);
     saveRetry = null;
     if (get().cloudError?.startsWith("Could not save")) set({ cloudError: null });
+    return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     set({
@@ -245,6 +250,7 @@ async function writeChanges() {
         void saveData();
       }, 5000);
     }
+    return false;
   }
 }
 
@@ -1032,19 +1038,21 @@ export function rescheduleTask(id: string, day: Date) {
  * [afterTime] by [deltaMs] — the amount the edited task moved.
  */
 export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, deltaMs: number) {
-  let changed = false;
+  if (deltaMs === 0) return;
+  const moved: Task[] = [];
   const tasks = get().tasks.map((other) => {
     if (other.id === excludeId || !other.startTime || !sameDay(other.date, day)) return other;
     if (other.startTime.getTime() <= afterTime.getTime()) return other;
     const shifted = new Date(other.startTime.getTime() + deltaMs);
-    changed = true;
-    return { ...other, date: startOfDay(shifted), startTime: shifted };
+    const next = { ...other, date: startOfDay(shifted), startTime: shifted };
+    moved.push(next);
+    return next;
   });
-  if (!changed) return;
+  if (moved.length === 0) return;
   set({ tasks });
-  if (calendarEnabled) {
-    for (const t of tasks) if (t.googleEventId && t.id !== excludeId) syncTaskToCalendar(t);
-  }
+  // Only the tasks that moved change in Calendar (including any whose first
+  // export is still queued).
+  if (calendarEnabled) for (const t of moved) syncTaskToCalendar(t);
   void saveData();
 }
 
@@ -1053,7 +1061,8 @@ export function updateTaskNotes(taskId: string, notes: string) {
   if (!task || task.notes === notes) return;
   const next = { ...task, notes };
   replaceTask(next);
-  if (calendarEnabled && next.googleEventId) syncTaskToCalendar(next);
+  // A task whose first export is still queued gets the new notes too.
+  if (calendarEnabled && hasCalendarExport(task)) syncTaskToCalendar(next);
   void saveData();
 }
 
@@ -1143,6 +1152,14 @@ export function updateSettings(settings: WorkspaceSettings) {
   void saveData();
 }
 
+/** The deletion is stored on this device but hasn't reached the cloud yet. */
+export class UploadPendingError extends Error {}
+
+/**
+ * Deletes everything. Resolves only once the deletion is stored — and, when
+ * signed in, acknowledged by the cloud; otherwise it throws with the reason
+ * (the deletion stays queued and keeps retrying).
+ */
 export async function clearWorkspace() {
   if (calendarEnabled) for (const t of get().tasks) removeTaskFromCalendar(t);
   set({
@@ -1153,7 +1170,17 @@ export async function clearWorkspace() {
     tags: [],
     settings: defaultSettings(),
   });
-  await saveData();
+  const stored = await saveData();
+  // Signed in, the cloud is what counts (even if the device copy failed).
+  if (get().user && cloud) {
+    try {
+      await cloud.uploadNow();
+    } catch (error) {
+      throw new UploadPendingError(error instanceof Error ? error.message : String(error));
+    }
+  } else if (!stored) {
+    throw new Error(get().cloudError ?? "The deletion could not be saved on this device.");
+  }
 }
 
 /** Test/dev hook: replaces the signed-out workspace with [records]. */
