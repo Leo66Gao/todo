@@ -71,7 +71,7 @@ function GlassCanvas() {
     // Development aid: `?glass-bg` shows the bare background.
     const bareBackground = process.env.NODE_ENV !== "production" && location.search.includes("glass-bg");
     if (bareBackground) root.classList.add("glass-bare");
-    const pointer = { x: -1e4, y: -1e4, down: false, inside: false, fine: false, moved: 0 };
+    const pointer = { x: -1e4, y: -1e4, down: false, inside: false, fine: false, moved: 0, influence: 0 };
     const reducedTransparency = matchMedia("(prefers-reduced-transparency: reduce)");
     const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
 
@@ -153,11 +153,12 @@ function GlassCanvas() {
       frame = requestAnimationFrame(tick);
       if (!visible) return;
       engine.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
-      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer);
-      // The highlight leans towards a mouse; it eases back when the mouse rests or leaves.
+      // The highlight leans towards a mouse; it eases back when the mouse leaves.
       const wantLight = useGlassPrefs.getState().pointerLight && finePointer.matches && pointer.inside && pointer.fine ? 1 : 0;
       influence += (wantLight - influence) * 0.12;
       if (Math.abs(wantLight - influence) < 0.002) influence = wantLight;
+      pointer.influence = influence;
+      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer);
       const px = Math.round(pointer.x);
       const py = Math.round(pointer.y);
       engine.render(level1, level2, [px, py, Math.round(influence * 500) / 500]);

@@ -31,6 +31,8 @@ export interface Shape {
   hover: number;
   press: number;
   opacity: number;
+  /** Direction towards the light for this shape (GL space, y up), eased over time. */
+  light: [number, number];
   clip: { x: number; y: number; w: number; h: number } | null;
 }
 
@@ -313,7 +315,7 @@ export class GlassEngine {
     const optic = new Float32Array(MAX_SHAPES * 4);
     const state = new Float32Array(MAX_SHAPES * 4);
     const clip = new Float32Array(MAX_SHAPES * 4);
-    const legible = new Float32Array(MAX_SHAPES);
+    const extra = new Float32Array(MAX_SHAPES * 4);
     for (let i = 0; i < n; i++) {
       const s = shapes[i];
       // A pressed control gives a little, like a soft body (at most a few px).
@@ -326,7 +328,7 @@ export class GlassEngine {
       const m = this.material(s.kind, Math.min(hw, hh), radius, look);
       shape.set([radius, m.bezel, m.height, m.shadowBlur * (1 + s.hover * 0.25)], i * 4);
       tint.set(m.tint, i * 4);
-      legible[i] = m.legible;
+      extra.set([m.legible, s.light[0], s.light[1], 0], i * 4);
       optic.set([m.frost, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
       state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
@@ -339,7 +341,7 @@ export class GlassEngine {
     gl.uniform4fv(p.loc("uOptic"), optic);
     gl.uniform4fv(p.loc("uState"), state);
     gl.uniform4fv(p.loc("uClip"), clip);
-    gl.uniform1fv(p.loc("uLegible"), legible);
+    gl.uniform4fv(p.loc("uExtra"), extra);
     this.draw();
   }
 
@@ -446,8 +448,12 @@ export class GlassEngine {
    */
   render(level1: Shape[], level2: Shape[], pointer: [number, number, number]) {
     if (!this.look || this.width === 0) return false;
-    const key1 = JSON.stringify(level1) + pointer.join(",");
-    const key2 = JSON.stringify(level2);
+    // The pointer only reaches the pixels through a press (the light direction
+    // travels with each shape), so it only counts while something is pressed.
+    const pressed = level1.some((s) => s.press > 0) || level2.some((s) => s.press > 0);
+    const at = pressed ? pointer.join(",") : "";
+    const key1 = JSON.stringify(level1) + at;
+    const key2 = JSON.stringify(level2) + at;
     let bgChanged = this.bgDirty;
     if (bgChanged) {
       // A new background cross-fades over the old one.
@@ -516,6 +522,18 @@ export class GlassEngine {
 // ---------------------------------------------------------------------------
 // Tracking DOM elements
 
+/** The key light, from the upper left (GL space, y up). */
+const KEY_LIGHT = [-0.55, 0.835] as const;
+
+export interface TrackedPointer {
+  x: number;
+  y: number;
+  down: boolean;
+  inside: boolean;
+  /** 0…1: how strongly the light follows the pointer right now. */
+  influence: number;
+}
+
 function scrollingAncestor(el: HTMLElement): HTMLElement | null {
   for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
     const { overflowY, overflowX } = getComputedStyle(node);
@@ -533,6 +551,9 @@ interface Motion {
   cy: number;
   vx: number;
   vy: number;
+  /** Eased light direction (GL space). */
+  lx: number;
+  ly: number;
 }
 
 const approach = (value: number, target: number, rate: number) =>
@@ -544,7 +565,7 @@ export class ShapeTracker {
   private lastGeneration = -1;
   animating = false;
 
-  collect(pointer: { x: number; y: number; down: boolean; inside: boolean }): [Shape[], Shape[]] {
+  collect(pointer: TrackedPointer): [Shape[], Shape[]] {
     const level1: Shape[] = [];
     const level2: Shape[] = [];
     this.animating = false;
@@ -562,7 +583,7 @@ export class ShapeTracker {
     return [level1, level2.concat(cards)];
   }
 
-  private shapeOf(entry: GlassEntry, pointer: { x: number; y: number; down: boolean; inside: boolean }, refreshRadius: boolean): Shape | null {
+  private shapeOf(entry: GlassEntry, pointer: TrackedPointer, refreshRadius: boolean): Shape | null {
     const { el, spec } = entry;
     if (!el.isConnected) return null;
     const r = el.getBoundingClientRect();
@@ -600,7 +621,7 @@ export class ShapeTracker {
     const inside = pointer.inside && pointer.x >= r.left && pointer.x <= r.right && pointer.y >= r.top && pointer.y <= r.bottom;
     let m = this.motion.get(el);
     if (!m) {
-      m = { hover: 0, press: 0, opacity: 0, cx: r.x + r.width / 2, cy: r.y + r.height / 2, vx: 0, vy: 0 };
+      m = { hover: 0, press: 0, opacity: 0, cx: r.x + r.width / 2, cy: r.y + r.height / 2, vx: 0, vy: 0, lx: KEY_LIGHT[0], ly: KEY_LIGHT[1] };
       this.motion.set(el, m);
     }
     // Moving selections stretch a little along their path, like a drop of
@@ -635,6 +656,29 @@ export class ShapeTracker {
     const opacity = moving ? 0 : el.dataset.taskCard === "done" ? 0.5 : 1;
     m.opacity = approach(m.opacity, opacity, moving ? 0.5 : 0.2);
     if (m.opacity !== opacity || (m.hover !== 0 && m.hover !== 1) || (m.press !== 0 && m.press !== 1)) this.animating = true;
+    // The highlight leans towards a nearby pointer. It glides round the rim
+    // rather than jumping when the pointer crosses to the other side.
+    {
+      const cx = r.x + r.width / 2;
+      const cy = r.y + r.height / 2;
+      const dx = pointer.x - cx;
+      const dy = cy - pointer.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const pull = Math.min(0.5, pointer.influence * Math.exp(-Math.max(len - Math.max(r.width, r.height) / 2, 0) / 320));
+      let tx = KEY_LIGHT[0] * (1 - pull) + (dx / len) * pull;
+      let ty = KEY_LIGHT[1] * (1 - pull) + (dy / len) * pull;
+      const tl = Math.hypot(tx, ty) || 1;
+      tx /= tl;
+      ty /= tl;
+      // Turn by angle, a little each frame, so the light travels round the rim.
+      const from = Math.atan2(m.ly, m.lx);
+      let turn = Math.atan2(ty, tx) - from;
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+      const angle = Math.abs(turn) < 0.002 ? from + turn : from + turn * 0.05;
+      m.lx = Math.cos(angle);
+      m.ly = Math.sin(angle);
+      if (Math.abs(turn) >= 0.002) this.animating = true;
+    }
     if (m.opacity === 0) return null;
     const round = (v: number) => Math.round(v * 4) / 4;
     return {
@@ -647,6 +691,7 @@ export class ShapeTracker {
       hover: Math.round(m.hover * 1000) / 1000,
       press: Math.round(m.press * 1000) / 1000,
       opacity: Math.round(m.opacity * 1000) / 1000,
+      light: [Math.round(m.lx * 1000) / 1000, Math.round(m.ly * 1000) / 1000],
       clip,
     };
   }
