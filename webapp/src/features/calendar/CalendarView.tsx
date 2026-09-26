@@ -293,7 +293,7 @@ function Agenda({ day, all }: { day: Date; all: Task[] }) {
   }, [timed, untimed, done]);
   const empty = timed.length + untimed.length + done.length === 0;
   return (
-    <aside className="scroll-area w-[320px] shrink-0 border-l border-line px-3 pt-4 pb-10 max-xl:w-full max-xl:border-t max-xl:border-l-0">
+    <aside className="scroll-area h-full min-h-0 w-[320px] shrink-0 border-l border-line px-3 pt-4 pb-10 max-xl:h-auto max-xl:w-full max-xl:flex-1 max-xl:shrink max-xl:border-t max-xl:border-l-0">
       <div className="flex items-baseline justify-between px-2 pb-3">
         <h2 className="text-base font-semibold">{relativeDay(day)}</h2>
         <span className="text-xs text-ink-3">{format(day, "d MMMM")}</span>
