@@ -200,7 +200,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               }
             }}
             placeholder="Untitled note"
-            className="field-sizing-content block w-full resize-none bg-transparent text-xl font-semibold tracking-[-0.015em] outline-none placeholder:text-ink-4"
+            className="field-sizing-content block w-full resize-none bg-transparent font-display text-xl font-semibold tracking-[-0.015em] outline-none placeholder:text-ink-4"
           />
           <p className="mt-1 mb-5 text-xs text-ink-3">{editedLabel(note.updatedAt)}</p>
           <RichText

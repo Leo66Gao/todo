@@ -22,6 +22,11 @@ export function useGlassDocumentClasses() {
     };
   }, [enabled, background]);
 
+  const lightText = useGlassPrefs((s) => s.lightText);
+  useEffect(() => {
+    document.documentElement.classList.toggle("glass-light-text", enabled && lightText);
+  }, [enabled, lightText]);
+
   const radius = useGlassPrefs((s) => s.radius);
   useEffect(() => {
     document.documentElement.style.setProperty("--glass-radius", `${radius}px`);
@@ -77,6 +82,7 @@ function GlassCanvas() {
         dark: root.classList.contains("dark"),
         blur: s.blur,
         frost: s.frost,
+        lightText: s.lightText && !root.classList.contains("dark"),
         pointerLight: s.pointerLight,
         solid: reducedTransparency.matches,
       };

@@ -144,6 +144,7 @@ function AppearanceSection() {
   const blur = useGlassPrefs((s) => s.blur);
   const frost = useGlassPrefs((s) => s.frost);
   const radius = useGlassPrefs((s) => s.radius);
+  const lightText = useGlassPrefs((s) => s.lightText);
   const pointerLight = useGlassPrefs((s) => s.pointerLight);
   return (
     <Group title="Appearance" description="Saved on this device only.">
@@ -199,6 +200,17 @@ function AppearanceSection() {
                 label="Corner radius"
                 from="Tight"
                 to="Round"
+              />
+            </Item>
+            <Item title="Text in light mode" detail="Light text reads better over darker backgrounds.">
+              <Segmented
+                size="sm"
+                value={lightText ? "light" : "dark"}
+                onChange={(v) => setGlassPrefs({ lightText: v === "light" })}
+                options={[
+                  { value: "dark", label: "Dark" },
+                  { value: "light", label: "Light" },
+                ]}
               />
             </Item>
             <Item title="Light follows the pointer" detail="Highlights turn towards the mouse." className="hover-only">

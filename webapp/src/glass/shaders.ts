@@ -259,6 +259,7 @@ export const glassFragment = (MAX_SHAPES: number) => /* glsl */ `#version 300 es
 precision highp float;
 uniform sampler2D uSrc;
 uniform sampler2D uSoft;
+uniform sampler2D uMid;
 uniform sampler2D uHeavy;
 uniform vec2 uRes;
 uniform int uCount;
@@ -340,7 +341,9 @@ void main() {
     float u = 1.0 - t;
     float u4 = u * u * u * u;
     float prof = pow(1.0 - u4, 0.25);
-    float slope = min(u * u * u * pow(max(1.0 - u4, 1e-4), -0.75), 7.0);
+    float slopeRaw = u * u * u * pow(max(1.0 - u4, 1e-4), -0.75);
+    // Saturate softly: a hard cap leaves a visible seam along the rim.
+    float slope = slopeRaw / (1.0 + slopeRaw / 7.0);
     float recess = st.w > 0.5 ? -0.6 : 1.0;
     vec3 n = normalize(vec3(g * slope * recess, 1.0));
 
@@ -354,27 +357,40 @@ void main() {
     vec3 r = refract(vec3(0.0, 0.0, -1.0), n, 1.0 / 1.5);
     float thick = S.z * (0.2 + 0.8 * prof) * (1.0 + st.y * 0.45);
     vec2 off = r.xy / max(-r.z, 0.25) * thick;
+    // Never let the offset grow faster than the surface moves: past that the
+    // image folds over itself and the rim breaks into streaks.
+    float offLen = length(off);
+    float fold = 0.85 * S.y * u + 0.5 * uDpr;
+    if (offLen > fold) off *= fold / offLen;
     float disp = O.y * 1.45 * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
-    // The rim is clear glass; blur and frost gather towards the middle.
-    float inner = smoothstep(0.08, 0.95, t);
-    // A touch of softness even at the rim keeps fine detail (photos, foliage)
-    // from breaking into colour noise once it is refracted and split.
-    float frost = max(O.x * mix(0.06, 1.0, inner), min(O.x, 0.3));
-    vec3 sharp, soft, heavy;
-    if (slope < 0.002) {
-      sharp = texture(uSrc, uvG).rgb; soft = texture(uSoft, uvG).rgb; heavy = texture(uHeavy, uvG).rgb;
+    // Blur and frost fill the whole shape, right out to the rim.
+    float frost = O.x;
+    // Four blur levels (sharp, ~6, ~16, ~40 px); only the two around the
+    // setting are read.
+    float level = frost * 3.0;
+    float fl = min(floor(level), 2.0);
+    float fr = level - fl;
+    bool split = slope >= 0.002;
+    vec3 lo, hi;
+    if (fl < 0.5) {
+      lo = split ? fetch3(uSrc, uvR, uvG, uvB) : texture(uSrc, uvG).rgb;
+      hi = split ? fetch3(uSoft, uvR, uvG, uvB) : texture(uSoft, uvG).rgb;
+    } else if (fl < 1.5) {
+      lo = split ? fetch3(uSoft, uvR, uvG, uvB) : texture(uSoft, uvG).rgb;
+      hi = split ? fetch3(uMid, uvR, uvG, uvB) : texture(uMid, uvG).rgb;
     } else {
-      sharp = fetch3(uSrc, uvR, uvG, uvB); soft = fetch3(uSoft, uvR, uvG, uvB); heavy = fetch3(uHeavy, uvR, uvG, uvB);
+      lo = split ? fetch3(uMid, uvR, uvG, uvB) : texture(uMid, uvG).rgb;
+      hi = split ? fetch3(uHeavy, uvR, uvG, uvB) : texture(uHeavy, uvG).rgb;
     }
-    vec3 base = frost < 0.5 ? mix(sharp, soft, frost * 2.0) : mix(soft, heavy, frost * 2.0 - 1.0);
+    vec3 base = mix(lo, hi, fr);
 
     // Vibrancy, then the milky haze of frosted glass.
     float lum = dot(base, vec3(0.299, 0.587, 0.114));
     base = clamp(mix(vec3(lum), base, 1.22) * (uDark > 0.5 ? 1.0 : 1.03), 0.0, 1.0);
-    base = mix(base, T.rgb, T.a * mix(0.22, 1.0, inner) * (1.0 - st.y * 0.25));
+    base = mix(base, T.rgb, T.a * (1.0 - st.y * 0.25));
     // Fresnel: grazing angles near the rim reflect the blurred surroundings.
     float fres = pow(1.0 - n.z, 2.2) * (0.55 + 0.45 * u);
     vec3 env = texture(uHeavy, (p + g * S.y * 2.5) / uRes).rgb;
@@ -393,7 +409,7 @@ void main() {
     // (+ light, - dark); the size how firmly (it follows the frost setting).
     float legible = uLegible[i];
     if (legible != 0.0) {
-      float k = abs(legible) * inner;
+      float k = abs(legible);
       float bl = dot(base, vec3(0.299, 0.587, 0.114));
       if (legible > 0.0) {
         float lo = uDark > 0.5 ? 0.56 : 0.66;

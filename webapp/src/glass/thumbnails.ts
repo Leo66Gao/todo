@@ -60,6 +60,7 @@ export async function renderThumbnails(
       dark,
       blur: 0.6,
       frost: 0.4,
+      lightText: false,
       pointerLight: false,
       solid: false,
     });

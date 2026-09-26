@@ -13,6 +13,8 @@ export interface EngineLook {
   blur: number;
   /** Milky haze: 0 clear … 1 fully frosted. */
   frost: number;
+  /** Light text over a light background: the glass then keeps itself dark. */
+  lightText: boolean;
   pointerLight: boolean;
   /** prefers-reduced-transparency: glass becomes nearly opaque. */
   solid: boolean;
@@ -95,11 +97,17 @@ export class GlassEngine {
   private bgPrev!: Target;
   private bgSoftA!: Target;
   private bgSoft!: Target;
+  private bgMidA!: Target;
+  private bgMid!: Target;
   private bgHeavyA!: Target;
   private bgHeavy!: Target;
   private scene!: Target;
   private sceneSoftA!: Target;
   private sceneSoft!: Target;
+  private sceneMidA!: Target;
+  private sceneMid!: Target;
+  private sceneHeavyA!: Target;
+  private sceneHeavy!: Target;
   private width = 0;
   private height = 0;
   dpr = 1;
@@ -169,11 +177,18 @@ export class GlassEngine {
     this.bgDrawn = false;
     this.bgSoftA = this.target(half(w), half(h), this.bgSoftA);
     this.bgSoft = this.target(half(w), half(h), this.bgSoft);
+    const quarter = (n: number) => Math.max(1, Math.round(n / 4));
+    this.bgMidA = this.target(quarter(w), quarter(h), this.bgMidA);
+    this.bgMid = this.target(quarter(w), quarter(h), this.bgMid);
     this.bgHeavyA = this.target(eighth(w), eighth(h), this.bgHeavyA);
     this.bgHeavy = this.target(eighth(w), eighth(h), this.bgHeavy);
     this.scene = this.target(w, h, this.scene);
     this.sceneSoftA = this.target(half(w), half(h), this.sceneSoftA);
     this.sceneSoft = this.target(half(w), half(h), this.sceneSoft);
+    this.sceneMidA = this.target(quarter(w), quarter(h), this.sceneMidA);
+    this.sceneMid = this.target(quarter(w), quarter(h), this.sceneMid);
+    this.sceneHeavyA = this.target(eighth(w), eighth(h), this.sceneHeavyA);
+    this.sceneHeavy = this.target(eighth(w), eighth(h), this.sceneHeavy);
     this.bgDirty = true;
     this.level1Key = this.level2Key = "";
     return true;
@@ -249,16 +264,26 @@ export class GlassEngine {
     gl.uniform1i(p.loc("uPrev"), 3);
     gl.uniform1f(p.loc("uFade"), fade);
     this.draw();
-    // Frost levels: ~6 px and ~40 px (CSS) Gaussian.
+    // Blur levels: ~6, ~16 and ~40 px (CSS) Gaussian.
     this.blur(this.bg, this.bgSoftA, true, 1);
     this.blur(this.bgSoftA, this.bgSoft, false, 1);
-    this.blur(this.bgSoft, this.bgHeavyA, true, 1.6);
+    this.blur(this.bgSoft, this.bgMidA, true, 1.5);
+    this.blur(this.bgMidA, this.bgMid, false, 1.5);
+    this.blur(this.bgMid, this.bgHeavyA, true, 1.6);
     this.blur(this.bgHeavyA, this.bgHeavy, false, 1.6);
     this.blur(this.bgHeavy, this.bgHeavyA, true, 1.3);
     this.blur(this.bgHeavyA, this.bgHeavy, false, 1.3);
   }
 
-  private glassPass(target: Target | null, src: Target, soft: Target, heavy: Target, shapes: Shape[], pointer: [number, number, number]) {
+  private glassPass(
+    target: Target | null,
+    src: Target,
+    soft: Target,
+    mid: Target,
+    heavy: Target,
+    shapes: Shape[],
+    pointer: [number, number, number],
+  ) {
     const gl = this.gl;
     const look = this.look!;
     const p = this.glassProgram;
@@ -271,8 +296,10 @@ export class GlassEngine {
     gl.uniform1i(p.loc("uSrc"), 0);
     gl.uniform1i(p.loc("uSoft"), 1);
     gl.uniform1i(p.loc("uHeavy"), 2);
+    this.texture(3, mid.tex);
+    gl.uniform1i(p.loc("uMid"), 3);
     gl.uniform2f(p.loc("uRes"), this.width, this.height);
-    gl.uniform1f(p.loc("uDark"), look.dark ? 1 : 0);
+    gl.uniform1f(p.loc("uDark"), look.dark || look.lightText ? 1 : 0);
     gl.uniform1f(p.loc("uDpr"), dpr);
     // Key light from the upper left (GL space is y-up).
     gl.uniform2f(p.loc("uLight"), -0.55, 0.835);
@@ -301,7 +328,7 @@ export class GlassEngine {
       tint.set(m.tint, i * 4);
       legible[i] = m.legible;
       optic.set([m.frost, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
-      state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
+      state.set([s.hover, s.press, s.opacity, 0], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
     }
@@ -325,7 +352,8 @@ export class GlassEngine {
     const dpr = this.dpr;
     const b = look.blur;
     const f = look.frost;
-    const dark = look.dark;
+    // Glass under light text behaves as it does in dark mode.
+    const dark = look.dark || look.lightText;
     const solid = look.solid;
     // Frost is white haze in light mode and a soft grey mist in dark mode.
     const haze = dark ? [0.4, 0.41, 0.44] : [1, 1, 1];
@@ -397,16 +425,17 @@ export class GlassEngine {
           shadowBlur: 8 * dpr,
         };
       case "well":
+        // The search field: a lens of heavily frosted glass.
         return {
           bezel: Math.min(radius, halfShort),
-          height: Math.min(halfShort, 10 * dpr),
-          tint: dark ? [0, 0, 0, 0.12] : [0.2, 0.22, 0.26, 0.06],
-          legible: 0,
-          frost: 0.85,
-          dispersion: 0.1,
-          rim: 0.55,
-          shadow: 0,
-          shadowBlur: 4 * dpr,
+          height: Math.min(halfShort, 14 * dpr),
+          tint: [...haze, dark ? 0.2 : 0.42],
+          legible: dark ? -1 : 1,
+          frost: 1,
+          dispersion: 0.14,
+          rim: 0.6,
+          shadow: dark ? 0.18 : 0.08,
+          shadowBlur: 8 * dpr,
         };
     }
   }
@@ -440,15 +469,19 @@ export class GlassEngine {
     const level1Changed = bgChanged || key1 !== this.level1Key;
     if (!level1Changed && key2 === this.level2Key) return false;
     if (level1Changed) {
-      this.glassPass(this.scene, this.bg, this.bgSoft, this.bgHeavy, level1, pointer);
+      this.glassPass(this.scene, this.bg, this.bgSoft, this.bgMid, this.bgHeavy, level1, pointer);
       if (level2.length) {
         this.blur(this.scene, this.sceneSoftA, true, 1);
         this.blur(this.sceneSoftA, this.sceneSoft, false, 1);
+        this.blur(this.sceneSoft, this.sceneMidA, true, 1.5);
+        this.blur(this.sceneMidA, this.sceneMid, false, 1.5);
+        this.blur(this.sceneMid, this.sceneHeavyA, true, 1.6);
+        this.blur(this.sceneHeavyA, this.sceneHeavy, false, 1.6);
       }
       this.level1Key = key1;
     }
     if (level2.length) {
-      this.glassPass(null, this.scene, this.sceneSoft, this.sceneSoft, level2, pointer);
+      this.glassPass(null, this.scene, this.sceneSoft, this.sceneMid, this.sceneHeavy, level2, pointer);
     } else {
       const gl = this.gl;
       const p = this.blitProgram;

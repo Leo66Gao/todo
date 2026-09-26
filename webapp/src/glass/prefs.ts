@@ -27,11 +27,13 @@ export interface GlassPrefs {
   frost: number;
   /** Corner radius of the glass panels, in CSS px; controls scale with it. */
   radius: number;
+  /** Light text in light mode, for darker backgrounds. */
+  lightText: boolean;
   /** Highlights follow the pointer (desktop). */
   pointerLight: boolean;
 }
 
-const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", blur: 0.75, frost: 0.4, radius: 22, pointerLight: true };
+const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", blur: 0.75, frost: 0.4, radius: 22, lightText: false, pointerLight: true };
 export const RADIUS_RANGE = [10, 34] as const;
 const KEY = "glass";
 
@@ -44,8 +46,8 @@ interface GlassState extends GlassPrefs {
 export const useGlassPrefs = create<GlassState>(() => ({ ...DEFAULTS, image: null, hasImage: false }));
 
 function persist() {
-  const { enabled, background, blur, frost, radius, pointerLight } = useGlassPrefs.getState();
-  setLocal(KEY, { enabled, background, blur, frost, radius, pointerLight });
+  const { enabled, background, blur, frost, radius, lightText, pointerLight } = useGlassPrefs.getState();
+  setLocal(KEY, { enabled, background, blur, frost, radius, lightText, pointerLight });
 }
 
 export function restoreGlassPrefs() {

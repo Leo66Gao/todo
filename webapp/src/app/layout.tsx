@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree } from "next/font/google";
+import { Figtree, Geist } from "next/font/google";
 import { Suspense } from "react";
 import "quill/dist/quill.core.css";
 import "./globals.css";
 import "@/glass/glass.css";
 import { Shell } from "@/shell/Shell";
 
-// Figtree: a clean geometric grotesque — close in spirit to the Poppins the
-// app started with, but tuned for dense UI text.
-const ui = Figtree({ subsets: ["latin"], variable: "--font-ui", display: "swap" });
+// Geist for the interface: a crisp neo-grotesque that stays precise at small
+// sizes. Page titles keep Figtree, the app's original geometric face.
+const ui = Geist({ subsets: ["latin"], variable: "--font-ui", display: "swap" });
+const title = Figtree({ subsets: ["latin"], variable: "--font-title", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Todo",
@@ -33,7 +34,7 @@ const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={ui.variable} suppressHydrationWarning>
+    <html lang="en" className={`${ui.variable} ${title.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
       </head>

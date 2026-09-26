@@ -312,7 +312,7 @@ export function PageHeader({
       )}
       {leading}
       <div className="flex min-w-0 items-baseline gap-2.5">
-        <h1 className="truncate text-xl font-semibold tracking-[-0.015em]">{title}</h1>
+        <h1 className="truncate font-display text-xl font-semibold tracking-[-0.015em]">{title}</h1>
         {detail && <span className="truncate text-sm text-ink-3 max-sm:hidden">{detail}</span>}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>

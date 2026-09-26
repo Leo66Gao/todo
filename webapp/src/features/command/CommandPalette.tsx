@@ -56,7 +56,7 @@ function score(text: string, q: string): number {
 export function CommandPalette() {
   const open = useUI((s) => s.paletteOpen);
   return (
-    <Modal open={open} onOpenChange={(o) => ui.set({ paletteOpen: o })} width={620} label="Search" className="max-h-[min(72vh,560px)]">
+    <Modal open={open} onOpenChange={(o) => ui.set({ paletteOpen: o })} width={620} label="Search" className="glass-frost-heavy max-h-[min(72vh,560px)]">
       {open && <Palette />}
     </Modal>
   );
@@ -202,10 +202,10 @@ function Palette() {
                 data-index={i}
                 onMouseMove={() => active !== i && setActive(i)}
                 onClick={() => c.run()}
-                className="relative flex h-9 w-full items-center gap-3 rounded-[8px] px-3 text-left text-sm"
+                className="relative flex h-9 w-full items-center gap-3 rounded-ctl px-3 text-left text-sm"
               >
                 {active === i && (
-                  <motion.span layoutId="palette-active" transition={springs.snappy} className="absolute inset-0 rounded-[8px] bg-fill" />
+                  <motion.span layoutId="palette-active" transition={springs.snappy} className="absolute inset-0 rounded-ctl bg-fill" />
                 )}
                 <span className="relative flex size-4 items-center justify-center text-ink-3 [&>svg]:size-4">{c.icon}</span>
                 <span className="relative min-w-0 flex-1 truncate">{c.title}</span>

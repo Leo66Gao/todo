@@ -54,6 +54,35 @@ html.glass.dark {
   background: #0a1a22;
 }
 
+/* Light text in light mode (for darker backgrounds): content on the glass
+   takes the dark-mode ink; overlays keep their own light-mode ink. */
+html.glass.glass-light-text:not(.dark) {
+  --fill: rgb(255 255 255 / 0.1);
+  --fill-strong: rgb(255 255 255 / 0.16);
+  --row-hover: rgb(255 255 255 / 0.06);
+  --line: rgb(255 255 255 / 0.14);
+  --line-strong: rgb(255 255 255 / 0.22);
+  --ink: #ffffff;
+  --ink-2: rgb(255 255 255 / 0.82);
+  --ink-3: rgb(255 255 255 / 0.64);
+  --ink-4: rgb(255 255 255 / 0.42);
+  --on-ink: #161618;
+  --accent-soft: rgb(112 151 242 / 0.24);
+}
+html.glass.glass-light-text:not(.dark) :is(.glass-overlay, [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]) {
+  --fill: rgb(24 28 36 / 0.055);
+  --fill-strong: rgb(24 28 36 / 0.095);
+  --row-hover: rgb(24 28 36 / 0.04);
+  --line: rgb(24 28 36 / 0.085);
+  --line-strong: rgb(24 28 36 / 0.14);
+  --ink: #16171a;
+  --ink-2: #4f5159;
+  --ink-3: #767882;
+  --ink-4: #a9abb3;
+  --on-ink: #ffffff;
+  --accent-soft: rgb(47 95 208 / 0.12);
+}
+
 html.glass body {
   background: transparent;
 }
@@ -327,4 +356,16 @@ html.glass.dark .glass-scrolling [data-task-card] {
 }
 html.glass [data-task-card] > [data-task-id] {
   margin: 0;
+}
+
+/* The search palette: heavily frosted glass. */
+html.glass .glass-overlay.glass-frost-heavy {
+  --raised: rgb(252 252 253 / 0.72);
+  -webkit-backdrop-filter: blur(56px) saturate(1.8) brightness(1.04);
+  backdrop-filter: blur(56px) saturate(1.8) brightness(1.04);
+}
+html.glass.dark .glass-overlay.glass-frost-heavy {
+  --raised: rgb(58 60 68 / 0.58);
+  -webkit-backdrop-filter: blur(56px) saturate(1.6);
+  backdrop-filter: blur(56px) saturate(1.6);
 }

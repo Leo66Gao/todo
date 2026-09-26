@@ -84,7 +84,7 @@ function GlassTabBar({ route, navigate, children }: { route: Route; navigate: (r
   const hidden = useUI((s) => s.editor != null);
   const canAdd = HAS_ADD.includes(route.view) && !hidden;
   return (
-    <nav className="relative z-20 flex shrink-0 items-center gap-2.5 px-2 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] md:hidden">
+    <nav className="relative z-20 flex shrink-0 items-center gap-2.5 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] md:hidden">
       <div ref={capsule} className="grid h-[62px] min-w-0 flex-1 grid-cols-5 px-1">
         {children}
       </div>
