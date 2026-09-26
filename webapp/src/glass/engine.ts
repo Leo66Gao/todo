@@ -33,6 +33,8 @@ export interface Shape {
   opacity: number;
   /** Direction towards the light for this shape (GL space, y up), eased over time. */
   light: [number, number];
+  /** Highlight strength: 1 at rest, brighter with the pointer near, fainter with it far. */
+  glow: number;
   clip: { x: number; y: number; w: number; h: number } | null;
 }
 
@@ -328,7 +330,7 @@ export class GlassEngine {
       const m = this.material(s.kind, Math.min(hw, hh), radius, look);
       shape.set([radius, m.bezel, m.height, m.shadowBlur * (1 + s.hover * 0.25)], i * 4);
       tint.set(m.tint, i * 4);
-      extra.set([m.legible, s.light[0], s.light[1], 0], i * 4);
+      extra.set([m.legible, s.light[0], s.light[1], s.glow], i * 4);
       optic.set([m.frost, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
       state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
@@ -554,6 +556,8 @@ interface Motion {
   /** Eased light direction (GL space). */
   lx: number;
   ly: number;
+  /** Eased pointer proximity, 0 far … 1 over the shape. */
+  near: number;
 }
 
 const approach = (value: number, target: number, rate: number) =>
@@ -621,7 +625,7 @@ export class ShapeTracker {
     const inside = pointer.inside && pointer.x >= r.left && pointer.x <= r.right && pointer.y >= r.top && pointer.y <= r.bottom;
     let m = this.motion.get(el);
     if (!m) {
-      m = { hover: 0, press: 0, opacity: 0, cx: r.x + r.width / 2, cy: r.y + r.height / 2, vx: 0, vy: 0, lx: KEY_LIGHT[0], ly: KEY_LIGHT[1] };
+      m = { hover: 0, press: 0, opacity: 0, cx: r.x + r.width / 2, cy: r.y + r.height / 2, vx: 0, vy: 0, lx: KEY_LIGHT[0], ly: KEY_LIGHT[1], near: 0 };
       this.motion.set(el, m);
     }
     // Moving selections stretch a little along their path, like a drop of
@@ -678,6 +682,12 @@ export class ShapeTracker {
       m.lx = Math.cos(angle);
       m.ly = Math.sin(angle);
       if (Math.abs(turn) >= 0.002) this.animating = true;
+      // Proximity to the pointer, from its distance to the shape's edge.
+      const gapX = Math.max(r.left - pointer.x, pointer.x - r.right, 0);
+      const gapY = Math.max(r.top - pointer.y, pointer.y - r.bottom, 0);
+      const near = Math.exp(-Math.hypot(gapX, gapY) / 140);
+      m.near = Math.abs(near - m.near) < 0.004 ? near : m.near + (near - m.near) * 0.08;
+      if (m.near !== near) this.animating = true;
     }
     if (m.opacity === 0) return null;
     const round = (v: number) => Math.round(v * 4) / 4;
@@ -692,6 +702,8 @@ export class ShapeTracker {
       press: Math.round(m.press * 1000) / 1000,
       opacity: Math.round(m.opacity * 1000) / 1000,
       light: [Math.round(m.lx * 1000) / 1000, Math.round(m.ly * 1000) / 1000],
+      // Without a mouse the highlights keep their resting strength.
+      glow: Math.round((1 + pointer.influence * (1.9 * m.near - 0.6)) * 1000) / 1000,
       clip,
     };
   }
