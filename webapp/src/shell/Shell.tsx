@@ -42,6 +42,7 @@ import { cn } from "@/ui/cn";
 import { IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { AskHost, TooltipProvider } from "@/ui/overlay";
+import { FormulaHost } from "@/ui/FormulaDialog";
 import { toast, ToastHost } from "@/ui/toast";
 import { GlassLayer } from "@/glass/GlassLayer";
 import { restoreGlassPrefs, useGlassPrefs } from "@/glass/prefs";
@@ -103,6 +104,7 @@ export function Shell() {
         <ShortcutsSheet />
         <NameColorHost />
         <AskHost />
+        <FormulaHost />
         <ToastHost />
       </TooltipProvider>
     </MotionConfig>

@@ -57,7 +57,11 @@ export function plainText(content: string): string {
   const ops = parseDelta(content);
   if (!ops) return stripMarkdown(content);
   return ops
-    .map((op) => (typeof op.insert === "string" ? op.insert : ""))
+    .map((op) => {
+      if (typeof op.insert === "string") return op.insert;
+      const formula = (op.insert as { formula?: unknown } | undefined)?.formula;
+      return typeof formula === "string" ? ` ${formula.replace(/^\\displaystyle\s*/, "")} ` : "";
+    })
     .join("")
     .replace(/\s+/g, " ")
     .trim();
