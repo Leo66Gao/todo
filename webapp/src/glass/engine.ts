@@ -140,6 +140,23 @@ export class GlassEngine {
     this.blitProgram = new Program(gl, BLIT_FS);
   }
 
+  /** Called with the background's colour along the top edge whenever it settles. */
+  onTopColor: ((rgb: [number, number, number]) => void) | null = null;
+
+  /** Average colour (0…255) of the top strip of the background, under the status bar. */
+  private topColor(): [number, number, number] {
+    const gl = this.gl;
+    const { w, h } = this.bg;
+    const rows = Math.min(h, Math.ceil(28 * this.dpr));
+    const pixels = new Uint8Array(w * rows * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.bg.fbo);
+    gl.readPixels(0, h - rows, w, rows, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    const sum = [0, 0, 0];
+    for (let i = 0; i < pixels.length; i += 4) for (let c = 0; c < 3; c++) sum[c] += pixels[i + c];
+    const n = Math.max(1, w * rows);
+    return [Math.round(sum[0] / n), Math.round(sum[1] / n), Math.round(sum[2] / n)];
+  }
+
   private target(w: number, h: number, previous?: Target): Target {
     const gl = this.gl;
     if (previous) {
@@ -477,6 +494,7 @@ export class GlassEngine {
       this.renderBackground();
     }
     this.bgDrawn = true;
+    if (bgChanged && this.fadeStart == null && this.onTopColor) this.onTopColor(this.topColor());
     const level1Changed = bgChanged || key1 !== this.level1Key;
     if (!level1Changed && key2 === this.level2Key) return false;
     if (level1Changed) {

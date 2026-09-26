@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Android shell (its copied web assets and build output).
+    "android/**",
   ]),
 ]);
 

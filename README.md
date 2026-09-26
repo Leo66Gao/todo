@@ -25,7 +25,33 @@ Use a port listed in your Google OAuth authorized JavaScript origins when
 testing sign-in and Google Calendar. On macOS, AirPlay Receiver may occupy port
 5000.
 
-## Mobile app
+## Android app
+
+The Android app is the web app in a native shell (Capacitor), in
+`webapp/android/`. It keeps the Flutter app's ID (`com.example.todo_app`), so it
+installs as an update over it when signed with the same key.
+
+It needs JDK 21 and the Android SDK, plus three local files that stay out of
+Git:
+
+- `webapp/android/app/google-services.json` (from the Firebase console),
+- `webapp/android/keystore.properties` (`storeFile`, `storePassword`,
+  `keyAlias`, `keyPassword`: the key the installed app was signed with),
+- `webapp/android/local.properties` (`sdk.dir=…`).
+
+```sh
+cd webapp
+npm run build && npx cap sync android
+cd android
+JAVA_HOME=/opt/homebrew/opt/openjdk@21 ./gradlew assembleRelease
+# → app/build/outputs/apk/release/app-release.apk
+```
+
+Native pieces live in `webapp/src/lib/native.ts` (sign-in, Google tokens,
+system bars, back button, haptics) and in the small plugins next to
+`MainActivity.java`.
+
+## Flutter app (retiring)
 
 ```sh
 flutter pub get
@@ -33,8 +59,7 @@ flutter run
 ```
 
 Flutter creates `build/` and `.dart_tool/` as local build output; they can be
-regenerated. The Flutter web build is no longer deployed; `webapp/` replaces
-it.
+regenerated. The Android app above replaces it.
 
 ## Sync across devices
 

@@ -46,6 +46,7 @@ import { GlassLayer } from "@/glass/GlassLayer";
 import { restoreGlassPrefs, useGlassPrefs } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
+import { startNative } from "@/lib/native";
 import { MobileAddButton, MobileTabBar } from "./MobileBar";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
@@ -60,6 +61,7 @@ export function Shell() {
     ui.restore();
     restoreAppearance();
     restoreGlassPrefs();
+    void startNative();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);

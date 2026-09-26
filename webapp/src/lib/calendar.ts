@@ -4,6 +4,7 @@
 // refreshed through Google Identity Services (`prompt: none`).
 
 import { googleWebClientId } from "./firebase";
+import { GoogleAuthorization, isNative } from "./native";
 import { parseDartDate, toDartIso } from "./dart";
 import * as prefs from "./prefs";
 
@@ -54,6 +55,14 @@ async function requestToken(
   interactive: boolean,
   loginHint: string | null,
 ): Promise<{ accessToken: string; expiry: Date } | null> {
+  if (isNative()) {
+    const { accessToken } = await GoogleAuthorization.authorize({
+      scopes: [CALENDAR_SCOPE, "email"],
+      email: loginHint,
+      interactive,
+    });
+    return accessToken ? { accessToken, expiry: new Date(Date.now() + 55 * 60000) } : null;
+  }
   if (!googleWebClientId) return null;
   await loadGis();
   return new Promise((resolve, reject) => {

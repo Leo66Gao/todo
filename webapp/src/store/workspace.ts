@@ -12,6 +12,7 @@ import {
   getRedirectResult,
   onAuthStateChanged,
   reauthenticateWithRedirect,
+  signInWithCredential,
   signInWithPopup,
   signOut as firebaseSignOut,
   type User,
@@ -46,6 +47,7 @@ import {
   type Task,
   type WorkspaceSettings,
 } from "@/lib/model";
+import { isNative, nativeGoogleSignIn, nativeSignOut } from "@/lib/native";
 import * as prefs from "@/lib/prefs";
 import { sameDay, startOfDay } from "@/lib/time";
 
@@ -418,7 +420,14 @@ export async function signInWithGoogle() {
   if (!fb || get().authBusy) return;
   set({ authBusy: true, cloudError: null });
   try {
-    await signInWithPopup(fb.auth, new GoogleAuthProvider());
+    if (isNative()) {
+      // Pop-ups don't exist in the app: Android signs in, Firebase takes the token.
+      const idToken = await nativeGoogleSignIn();
+      if (!idToken) throw new Error("Google did not return a sign-in token.");
+      await signInWithCredential(fb.auth, GoogleAuthProvider.credential(idToken));
+    } else {
+      await signInWithPopup(fb.auth, new GoogleAuthProvider());
+    }
   } catch (error) {
     const text = String(error);
     set({
@@ -439,6 +448,7 @@ export async function signOut() {
   set({ authBusy: true });
   try {
     calendar.clearSession();
+    await nativeSignOut();
     await firebaseSignOut(fb.auth);
     await authQueue;
   } catch (error) {
@@ -736,6 +746,25 @@ export async function connectCalendar() {
   const user = firebaseUser;
   if (!fb || !user || get().authBusy) return;
   set({ syncError: null });
+  if (isNative()) {
+    // Android grants the Calendar scope in place (no redirect).
+    set({ authBusy: true });
+    try {
+      const email = await calendar.authorize({ interactive: true, email: user.email, uid: user.uid });
+      if (!email) throw new Error(calendar.lastError ?? "Calendar connection was cancelled.");
+      if (!(await calendar.verifyAccess())) {
+        throw new Error(calendar.lastError ?? "Google Calendar could not be reached.");
+      }
+      await enableCalendarAfterConnect(user.uid);
+    } catch (error) {
+      calendar.clearSession();
+      set({ syncError: `Calendar connection failed: ${error instanceof Error ? error.message : String(error)}` });
+    } finally {
+      set({ authBusy: false });
+      refreshCalendarFlag();
+    }
+    return;
+  }
   prefs.setString(CALENDAR_REDIRECT_KEY, user.uid);
   const provider = new GoogleAuthProvider();
   provider.addScope(CALENDAR_SCOPE);

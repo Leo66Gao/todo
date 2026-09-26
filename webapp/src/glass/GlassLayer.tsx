@@ -5,6 +5,7 @@ import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
 import { noteScroll, refreshGlassShapes } from "./registry";
+import { reportGlassTop } from "@/lib/native";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
 
@@ -67,6 +68,7 @@ function GlassCanvas() {
       return () => root.classList.remove("glass-css");
     }
     root.classList.remove("glass-css");
+    engine.onTopColor = reportGlassTop;
     const tracker = new ShapeTracker();
     // Development aid: `?glass-bg` shows the bare background.
     const bareBackground = process.env.NODE_ENV !== "production" && location.search.includes("glass-bg");
