@@ -38,4 +38,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Reminders fire on the minute (a calendar app may use exact alarms). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>

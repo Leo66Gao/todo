@@ -29,6 +29,8 @@ import { cn } from "@/ui/cn";
 import { Button, Segmented, Slider, Spinner, Switch } from "@/ui/controls";
 import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
+import { isNative } from "@/lib/native";
+import { LEAD_OPTIONS, requestReminderPermission, setReminderPrefs, useReminderPrefs, type ReminderPrefs } from "@/lib/reminders";
 import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
 import { RADIUS_RANGE, setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
@@ -56,6 +58,7 @@ export function SettingsView() {
           <TaskFormSection />
           <LabelsSection />
           <CalendarSection />
+          <RemindersSection />
           <Group title="Keyboard">
             <Item title="Keyboard shortcuts" detail="Press ? anywhere to see them.">
               <Button size="sm" onClick={() => ui.set({ shortcutsOpen: true })}>
@@ -188,7 +191,7 @@ function AppearanceSection() {
             <Item title="Blur" detail="How much the glass softens what is behind it.">
               <RangeSlider value={blur} onChange={(v) => setGlassPrefs({ blur: v })} label="Blur" from="Sharp" to="Soft" />
             </Item>
-            <Item title="Frost" detail="A milky haze in the glass.">
+            <Item title="Frost" detail="A frosted texture, like sandblasted glass.">
               <RangeSlider value={frost} onChange={(v) => setGlassPrefs({ frost: v })} label="Frost" from="Clear" to="Frosted" />
             </Item>
             <Item title="Corners" detail="Roundness of panels, controls and menus.">
@@ -447,6 +450,60 @@ function CalendarSection() {
         )}
       </Item>
       {error && <div className="px-4 py-2.5 text-xs text-danger">{error}</div>}
+    </Group>
+  );
+}
+
+function RemindersSection() {
+  const timed = useReminderPrefs((s) => s.timed);
+  const lead = useReminderPrefs((s) => s.lead);
+  const summary = useReminderPrefs((s) => s.summary);
+  const summaryAt = useReminderPrefs((s) => s.summaryAt);
+  const native = isNative();
+  const enable = async (patch: Partial<ReminderPrefs>) => {
+    setReminderPrefs(patch);
+    if ((patch.timed || patch.summary) && !(await requestReminderPermission())) {
+      toast("Allow notifications for Todo in Android settings to get reminders.");
+    }
+  };
+  const time = `${String(Math.floor(summaryAt / 60)).padStart(2, "0")}:${String(summaryAt % 60).padStart(2, "0")}`;
+  if (!native) {
+    return (
+      <Group title="Reminders">
+        <Item title="Reminders arrive on your phone" detail="Turn them on in the Todo Android app. They work offline, even with the app closed." />
+      </Group>
+    );
+  }
+  return (
+    <Group title="Reminders" description="On this phone. They work offline, even with the app closed.">
+      <Item title="Before timed tasks" detail="A notification before each task with a start time.">
+        <Switch checked={timed} label="Before timed tasks" onChange={(v) => void enable({ timed: v })} />
+      </Item>
+      {timed && (
+        <Item title="How early">
+          <Segmented
+            size="sm"
+            value={String(lead)}
+            onChange={(v) => setReminderPrefs({ lead: Number(v) })}
+            options={LEAD_OPTIONS.map((m) => ({ value: String(m), label: m === 0 ? "At start" : m === 60 ? "1 h" : `${m}m` }))}
+          />
+        </Item>
+      )}
+      <Item title="Morning summary" detail="What’s on today, once a day.">
+        {summary && (
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => {
+              const [h, m] = e.target.value.split(":").map(Number);
+              if (Number.isFinite(h) && Number.isFinite(m)) setReminderPrefs({ summaryAt: h * 60 + m });
+            }}
+            className="h-[26px] rounded-[calc(var(--radius-ctl)_-_1px)] bg-fill px-2 text-xs tabular-nums outline-none"
+            aria-label="Summary time"
+          />
+        )}
+        <Switch checked={summary} label="Morning summary" onChange={(v) => void enable({ summary: v })} />
+      </Item>
     </Group>
   );
 }
