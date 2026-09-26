@@ -117,6 +117,7 @@ function Workspace() {
   const glass = useGlassPrefs((s) => s.enabled);
   const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
   const slabGlass = useGlass({ level: 1, kind: "slab" });
+  const paper = route.view === "notes" || route.view === "note";
   const [dragging, setDragging] = useState<Task | null>(null);
   // Mouse drags start after a small move; on touch screens a long press starts
   // a drag so ordinary swipes keep scrolling.
@@ -240,7 +241,13 @@ function Workspace() {
         </AnimatePresence>
 
         <main className="relative flex min-w-0 flex-1 flex-col">
-          <div ref={slabGlass} data-surface="main-slab" className="flex min-h-0 flex-1 flex-col">
+          {/* Notes read best on paper: a plain, solid panel instead of glass. */}
+          <div
+            ref={paper ? undefined : slabGlass}
+            data-surface="main-slab"
+            data-paper={paper || undefined}
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <View
               key={route.view === "subject" || route.view === "assignment" || route.view === "note" ? `${route.view}:${route.id}` : route.view}
               route={route}
