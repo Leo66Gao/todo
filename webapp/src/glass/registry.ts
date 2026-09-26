@@ -8,10 +8,11 @@ import { useCallback, useMemo, type Ref, type RefCallback } from "react";
  * glass exactly under it, following its live position every frame.
  *
  * Level 1 sits on the background (sidebar, content panel, tab bar). Level 2
- * sits on a level-1 surface (selection pills, primary buttons) and refracts
- * that surface. Anything inside overlays or scrolling lists is left to CSS:
- * the renderer is behind the page, so it can't draw over DOM content, and
- * scrolled content moves on the compositor ahead of the next frame.
+ * sits on a level-1 surface (selection pills, primary buttons, task cards) and
+ * refracts that surface. Overlays are left to CSS: the renderer is behind the
+ * page, so it can't draw over DOM content. Scrolled content moves on the
+ * compositor ahead of the next frame, so shapes in a list (`inScroll`) hand
+ * over to a CSS look while their list is scrolling.
  */
 export type GlassKind =
   /** The large reading surface behind task content: frosted and well tinted. */
@@ -23,7 +24,9 @@ export type GlassKind =
   /** Ink-tinted glass for primary actions and the selected day. */
   | "ink"
   /** A recessed well, e.g. the search field. */
-  | "well";
+  | "well"
+  /** A thin plate under a task in a scrolling list. */
+  | "card";
 
 export interface GlassSpec {
   level: 1 | 2;
@@ -44,6 +47,8 @@ export interface GlassEntry {
   spec: GlassSpec;
   /** Level-1 ancestor that clips a level-2 shape (e.g. a collapsing sidebar). */
   clip: HTMLElement | null;
+  /** Nearest scrolling ancestor of a shape in a list (null: none; undefined: not looked up). */
+  scroller?: HTMLElement | null;
   radiusPx: number | null;
   born: number;
 }
@@ -67,6 +72,24 @@ export function registerGlass(el: HTMLElement, spec: GlassSpec): () => void {
     generation++;
   };
 }
+
+// Scroll activity per scrolling element, so list shapes can step aside while it moves.
+const scrolledAt = new WeakMap<Element, number>();
+const settle = new WeakMap<Element, number>();
+/** How long after the last scroll event a list counts as still moving (ms). */
+export const SCROLL_SETTLE = 140;
+
+export function noteScroll(el: Element) {
+  scrolledAt.set(el, performance.now());
+  el.classList.add("glass-scrolling");
+  clearTimeout(settle.get(el));
+  settle.set(
+    el,
+    window.setTimeout(() => el.classList.remove("glass-scrolling"), SCROLL_SETTLE),
+  );
+}
+
+export const isScrolling = (el: Element) => performance.now() - (scrolledAt.get(el) ?? -1e9) < SCROLL_SETTLE;
 
 /** Ref callback that registers the element as a glass surface while mounted. */
 export function useGlass<T extends HTMLElement>(spec: GlassSpec) {

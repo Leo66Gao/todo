@@ -2,6 +2,7 @@
 
 import { memo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
+import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -205,10 +206,14 @@ const TaskRowView = memo(function TaskRowView({
     meta.push(<FileText key="notes" className="size-3 text-ink-3" aria-label="Has notes" />);
   }
 
+  // Each task sits on a thin plate of glass in the Liquid Glass theme.
+  const cardGlass = useGlass<HTMLDivElement>({ level: 2, kind: "card", interactive: true, inScroll: true });
+  const cardRef = useMergedRefs(dragRef, cardGlass);
+
   const dragTouchStart = dragProps?.onTouchStart as ((e: React.TouchEvent) => void) | undefined;
 
   return (
-    <div ref={dragRef} style={dragStyle} data-task-card={done ? "done" : ""} className={cn("relative", dragging && "z-10 opacity-40")}>
+    <div ref={cardRef} style={dragStyle} data-task-card={done ? "done" : ""} className={cn("relative", dragging && "z-10 opacity-40")}>
       <div className="relative overflow-hidden rounded-[9px]">
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div

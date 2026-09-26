@@ -25,7 +25,7 @@ import {
   useWorkspace,
 } from "@/store/workspace";
 import { cn } from "@/ui/cn";
-import { Button, Segmented, Spinner, Switch } from "@/ui/controls";
+import { Button, Segmented, Slider, Spinner, Switch } from "@/ui/controls";
 import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { springs } from "@/ui/motion";
@@ -141,7 +141,7 @@ function AccountSection() {
 function AppearanceSection() {
   const mode = useWorkspace((s) => s.settings.themeMode);
   const glass = useGlassPrefs((s) => s.enabled);
-  const finish = useGlassPrefs((s) => s.finish);
+  const frost = useGlassPrefs((s) => s.frost);
   const pointerLight = useGlassPrefs((s) => s.pointerLight);
   return (
     <Group title="Appearance">
@@ -181,17 +181,12 @@ function AppearanceSection() {
               <Item title="Background" className="min-h-0 pb-1.5" />
               <BackgroundPicker />
             </div>
-            <Item title="Glass" detail="How much of the background shows through.">
-              <Segmented
-                size="sm"
-                value={finish}
-                onChange={(v) => setGlassPrefs({ finish: v })}
-                options={[
-                  { value: "clear", label: "Clear" },
-                  { value: "balanced", label: "Balanced" },
-                  { value: "frosted", label: "Frosted" },
-                ]}
-              />
+            <Item title="Frost" detail="From clear glass to fully frosted.">
+              <div className="flex w-52 items-center gap-2.5 text-2xs text-ink-3 max-sm:w-40">
+                <span>Clear</span>
+                <Slider value={frost} min={0} max={1} step={0.01} onChange={(v) => setGlassPrefs({ frost: v })} label="Frost" />
+                <span>Frosted</span>
+              </div>
             </Item>
             <Item title="Light follows the pointer" detail="Highlights turn towards the mouse." className="hover-only">
               <Switch checked={pointerLight} onChange={(v) => setGlassPrefs({ pointerLight: v })} label="Light follows the pointer" />

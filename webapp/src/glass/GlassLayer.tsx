@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
+import { noteScroll } from "./registry";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
 
@@ -67,7 +68,7 @@ function GlassCanvas() {
       const s = useGlassPrefs.getState();
       const common = {
         dark: root.classList.contains("dark"),
-        finish: s.finish,
+        frost: s.frost,
         pointerLight: s.pointerLight,
         solid: reducedTransparency.matches,
       };
@@ -120,6 +121,11 @@ function GlassCanvas() {
       pointer.inside = false;
       pointer.down = false;
     };
+    // Lists hand their glass cards to CSS while they scroll.
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Element) noteScroll(e.target);
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerdown", onDown, { passive: true });
     window.addEventListener("pointerup", onUp, { passive: true });
@@ -161,6 +167,7 @@ function GlassCanvas() {
       unsubscribe();
       darkObserver.disconnect();
       reducedTransparency.removeEventListener("change", applyLook);
+      document.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);

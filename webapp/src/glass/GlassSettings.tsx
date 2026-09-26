@@ -42,7 +42,6 @@ function useDarkClass() {
 /** Background picker: the presets (rendered with real glass) and a personal image. */
 export function BackgroundPicker() {
   const background = useGlassPrefs((s) => s.background);
-  const finish = useGlassPrefs((s) => s.finish);
   const image = useGlassPrefs((s) => s.image);
   const dark = useDarkClass();
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -53,13 +52,13 @@ export function BackgroundPicker() {
     // Rendering the previews takes a moment; let the page paint first.
     let live = true;
     const id = requestAnimationFrame(() => {
-      void renderThumbnails(PRESETS.map((p) => p.id), dark, finish).then((next) => live && setThumbs(next));
+      void renderThumbnails(PRESETS.map((p) => p.id), dark).then((next) => live && setThumbs(next));
     });
     return () => {
       live = false;
       cancelAnimationFrame(id);
     };
-  }, [dark, finish]);
+  }, [dark]);
 
   const imageThumb = useMemo(() => (image ? imageThumbnail(image) : null), [image]);
 

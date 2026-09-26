@@ -1,7 +1,7 @@
 "use client";
 
 import { GlassEngine, type Shape } from "./engine";
-import { isPhoto, type BackgroundId, type GlassFinish, type PhotoId, type PresetId } from "./prefs";
+import { isPhoto, type BackgroundId, type PhotoId, type PresetId } from "./prefs";
 import { loadPhoto } from "./photos";
 
 const cache = new Map<string, string>();
@@ -20,11 +20,10 @@ function shape(partial: Partial<Shape> & Pick<Shape, "x" | "y" | "w" | "h" | "ra
 export async function renderThumbnails(
   ids: Exclude<BackgroundId, "image">[],
   dark: boolean,
-  finish: GlassFinish,
 ): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   const missing = ids.filter((id) => {
-    const hit = cache.get(`${id}:${dark}:${finish}`);
+    const hit = cache.get(`${id}:${dark}`);
     if (hit) out[id] = hit;
     return !hit;
   });
@@ -58,13 +57,13 @@ export async function renderThumbnails(
       background: photo ? "image" : (id as PresetId),
       image: photo ?? null,
       dark,
-      finish,
+      frost: 0.5,
       pointerLight: false,
       solid: false,
     });
     engine.render(level1, level2, [0, 0, 0]);
     const url = canvas.toDataURL("image/jpeg", 0.88);
-    cache.set(`${id}:${dark}:${finish}`, url);
+    cache.set(`${id}:${dark}`, url);
     out[id] = url;
   }
   engine.dispose();

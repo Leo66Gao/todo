@@ -240,7 +240,6 @@ uniform vec2 uDst;
 out vec4 frag;
 void main() { frag = vec4(texture(uSrc, gl_FragCoord.xy / uDst).rgb, 1.0); }`;
 
-export const MAX_SHAPES = 16;
 
 /**
  * The glass. For every pixel under a shape: the surface height comes from a
@@ -248,11 +247,11 @@ export const MAX_SHAPES = 16;
  * view ray (IOR 1.5) through the glass thickness, and the three colour
  * channels are refracted slightly differently (dispersion). The backdrop is
  * sampled sharp at the rim and increasingly frosted towards the centre, then
- * tinted. Light adds a Fresnel reflection of the surroundings, a crisp rim
- * that is brightest facing the light and iridescent where the corners curve,
- * a specular glint, and — on the backdrop — a soft shadow and a faint caustic.
+ * tinted. Light adds a Fresnel reflection of the surroundings, a soft glow
+ * and glint along the bevel facing the light, and — on the backdrop — a soft
+ * shadow. The shape count is fixed per device from its uniform budget.
  */
-export const GLASS_FS = /* glsl */ `#version 300 es
+export const glassFragment = (MAX_SHAPES: number) => /* glsl */ `#version 300 es
 precision highp float;
 uniform sampler2D uSrc;
 uniform sampler2D uSoft;
@@ -303,16 +302,18 @@ void main() {
     vec2 q = p - R.xy + vec2(0.0, blur * 0.3);
     float d = sdRoundBox(q, R.zw, S.x);
     if (d > blur * 3.0) continue;
-    float k = uOptic[i].w * uState[i].z;
+    vec4 C0 = uClip[i];
+    float inClip = clamp(min(min(p.x - C0.x, C0.z - p.x), min(p.y - C0.y, C0.w - p.y)) + 0.5, 0.0, 1.0);
+    float k = uOptic[i].w * uState[i].z * inClip;
     shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     if (d0 > 0.0) {
       vec2 g = gradRoundBox(p - R.xy, R.zw, S.x);
-      caustic += uState[i].z * exp(-d0 / (blur * 0.22)) * max(dot(g, -uLight), 0.0);
+      caustic += uState[i].z * inClip * exp(-d0 / (blur * 0.22)) * max(dot(g, -uLight), 0.0);
     }
   }
   col *= 1.0 - shade;
-  col += caustic * (uDark > 0.5 ? 0.035 : 0.07);
+  col += caustic * (uDark > 0.5 ? 0.01 : 0.02);
 
   for (int i = 0; i < ${MAX_SHAPES}; i++) {
     if (i >= uCount) break;
@@ -383,38 +384,33 @@ void main() {
     if (recess < 0.0) base *= 1.0 - 0.12 * smoothstep(1.0, 0.0, t) * max(facing, 0.0);
 
     // Legibility: keep the middle of the glass within a luminance band, so
-    // text on it stays readable over any background (+1 light, -1 dark).
+    // text on it stays readable over any background. The sign says which way
+    // (+ light, - dark); the size how firmly (it follows the frost setting).
     float legible = uLegible[i];
     if (legible != 0.0) {
+      float k = abs(legible) * inner;
       float bl = dot(base, vec3(0.299, 0.587, 0.114));
       if (legible > 0.0) {
-        float lo = uDark > 0.5 ? 0.6 : 0.74;
-        if (bl < lo) base = mix(base, vec3(1.0), clamp((lo - bl) / (1.0 - bl), 0.0, 1.0) * inner);
+        float lo = uDark > 0.5 ? 0.56 : 0.66;
+        if (bl < lo) base = mix(base, vec3(1.0), clamp((lo - bl) / (1.0 - bl), 0.0, 1.0) * k);
       } else {
-        float hi = uDark > 0.5 ? 0.26 : 0.32;
+        float hi = uDark > 0.5 ? 0.3 : 0.34;
         const vec3 NIGHT = vec3(0.06, 0.06, 0.07);
-        if (bl > hi) base = mix(base, NIGHT, clamp((bl - hi) / max(bl - 0.06, 1e-3), 0.0, 1.0) * inner);
+        if (bl > hi) base = mix(base, NIGHT, clamp((bl - hi) / max(bl - 0.06, 1e-3), 0.0, 1.0) * k);
       }
     }
 
-    // Rim light, iridescent where the corners curve.
+    // Light along the bevel: a faint edge, a soft glow and a glint, brightest
+    // on the side facing the light (which leans towards the pointer).
     float rimW = 1.35 * uDpr;
     float edge = 1.0 - smoothstep(0.0, rimW, depth);
-    float edge2 = (1.0 - smoothstep(rimW, rimW * 3.5, depth)) * (1.0 - edge);
-    float corner = clamp(abs(g.x * g.y) * 3.2, 0.0, 1.0);
-    float ang = atan(g.y, g.x);
-    vec3 spectral = 0.55 + 0.45 * cos(6.2831853 * (ang / 6.2831853 * 1.5 + vec3(0.0, 0.33, 0.67)));
-    vec3 rimCol = mix(vec3(1.0), spectral, corner * 0.7);
+    float glowBand = (1.0 - smoothstep(rimW, rimW * 3.5, depth)) * (1.0 - edge);
     float lit = 0.35 + 0.65 * max(facing, 0.0) + 0.35 * max(-facing, 0.0);
-    // Highlights gather where the rim turns a corner; straight sides only whisper.
-    float cornerK = mix(0.14, 1.0, smoothstep(0.1, 0.85, corner));
-    float rimK = O.z * (1.0 + 0.15 * st.x) * (uDark > 0.5 ? 0.55 : 0.85) * cornerK;
-    base += rimCol * (edge * lit + edge2 * 0.28 * max(facing, 0.0)) * rimK;
-
-    // Specular glint on the bevel.
+    float rimK = O.z * (1.0 + 0.6 * st.x) * (uDark > 0.5 ? 0.55 : 0.85) * 0.2;
+    base += (edge * lit * 0.5 + glowBand * 0.28 * max(facing, 0.0)) * rimK;
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-    float spec = pow(max(dot(n, H), 0.0), 70.0) * u * O.z * (0.9 + 0.15 * st.x) * cornerK;
-    base += spec * mix(vec3(1.0), spectral, 0.25);
+    float spec = pow(max(dot(n, H), 0.0), 70.0) * u * O.z * (0.9 + 0.8 * st.x) * 0.2;
+    base += spec;
 
     // Pressing lights the glass where it is touched.
     vec2 dp = p - uPointer.xy;

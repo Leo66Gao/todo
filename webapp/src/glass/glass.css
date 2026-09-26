@@ -291,31 +291,23 @@ html.glass:not(.glass-css) :has(> [data-glass-kind="ink"]) {
   --on-ink: var(--ink);
 }
 
-/* Tasks sit on their own quiet pane of glass, so a row reads as an object
-   even when the panel behind it is mostly clear. CSS rather than the
-   renderer: lists are long and scroll, and over frosted glass the result
-   looks the same. */
+/* Tasks sit on their own thin plate of glass. The renderer draws it; this is
+   the stand-in for the CSS fallback and for the moment a list is scrolling
+   (the renderer trails the compositor by a frame there). */
 html.glass [data-task-card] {
   border-radius: 10px;
   margin-block: 3px;
-  background: rgb(255 255 255 / 0.4);
-  box-shadow:
-    inset 0 0.5px 0 rgb(255 255 255 / 0.75),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.4),
-    0 1px 3px -1px rgb(10 30 50 / 0.1);
+  transition: background-color 0.16s, box-shadow 0.16s;
 }
-html.glass [data-task-card="done"] {
-  background: rgb(255 255 255 / 0.22);
+html.glass:is(.glass-css) [data-task-card],
+html.glass .glass-scrolling [data-task-card] {
+  background: rgb(255 255 255 / 0.2) !important;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.45) !important;
 }
-html.glass.dark [data-task-card] {
-  background: rgb(255 255 255 / 0.05);
-  box-shadow:
-    inset 0 0.5px 0 rgb(255 255 255 / 0.12),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.06),
-    0 1px 3px -1px rgb(0 0 0 / 0.3);
-}
-html.glass.dark [data-task-card="done"] {
-  background: rgb(255 255 255 / 0.025);
+html.glass.dark:is(.glass-css) [data-task-card],
+html.glass.dark .glass-scrolling [data-task-card] {
+  background: rgb(255 255 255 / 0.04) !important;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.08) !important;
 }
 html.glass [data-task-card] > [data-task-id] {
   margin: 0;

@@ -1,8 +1,7 @@
 "use client";
 
-import { glassEntries, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
-import type { GlassFinish } from "./prefs";
-import { BACKGROUND_FS, BLIT_FS, BLUR_FS, FULLSCREEN_VS, GLASS_FS, MAX_SHAPES } from "./shaders";
+import { glassEntries, isScrolling, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
+import { BACKGROUND_FS, BLIT_FS, BLUR_FS, FULLSCREEN_VS, glassFragment } from "./shaders";
 
 export const PRESET_INDEX = { harbour: 0, contour: 1, ember: 2, studio: 3, image: 4 } as const;
 
@@ -10,7 +9,8 @@ export interface EngineLook {
   background: keyof typeof PRESET_INDEX;
   image: ImageBitmap | null;
   dark: boolean;
-  finish: GlassFinish;
+  /** 0 clear … 1 fully frosted. */
+  frost: number;
   pointerLight: boolean;
   /** prefers-reduced-transparency: glass becomes nearly opaque. */
   solid: boolean;
@@ -32,12 +32,7 @@ export interface Shape {
 
 type Target = { fbo: WebGLFramebuffer | null; tex: WebGLTexture | null; w: number; h: number };
 
-const FINISH = {
-  // frost of clear controls, frost of chrome, tint of reading surfaces
-  clear: { control: 0.12, chrome: 0.5, slab: 0.4 },
-  balanced: { control: 0.3, chrome: 0.72, slab: 0.52 },
-  frosted: { control: 0.6, chrome: 0.9, slab: 0.66 },
-} as const;
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 function compile(gl: WebGL2RenderingContext, type: number, source: string) {
   const shader = gl.createShader(type)!;
@@ -105,6 +100,8 @@ export class GlassEngine {
   private height = 0;
   dpr = 1;
   private look: EngineLook | null = null;
+  /** Most glass shapes one pass can draw on this device. */
+  readonly maxShapes: number;
   private bgDirty = true;
   private level1Key = "";
   private level2Key = "";
@@ -116,7 +113,10 @@ export class GlassEngine {
     this.vao = gl.createVertexArray()!;
     this.bgProgram = new Program(gl, BACKGROUND_FS);
     this.blurProgram = new Program(gl, BLUR_FS);
-    this.glassProgram = new Program(gl, GLASS_FS);
+    // Each shape takes seven uniform vectors; fit as many as the GPU allows.
+    const vectors = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) as number;
+    this.maxShapes = Math.max(8, Math.min(48, Math.floor((vectors - 32) / 7)));
+    this.glassProgram = new Program(gl, glassFragment(this.maxShapes));
     this.blitProgram = new Program(gl, BLIT_FS);
   }
 
@@ -263,6 +263,7 @@ export class GlassEngine {
     gl.uniform2f(p.loc("uLight"), -0.55, 0.835);
     gl.uniform3f(p.loc("uPointer"), pointer[0] * dpr, this.height - pointer[1] * dpr, pointer[2]);
 
+    const MAX_SHAPES = this.maxShapes;
     const n = Math.min(shapes.length, MAX_SHAPES);
     const rect = new Float32Array(MAX_SHAPES * 4);
     const shape = new Float32Array(MAX_SHAPES * 4);
@@ -273,10 +274,11 @@ export class GlassEngine {
     const legible = new Float32Array(MAX_SHAPES);
     for (let i = 0; i < n; i++) {
       const s = shapes[i];
-      // A pressed control gives a little, like a soft body.
-      const squeeze = 1 - s.press * 0.035;
-      const hw = (s.w / 2) * squeeze * dpr;
-      const hh = (s.h / 2) * squeeze * dpr;
+      // A pressed control gives a little, like a soft body (at most a few px).
+      const give = s.press * Math.min(0.035 * Math.min(s.w, s.h), 3) * dpr;
+      const hw = Math.max(1, (s.w / 2) * dpr - give);
+      const hh = Math.max(1, (s.h / 2) * dpr - give);
+      const squeeze = hh / ((s.h / 2) * dpr);
       rect.set([(s.x + s.w / 2) * dpr, this.height - (s.y + s.h / 2) * dpr, hw, hh], i * 4);
       const radius = Math.min(s.radius * dpr * squeeze, hw, hh);
       const m = this.material(s.kind, Math.min(hw, hh), radius, look);
@@ -299,22 +301,29 @@ export class GlassEngine {
     this.draw();
   }
 
-  /** Optical recipe per kind of glass, in device pixels. */
+  /**
+   * Optical recipe per kind of glass, in device pixels. `frost` (the
+   * setting) trades see-through clarity for blur; tints stay light so the
+   * glass reads as frosted rather than coloured.
+   */
   private material(kind: GlassKind, halfShort: number, radius: number, look: EngineLook) {
     const dpr = this.dpr;
-    const f = FINISH[look.finish];
+    // The slider's middle should already read as frosted glass.
+    const f = Math.pow(look.frost, 0.6);
     const dark = look.dark;
     const solid = look.solid;
     const white = [1, 1, 1];
     const night = [0.075, 0.075, 0.085];
+    // How firmly reading surfaces hold a readable brightness.
+    const hold = mix(0.35, 1, f);
     switch (kind) {
       case "slab":
         return {
           bezel: Math.min(radius, 26 * dpr),
           height: 36 * dpr,
-          tint: [...(dark ? night : white), solid ? 0.92 : dark ? f.slab - 0.04 : f.slab],
-          legible: dark ? -1 : 1,
-          frost: 1,
+          tint: [...(dark ? night : white), solid ? 0.92 : dark ? mix(0.12, 0.34, f) : mix(0.08, 0.34, f)],
+          legible: (dark ? -1 : 1) * hold,
+          frost: mix(0.3, 1, f),
           dispersion: 0.12,
           rim: 0.75,
           shadow: dark ? 0.32 : 0.14,
@@ -325,9 +334,9 @@ export class GlassEngine {
           // Small chrome (the phone tab bar) gets a proportionally gentler lens.
           bezel: Math.min(radius, 26 * dpr, halfShort * 0.55),
           height: Math.min(42 * dpr, halfShort * 0.9),
-          tint: [...(dark ? night : white), solid ? 0.88 : dark ? 0.36 : 0.26],
-          legible: dark ? -1 : 1,
-          frost: f.chrome,
+          tint: [...(dark ? night : white), solid ? 0.88 : dark ? mix(0.1, 0.3, f) : mix(0.05, 0.24, f)],
+          legible: (dark ? -1 : 1) * hold,
+          frost: mix(0.18, 0.95, f),
           dispersion: 0.12,
           rim: 1,
           shadow: dark ? 0.34 : 0.16,
@@ -337,26 +346,39 @@ export class GlassEngine {
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.1, 22 * dpr),
-          tint: [...white, dark ? 0.08 : 0.26],
-          legible: dark ? -1 : 1,
-          frost: f.control,
+          tint: [...white, dark ? 0.07 : mix(0.12, 0.26, f)],
+          legible: (dark ? -1 : 1) * hold,
+          frost: mix(0.05, 0.6, f),
           dispersion: 0.22,
           rim: 1.1,
           shadow: dark ? 0.2 : 0.08,
           shadowBlur: 10 * dpr,
         };
       case "ink":
-        // A clear lens: the strongest optics, almost no tint.
+        // A clear lens for primary actions: the strongest optics, little tint.
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.3, 26 * dpr),
-          tint: [...white, dark ? 0.07 : 0.22],
-          legible: dark ? -1 : 1,
-          frost: f.control * 0.7,
+          tint: [...white, dark ? 0.07 : mix(0.12, 0.24, f)],
+          legible: (dark ? -1 : 1) * hold,
+          frost: mix(0.04, 0.45, f),
           dispersion: 0.17,
           rim: 1.2,
           shadow: dark ? 0.24 : 0.12,
           shadowBlur: 12 * dpr,
+        };
+      case "card":
+        // A thin plate under each task: a shallow lens and barely any tint.
+        return {
+          bezel: Math.min(radius, 12 * dpr, halfShort),
+          height: Math.min(14 * dpr, halfShort * 0.6),
+          tint: [...white, dark ? mix(0.02, 0.05, f) : mix(0.08, 0.2, f)],
+          legible: 0,
+          frost: mix(0.1, 0.55, f),
+          dispersion: 0.1,
+          rim: 0.8,
+          shadow: dark ? 0.12 : 0.04,
+          shadowBlur: 8 * dpr,
         };
       case "well":
         return {
@@ -420,6 +442,14 @@ export class GlassEngine {
 // ---------------------------------------------------------------------------
 // Tracking DOM elements
 
+function scrollingAncestor(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
+    const { overflowY, overflowX } = getComputedStyle(node);
+    if (/(auto|scroll)/.test(overflowY) || /(auto|scroll)/.test(overflowX)) return node;
+  }
+  return null;
+}
+
 interface Motion {
   hover: number;
   press: number;
@@ -442,12 +472,15 @@ export class ShapeTracker {
     const gen = registryGeneration();
     const regenerated = gen !== this.lastGeneration;
     this.lastGeneration = gen;
+    const cards: Shape[] = [];
     for (const entry of glassEntries.values()) {
       const shape = this.shapeOf(entry, pointer, regenerated);
       if (!shape) continue;
-      (entry.spec.level === 1 ? level1 : level2).push(shape);
+      if (entry.spec.level === 1) level1.push(shape);
+      else (shape.kind === "card" ? cards : level2).push(shape);
     }
-    return [level1, level2];
+    // Cards go last, so a device's shape budget drops them before controls.
+    return [level1, level2.concat(cards)];
   }
 
   private shapeOf(entry: GlassEntry, pointer: { x: number; y: number; down: boolean; inside: boolean }, refreshRadius: boolean): Shape | null {
@@ -465,6 +498,19 @@ export class ShapeTracker {
       if (c.width < 2 || c.height < 2) return null;
       clip = { x: c.x, y: c.y, w: c.width, h: c.height };
     }
+    // Shapes in a list are also clipped to the list's scrolling box.
+    if (spec.inScroll && entry.scroller === undefined) entry.scroller = scrollingAncestor(el);
+    if (entry.scroller) {
+      const b = entry.scroller.getBoundingClientRect();
+      const x0 = Math.max(b.x, clip?.x ?? -1e5);
+      const y0 = Math.max(b.y, clip?.y ?? -1e5);
+      const x1 = Math.min(b.right, clip ? clip.x + clip.w : 1e5);
+      const y1 = Math.min(b.bottom, clip ? clip.y + clip.h : 1e5);
+      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+    }
+    // Nothing to draw when it is scrolled or clipped out of sight.
+    const view = clip ?? { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+    if (r.right < view.x || r.left > view.x + view.w || r.bottom < view.y || r.top > view.y + view.h) return null;
     if (entry.radiusPx == null || refreshRadius) {
       entry.radiusPx =
         spec.radius === "pill"
@@ -480,8 +526,13 @@ export class ShapeTracker {
     }
     m.hover = approach(m.hover, spec.interactive && inside ? 1 : 0, 0.22);
     m.press = approach(m.press, spec.interactive && inside && pointer.down ? 1 : 0, pointer.down ? 0.45 : 0.18);
-    m.opacity = approach(m.opacity, 1, 0.2);
-    if (m.opacity !== 1 || (m.hover !== 0 && m.hover !== 1) || (m.press !== 0 && m.press !== 1)) this.animating = true;
+    // While its list scrolls, a card fades to its CSS stand-in (which moves
+    // with the compositor) and returns once the list settles.
+    const moving = entry.scroller != null && spec.kind === "card" && isScrolling(entry.scroller);
+    const opacity = moving ? 0 : el.dataset.taskCard === "done" ? 0.5 : 1;
+    m.opacity = approach(m.opacity, opacity, moving ? 0.5 : 0.2);
+    if (m.opacity !== opacity || (m.hover !== 0 && m.hover !== 1) || (m.press !== 0 && m.press !== 1)) this.animating = true;
+    if (m.opacity === 0) return null;
     const round = (v: number) => Math.round(v * 4) / 4;
     return {
       x: round(r.x),

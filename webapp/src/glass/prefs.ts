@@ -6,7 +6,6 @@ import { getLocal, setLocal } from "@/lib/prefs";
 // Liquid Glass is a per-device look (like the window size), so its settings
 // live in this browser only and never touch the synced workspace.
 
-export type GlassFinish = "clear" | "balanced" | "frosted";
 /** Backgrounds drawn by the renderer. */
 export type PresetId = "harbour" | "contour" | "ember" | "studio";
 /** Photographs shipped with the app (public/backgrounds). */
@@ -22,12 +21,13 @@ const isBackground = (id: unknown): id is BackgroundId =>
 export interface GlassPrefs {
   enabled: boolean;
   background: BackgroundId;
-  finish: GlassFinish;
+  /** How frosted the glass is: 0 clear … 1 fully frosted. */
+  frost: number;
   /** Highlights follow the pointer (desktop). */
   pointerLight: boolean;
 }
 
-const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", finish: "balanced", pointerLight: true };
+const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", frost: 0.5, pointerLight: true };
 const KEY = "glass";
 
 interface GlassState extends GlassPrefs {
@@ -39,13 +39,16 @@ interface GlassState extends GlassPrefs {
 export const useGlassPrefs = create<GlassState>(() => ({ ...DEFAULTS, image: null, hasImage: false }));
 
 function persist() {
-  const { enabled, background, finish, pointerLight } = useGlassPrefs.getState();
-  setLocal(KEY, { enabled, background, finish, pointerLight });
+  const { enabled, background, frost, pointerLight } = useGlassPrefs.getState();
+  setLocal(KEY, { enabled, background, frost, pointerLight });
 }
 
 export function restoreGlassPrefs() {
-  const saved = getLocal<Partial<GlassPrefs>>(KEY, {});
-  useGlassPrefs.setState({ ...DEFAULTS, ...saved });
+  const { finish, ...saved } = getLocal<Partial<GlassPrefs> & { finish?: string }>(KEY, {});
+  // The earlier three-step setting maps onto the slider.
+  const fromFinish = finish === "clear" ? 0.2 : finish === "frosted" ? 0.85 : undefined;
+  useGlassPrefs.setState({ ...DEFAULTS, ...(fromFinish != null && { frost: fromFinish }), ...saved });
+  if (typeof useGlassPrefs.getState().frost !== "number") useGlassPrefs.setState({ frost: DEFAULTS.frost });
   // Backgrounds retired since they were chosen fall back to the default.
   if (!isBackground(useGlassPrefs.getState().background)) setGlassPrefs({ background: DEFAULTS.background });
   // Development aid: `?glass=<preset>` turns the theme on with that background.

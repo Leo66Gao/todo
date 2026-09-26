@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -184,9 +185,11 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
     disabled: { draggable: false, droppable: !sortable },
   });
   const project = task.projectId ? projects.get(task.projectId) : undefined;
+  const cardGlass = useGlass<HTMLDivElement>({ level: 2, kind: "card", interactive: true, inScroll: true });
+  const cardRef = useMergedRefs(setNodeRef, cardGlass);
   return (
     <div
-      ref={setNodeRef}
+      ref={cardRef}
       style={{ transform: sortable ? CSS.Translate.toString(transform) : undefined, transition }}
       data-task-card={task.isDone ? "done" : ""}
       className={cn(isDragging && "opacity-40")}
