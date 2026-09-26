@@ -39,7 +39,7 @@ export function ToastHost() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.98, transition: { duration: 0.14 } }}
             transition={springs.panel}
-            className="glass-overlay glass-ink pointer-events-auto relative flex h-10 items-center gap-3 rounded-[11px] bg-ink pr-1.5 pl-4 text-sm text-on-ink shadow-lift"
+            className="glass-overlay glass-ink pointer-events-auto relative flex h-10 items-center gap-3 rounded-[calc(var(--radius-ctl)_+_3px)] bg-ink pr-1.5 pl-4 text-sm text-on-ink shadow-lift"
           >
             <span className="max-w-[340px] truncate">{t.message}</span>
             {t.action ? (

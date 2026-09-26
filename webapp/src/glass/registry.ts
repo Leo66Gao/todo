@@ -56,6 +56,8 @@ export interface GlassEntry {
 export const glassEntries = new Map<HTMLElement, GlassEntry>();
 let generation = 0;
 export const registryGeneration = () => generation;
+/** Makes the renderer re-read shapes' corner radii (after the radius setting changes). */
+export const refreshGlassShapes = () => void generation++;
 
 const OVERLAY = '[data-overlay], [role="dialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 

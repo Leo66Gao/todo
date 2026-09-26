@@ -108,7 +108,7 @@ export function BackgroundPicker() {
             disabled={busy}
             className="group flex w-full flex-col items-stretch gap-1.5 text-left"
           >
-            <span className="flex aspect-[3/2] items-center justify-center rounded-[10px] border border-dashed border-line-strong text-ink-3 transition-colors group-hover:border-ink-4 group-hover:text-ink-2">
+            <span className="flex aspect-[3/2] items-center justify-center rounded-[calc(var(--radius-ctl)_+_2px)] border border-dashed border-line-strong text-ink-3 transition-colors group-hover:border-ink-4 group-hover:text-ink-2">
               <ImagePlus className="size-5" />
             </span>
             <span className="px-0.5 text-xs text-ink-2">{busy ? "Adding…" : "Your image"}</span>
@@ -132,8 +132,8 @@ export function BackgroundPicker() {
 function Tile({ label, selected, onClick, src }: { label: string; selected: boolean; onClick: () => void; src?: string }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={selected} className="group flex w-full flex-col items-stretch gap-1.5 text-left">
-      <span className="relative block aspect-[3/2] rounded-[10px]">
-        <span className="absolute inset-0 overflow-hidden rounded-[10px] bg-fill">
+      <span className="relative block aspect-[3/2] rounded-[calc(var(--radius-ctl)_+_2px)]">
+        <span className="absolute inset-0 overflow-hidden rounded-[calc(var(--radius-ctl)_+_2px)] bg-fill">
           {src && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={src} alt="" className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
@@ -143,7 +143,7 @@ function Tile({ label, selected, onClick, src }: { label: string; selected: bool
           <motion.span
             layoutId="glass-bg-selected"
             transition={springs.snappy}
-            className="absolute -inset-[3px] rounded-[13px] shadow-[0_0_0_2px_var(--ink)]"
+            className="absolute -inset-[3px] rounded-[calc(var(--radius-ctl)_+_5px)] shadow-[0_0_0_2px_var(--ink)]"
           />
         )}
       </span>

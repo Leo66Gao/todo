@@ -408,7 +408,7 @@ function NotesEditor({ task }: { task: Task }) {
   };
   useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className="rounded-[10px] border border-line px-3.5 pt-3 pb-2 transition-colors focus-within:border-line-strong">
+    <div className="rounded-[calc(var(--radius-ctl)_+_2px)] border border-line px-3.5 pt-3 pb-2 transition-colors focus-within:border-line-strong">
       <RichText
         value={task.notes}
         placeholder="Write notes, links or a checklist…"

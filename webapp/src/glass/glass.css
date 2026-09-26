@@ -83,13 +83,29 @@ html.glass:not(.glass-css) [data-glass] {
 /* ---------------------------------------------------------------------------
  * Layout: panels float on the background with a small gap. */
 
+/* Switching the theme eases the panels apart (and back) rather than jumping. */
+[data-shell] {
+  transition: padding 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-surface="sidebar"],
+[data-surface="inspector"],
+[data-surface="main-slab"] {
+  transition: border-radius 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+}
 html.glass [data-shell] {
   padding: 10px;
+}
+/* One radius setting shapes everything: panels take it as is, and controls,
+   menus and dialogs scale with it. */
+html.glass {
+  --radius-ctl: max(6px, calc(var(--glass-radius, 22px) * 0.38));
+  --radius-pop: calc(var(--glass-radius, 22px) * 0.56);
+  --radius-modal: calc(var(--glass-radius, 22px) * 0.78);
 }
 html.glass [data-surface="sidebar"],
 html.glass [data-surface="inspector"],
 html.glass [data-surface="main-slab"] {
-  border-radius: 22px;
+  border-radius: var(--glass-radius, 22px);
 }
 html.glass [data-surface="main-slab"] {
   overflow: hidden;
@@ -99,7 +115,7 @@ html.glass [data-surface="main-slab"] {
     padding: max(8px, env(safe-area-inset-top)) 8px 0;
   }
   html.glass [data-surface="main-slab"] {
-    border-radius: 26px;
+    border-radius: calc(var(--glass-radius, 22px) + 4px);
   }
 }
 
@@ -173,7 +189,7 @@ html.glass.dark .glass-ink {
 }
 
 html.glass [data-surface="drawer"] {
-  border-radius: 0 24px 24px 0;
+  border-radius: 0 calc(var(--glass-radius, 22px) + 2px) calc(var(--glass-radius, 22px) + 2px) 0;
 }
 
 /* Controls the renderer can't reach (inside overlays or scrolling lists). */
@@ -295,7 +311,7 @@ html.glass:not(.glass-css) :has(> [data-glass-kind="ink"]) {
    the stand-in for the CSS fallback and for the moment a list is scrolling
    (the renderer trails the compositor by a frame there). */
 html.glass [data-task-card] {
-  border-radius: 10px;
+  border-radius: calc(var(--glass-radius, 22px) * 0.46);
   margin-block: 3px;
   transition: background-color 0.16s, box-shadow 0.16s;
 }

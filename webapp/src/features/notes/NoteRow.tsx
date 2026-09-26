@@ -25,7 +25,7 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
       <button
         type="button"
         onClick={() => navigate({ view: "note", id: note.id })}
-        className="block w-full rounded-[10px] px-3 py-2.5 text-left transition-colors hover:bg-fill/70"
+        className="block w-full rounded-[calc(var(--radius-ctl)_+_2px)] px-3 py-2.5 text-left transition-colors hover:bg-fill/70"
       >
         <div className="flex items-baseline gap-3">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{note.title || "Untitled note"}</span>

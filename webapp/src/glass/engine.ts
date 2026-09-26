@@ -9,7 +9,9 @@ export interface EngineLook {
   background: keyof typeof PRESET_INDEX;
   image: ImageBitmap | null;
   dark: boolean;
-  /** 0 clear … 1 fully frosted. */
+  /** 0 sharp … 1 fully diffused. */
+  blur: number;
+  /** Milky haze: 0 clear … 1 fully frosted. */
   frost: number;
   pointerLight: boolean;
   /** prefers-reduced-transparency: glass becomes nearly opaque. */
@@ -89,6 +91,8 @@ export class GlassEngine {
   private imageTex: WebGLTexture | null = null;
   private imageSource: ImageBitmap | null = null;
   private bg!: Target;
+  /** The background being faded out when it changes. */
+  private bgPrev!: Target;
   private bgSoftA!: Target;
   private bgSoft!: Target;
   private bgHeavyA!: Target;
@@ -103,6 +107,12 @@ export class GlassEngine {
   /** Most glass shapes one pass can draw on this device. */
   readonly maxShapes: number;
   private bgDirty = true;
+  private bgDrawn = false;
+  /** Start of the current background cross-fade (ms), or null. */
+  private fadeStart: number | null = null;
+  private static readonly FADE_MS = 520;
+  /** Cross-fade background changes (off for one-shot renders such as previews). */
+  fades = true;
   private level1Key = "";
   private level2Key = "";
 
@@ -155,6 +165,8 @@ export class GlassEngine {
     const half = (n: number) => Math.max(1, Math.round(n / 2));
     const eighth = (n: number) => Math.max(1, Math.round(n / 8));
     this.bg = this.target(w, h, this.bg);
+    this.bgPrev = this.target(w, h, this.bgPrev);
+    this.bgDrawn = false;
     this.bgSoftA = this.target(half(w), half(h), this.bgSoftA);
     this.bgSoft = this.target(half(w), half(h), this.bgSoft);
     this.bgHeavyA = this.target(eighth(w), eighth(h), this.bgHeavyA);
@@ -219,7 +231,7 @@ export class GlassEngine {
     this.draw();
   }
 
-  private renderBackground() {
+  private renderBackground(fade = 1) {
     const gl = this.gl;
     const look = this.look!;
     const p = this.bgProgram;
@@ -233,6 +245,9 @@ export class GlassEngine {
     gl.uniform2f(p.loc("uRes"), this.width, this.height);
     gl.uniform1i(p.loc("uPreset"), useImage ? PRESET_INDEX.image : PRESET_INDEX[look.background === "image" ? "harbour" : look.background]);
     gl.uniform1f(p.loc("uDark"), look.dark ? 1 : 0);
+    this.texture(3, this.bgPrev.tex);
+    gl.uniform1i(p.loc("uPrev"), 3);
+    gl.uniform1f(p.loc("uFade"), fade);
     this.draw();
     // Frost levels: ~6 px and ~40 px (CSS) Gaussian.
     this.blur(this.bg, this.bgSoftA, true, 1);
@@ -302,28 +317,28 @@ export class GlassEngine {
   }
 
   /**
-   * Optical recipe per kind of glass, in device pixels. `frost` (the
-   * setting) trades see-through clarity for blur; tints stay light so the
-   * glass reads as frosted rather than coloured.
+   * Optical recipe per kind of glass, in device pixels. Panels take the blur
+   * and frost settings; selection pills and task cards are clear lenses with
+   * no haze or highlights, so only their refraction and colour fringes show.
    */
   private material(kind: GlassKind, halfShort: number, radius: number, look: EngineLook) {
     const dpr = this.dpr;
-    // The slider's middle should already read as frosted glass.
-    const f = Math.pow(look.frost, 0.6);
+    const b = look.blur;
+    const f = look.frost;
     const dark = look.dark;
     const solid = look.solid;
-    const white = [1, 1, 1];
-    const night = [0.075, 0.075, 0.085];
+    // Frost is white haze in light mode and a soft grey mist in dark mode.
+    const haze = dark ? [0.4, 0.41, 0.44] : [1, 1, 1];
     // How firmly reading surfaces hold a readable brightness.
-    const hold = mix(0.35, 1, f);
+    const hold = mix(0.4, 1, Math.max(b, f));
     switch (kind) {
       case "slab":
         return {
           bezel: Math.min(radius, 26 * dpr),
           height: 36 * dpr,
-          tint: [...(dark ? night : white), solid ? 0.92 : dark ? mix(0.12, 0.34, f) : mix(0.08, 0.34, f)],
+          tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.92] : [...haze, dark ? mix(0, 0.3, f) : mix(0, 0.5, f)],
           legible: (dark ? -1 : 1) * hold,
-          frost: mix(0.3, 1, f),
+          frost: mix(0.12, 1, b),
           dispersion: 0.12,
           rim: 0.75,
           shadow: dark ? 0.32 : 0.14,
@@ -334,49 +349,50 @@ export class GlassEngine {
           // Small chrome (the phone tab bar) gets a proportionally gentler lens.
           bezel: Math.min(radius, 26 * dpr, halfShort * 0.55),
           height: Math.min(42 * dpr, halfShort * 0.9),
-          tint: [...(dark ? night : white), solid ? 0.88 : dark ? mix(0.1, 0.3, f) : mix(0.05, 0.24, f)],
+          tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.88] : [...haze, dark ? mix(0, 0.26, f) : mix(0, 0.4, f)],
           legible: (dark ? -1 : 1) * hold,
-          frost: mix(0.18, 0.95, f),
+          frost: mix(0.08, 0.95, b),
           dispersion: 0.12,
           rim: 1,
           shadow: dark ? 0.34 : 0.16,
           shadowBlur: 30 * dpr,
         };
       case "control":
+        // Selection pills: a clear lens, no haze, no highlights.
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.1, 22 * dpr),
-          tint: [...white, dark ? 0.07 : mix(0.12, 0.26, f)],
-          legible: (dark ? -1 : 1) * hold,
-          frost: mix(0.05, 0.6, f),
+          tint: [1, 1, 1, 0],
+          legible: 0,
+          frost: 0,
           dispersion: 0.22,
-          rim: 1.1,
-          shadow: dark ? 0.2 : 0.08,
+          rim: 0,
+          shadow: dark ? 0.16 : 0.07,
           shadowBlur: 10 * dpr,
         };
       case "ink":
-        // A clear lens for primary actions: the strongest optics, little tint.
+        // Primary actions: a clear lens with a little frost and light.
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.3, 26 * dpr),
-          tint: [...white, dark ? 0.07 : mix(0.12, 0.24, f)],
+          tint: [...haze, dark ? mix(0.03, 0.12, f) : mix(0.08, 0.28, f)],
           legible: (dark ? -1 : 1) * hold,
-          frost: mix(0.04, 0.45, f),
+          frost: mix(0.02, 0.45, b),
           dispersion: 0.17,
           rim: 1.2,
           shadow: dark ? 0.24 : 0.12,
           shadowBlur: 12 * dpr,
         };
       case "card":
-        // A thin plate under each task: a shallow lens and barely any tint.
+        // Task plates: a shallow clear lens, no haze, no highlights.
         return {
           bezel: Math.min(radius, 12 * dpr, halfShort),
           height: Math.min(14 * dpr, halfShort * 0.6),
-          tint: [...white, dark ? mix(0.02, 0.05, f) : mix(0.08, 0.2, f)],
+          tint: [1, 1, 1, 0],
           legible: 0,
-          frost: mix(0.1, 0.55, f),
-          dispersion: 0.1,
-          rim: 0.8,
+          frost: 0,
+          dispersion: 0.12,
+          rim: 0,
           shadow: dark ? 0.12 : 0.04,
           shadowBlur: 8 * dpr,
         };
@@ -384,7 +400,7 @@ export class GlassEngine {
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort, 10 * dpr),
-          tint: dark ? [0, 0, 0, 0.22] : [0.2, 0.22, 0.26, 0.06],
+          tint: dark ? [0, 0, 0, 0.12] : [0.2, 0.22, 0.26, 0.06],
           legible: 0,
           frost: 0.85,
           dispersion: 0.1,
@@ -403,11 +419,24 @@ export class GlassEngine {
     if (!this.look || this.width === 0) return false;
     const key1 = JSON.stringify(level1) + pointer.join(",");
     const key2 = JSON.stringify(level2);
-    const bgChanged = this.bgDirty;
+    let bgChanged = this.bgDirty;
     if (bgChanged) {
-      this.renderBackground();
+      // A new background cross-fades over the old one.
+      if (this.fades && this.bgDrawn && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        this.copy(this.bg, this.bgPrev);
+        this.fadeStart = performance.now();
+      }
       this.bgDirty = false;
     }
+    if (this.fadeStart != null) {
+      const t = Math.min(1, (performance.now() - this.fadeStart) / GlassEngine.FADE_MS);
+      this.renderBackground(t * t * (3 - 2 * t));
+      if (t >= 1) this.fadeStart = null;
+      bgChanged = true;
+    } else if (bgChanged) {
+      this.renderBackground();
+    }
+    this.bgDrawn = true;
     const level1Changed = bgChanged || key1 !== this.level1Key;
     if (!level1Changed && key2 === this.level2Key) return false;
     if (level1Changed) {
@@ -434,6 +463,18 @@ export class GlassEngine {
     return true;
   }
 
+  /** Copies one target into another (same size). */
+  private copy(from: Target, to: Target) {
+    const gl = this.gl;
+    const p = this.blitProgram;
+    gl.useProgram(p.program);
+    this.bind(to);
+    this.texture(0, from.tex);
+    gl.uniform1i(p.loc("uSrc"), 0);
+    gl.uniform2f(p.loc("uDst"), to.w, to.h);
+    this.draw();
+  }
+
   dispose() {
     this.gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
@@ -454,6 +495,11 @@ interface Motion {
   hover: number;
   press: number;
   opacity: number;
+  /** Last centre and smoothed velocity (CSS px per frame), for the liquid stretch. */
+  cx: number;
+  cy: number;
+  vx: number;
+  vy: number;
 }
 
 const approach = (value: number, target: number, rate: number) =>
@@ -521,8 +567,32 @@ export class ShapeTracker {
     const inside = pointer.inside && pointer.x >= r.left && pointer.x <= r.right && pointer.y >= r.top && pointer.y <= r.bottom;
     let m = this.motion.get(el);
     if (!m) {
-      m = { hover: 0, press: 0, opacity: 0 };
+      m = { hover: 0, press: 0, opacity: 0, cx: r.x + r.width / 2, cy: r.y + r.height / 2, vx: 0, vy: 0 };
       this.motion.set(el, m);
+    }
+    // Moving selections stretch a little along their path, like a drop of
+    // liquid, and settle back as they arrive.
+    let { x, y, width: w, height: h } = r;
+    if (spec.level === 2 && (spec.kind === "control" || spec.kind === "ink")) {
+      const cx = r.x + r.width / 2;
+      const cy = r.y + r.height / 2;
+      // A jump (first sight after scrolling back into view) is not motion.
+      const jump = Math.abs(cx - m.cx) > 160 || Math.abs(cy - m.cy) > 160;
+      m.vx = jump ? 0 : m.vx * 0.55 + (cx - m.cx) * 0.45;
+      m.vy = jump ? 0 : m.vy * 0.55 + (cy - m.cy) * 0.45;
+      m.cx = cx;
+      m.cy = cy;
+      if (Math.abs(m.vx) < 0.05) m.vx = 0;
+      if (Math.abs(m.vy) < 0.05) m.vy = 0;
+      if (m.vx || m.vy) {
+        this.animating = true;
+        const sx = Math.min(Math.abs(m.vx) * 0.45, Math.min(10, r.width * 0.12));
+        const sy = Math.min(Math.abs(m.vy) * 0.45, Math.min(10, r.height * 0.3));
+        w += sx * 2 - sy * 0.6;
+        h += sy * 2 - sx * 0.35;
+        x = cx - w / 2;
+        y = cy - h / 2;
+      }
     }
     m.hover = approach(m.hover, spec.interactive && inside ? 1 : 0, 0.22);
     m.press = approach(m.press, spec.interactive && inside && pointer.down ? 1 : 0, pointer.down ? 0.45 : 0.18);
@@ -535,10 +605,10 @@ export class ShapeTracker {
     if (m.opacity === 0) return null;
     const round = (v: number) => Math.round(v * 4) / 4;
     return {
-      x: round(r.x),
-      y: round(r.y),
-      w: round(r.width),
-      h: round(r.height),
+      x: round(x),
+      y: round(y),
+      w: round(w),
+      h: round(h),
       radius: round(radius),
       kind: spec.kind,
       hover: Math.round(m.hover * 1000) / 1000,

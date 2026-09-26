@@ -85,7 +85,7 @@ function SubjectTile({
       <button
         type="button"
         onClick={() => navigate({ view: "subject", id: project.id })}
-        className="group flex flex-col rounded-[12px] border border-line px-4 py-3.5 text-left transition-[background-color,border-color,transform] duration-150 hover:border-line-strong hover:bg-fill/40 active:scale-[0.99]"
+        className="group flex flex-col rounded-[calc(var(--radius-ctl)_+_4px)] border border-line px-4 py-3.5 text-left transition-[background-color,border-color,transform] duration-150 hover:border-line-strong hover:bg-fill/40 active:scale-[0.99]"
       >
         <span className="flex items-center gap-2.5">
           <span className="size-2.5 rounded-full" style={{ background: argbToCss(project.colorValue) }} />

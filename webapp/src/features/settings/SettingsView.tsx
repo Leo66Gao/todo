@@ -30,7 +30,7 @@ import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
-import { setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
+import { RADIUS_RANGE, setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
 
 const FIELD_NAMES: Record<FieldId, string> = {
   type: "Task type",
@@ -74,7 +74,7 @@ function Group({ title, description, children }: { title: string; description?: 
     <section>
       <h2 className="text-sm font-semibold">{title}</h2>
       {description && <p className="mt-0.5 text-xs text-ink-3">{description}</p>}
-      <div className="mt-3 divide-y divide-line rounded-[12px] border border-line">{children}</div>
+      <div className="mt-3 divide-y divide-line rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">{children}</div>
     </section>
   );
 }
@@ -141,7 +141,9 @@ function AccountSection() {
 function AppearanceSection() {
   const mode = useWorkspace((s) => s.settings.themeMode);
   const glass = useGlassPrefs((s) => s.enabled);
+  const blur = useGlassPrefs((s) => s.blur);
   const frost = useGlassPrefs((s) => s.frost);
+  const radius = useGlassPrefs((s) => s.radius);
   const pointerLight = useGlassPrefs((s) => s.pointerLight);
   return (
     <Group title="Appearance">
@@ -181,12 +183,23 @@ function AppearanceSection() {
               <Item title="Background" className="min-h-0 pb-1.5" />
               <BackgroundPicker />
             </div>
-            <Item title="Frost" detail="From clear glass to fully frosted.">
-              <div className="flex w-52 items-center gap-2.5 text-2xs text-ink-3 max-sm:w-40">
-                <span>Clear</span>
-                <Slider value={frost} min={0} max={1} step={0.01} onChange={(v) => setGlassPrefs({ frost: v })} label="Frost" />
-                <span>Frosted</span>
-              </div>
+            <Item title="Blur" detail="How much the glass softens what is behind it.">
+              <RangeSlider value={blur} onChange={(v) => setGlassPrefs({ blur: v })} label="Blur" from="Sharp" to="Soft" />
+            </Item>
+            <Item title="Frost" detail="A milky haze in the glass.">
+              <RangeSlider value={frost} onChange={(v) => setGlassPrefs({ frost: v })} label="Frost" from="Clear" to="Frosted" />
+            </Item>
+            <Item title="Corners" detail="Roundness of panels, controls and menus.">
+              <RangeSlider
+                value={radius}
+                min={RADIUS_RANGE[0]}
+                max={RADIUS_RANGE[1]}
+                step={1}
+                onChange={(v) => setGlassPrefs({ radius: v })}
+                label="Corner radius"
+                from="Tight"
+                to="Round"
+              />
             </Item>
             <Item title="Light follows the pointer" detail="Highlights turn towards the mouse." className="hover-only">
               <Switch checked={pointerLight} onChange={(v) => setGlassPrefs({ pointerLight: v })} label="Light follows the pointer" />
@@ -195,6 +208,34 @@ function AppearanceSection() {
         )}
       </AnimatePresence>
     </Group>
+  );
+}
+
+function RangeSlider({
+  value,
+  onChange,
+  label,
+  from,
+  to,
+  min = 0,
+  max = 1,
+  step = 0.01,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  label: string;
+  from: string;
+  to: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  return (
+    <div className="flex w-56 items-center gap-2.5 text-2xs text-ink-3 max-sm:w-44">
+      <span className="w-9 shrink-0 text-right">{from}</span>
+      <Slider value={value} min={min} max={max} step={step} onChange={onChange} label={label} />
+      <span className="w-9 shrink-0">{to}</span>
+    </div>
   );
 }
 
@@ -243,7 +284,7 @@ function TaskFormSection() {
           Reset
         </Button>
       </div>
-      <div className="mt-3 rounded-[12px] border border-line p-1">
+      <div className="mt-3 rounded-[calc(var(--radius-ctl)_+_4px)] border border-line p-1">
         <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
           <SortableContext items={settings.fieldOrder} strategy={verticalListSortingStrategy}>
             {settings.fieldOrder.map((id) => (
@@ -342,7 +383,7 @@ function LabelsSection() {
           New label
         </Button>
       </div>
-      <div className="mt-3 divide-y divide-line rounded-[12px] border border-line">
+      <div className="mt-3 divide-y divide-line rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">
         {settings.labels.length === 0 && <p className="px-4 py-3.5 text-sm text-ink-3">No labels yet.</p>}
         {settings.labels.map((label) => (
           <div key={label.id} className="group flex h-11 items-center gap-3 px-4">

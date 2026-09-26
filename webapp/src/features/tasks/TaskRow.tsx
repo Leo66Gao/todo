@@ -214,7 +214,7 @@ const TaskRowView = memo(function TaskRowView({
 
   return (
     <div ref={cardRef} style={dragStyle} data-task-card={done ? "done" : ""} className={cn("relative", dragging && "z-10 opacity-40")}>
-      <div className="relative overflow-hidden rounded-[9px]">
+      <div className="relative overflow-hidden rounded-[calc(var(--radius-ctl)_+_1px)]">
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div
           aria-hidden
@@ -251,7 +251,7 @@ const TaskRowView = memo(function TaskRowView({
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
-            "group relative flex touch-pan-y items-start gap-1.5 rounded-[9px] pr-2.5 pl-1 outline-none transition-colors duration-100",
+            "group relative flex touch-pan-y items-start gap-1.5 rounded-[calc(var(--radius-ctl)_+_1px)] pr-2.5 pl-1 outline-none transition-colors duration-100",
             compact ? "py-1" : "py-[7px]",
             // Opaque fills, so the swipe panels underneath stay hidden.
             inspected
@@ -311,7 +311,7 @@ const TaskRowView = memo(function TaskRowView({
           >
             <div className="pb-1.5 pl-[34px]">
               {task.subtasks.map((sub) => (
-                <div key={sub.id} className="flex items-center gap-1 rounded-[7px] py-0.5 pr-2 hover:bg-fill/70">
+                <div key={sub.id} className="flex items-center gap-1 rounded-[calc(var(--radius-ctl)_-_1px)] py-0.5 pr-2 hover:bg-fill/70">
                   <TaskCheck
                     size={14}
                     checked={sub.isDone || task.isDone}
@@ -338,7 +338,7 @@ export function TaskDragPreview({ task }: { task: Task }) {
   const projects = useProjectMap();
   const project = task.projectId ? projects.get(task.projectId) : undefined;
   return (
-    <div className="flex w-[300px] cursor-grabbing items-center gap-2.5 rounded-[10px] bg-raised px-3 py-2 shadow-lift">
+    <div className="flex w-[300px] cursor-grabbing items-center gap-2.5 rounded-[calc(var(--radius-ctl)_+_2px)] bg-raised px-3 py-2 shadow-lift">
       <span className="size-[15px] shrink-0 rounded-[4px] border-[1.5px] border-ink-4" />
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</span>
       {project && <span className="size-[7px] shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />}

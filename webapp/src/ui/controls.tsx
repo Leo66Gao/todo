@@ -19,7 +19,7 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-[26px] px-2.5 text-xs gap-1.5 rounded-[7px]",
+  sm: "h-[26px] px-2.5 text-xs gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)]",
   md: "h-[30px] px-3 text-sm gap-1.5 rounded-ctl",
 };
 
@@ -120,7 +120,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       className={cn(
-        "relative inline-flex rounded-[9px] bg-fill p-[2px]",
+        "relative inline-flex rounded-[calc(var(--radius-ctl)_+_1px)] bg-fill p-[2px]",
         size === "sm" ? "h-[26px]" : "h-[30px]",
         className,
       )}
@@ -135,7 +135,7 @@ export function Segmented<T extends string>({
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              "relative flex flex-1 items-center justify-center gap-1.5 rounded-[7px] px-3 font-medium whitespace-nowrap",
+              "relative flex flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)] px-3 font-medium whitespace-nowrap",
               "transition-colors duration-150",
               size === "sm" ? "text-xs" : "text-sm",
               selected ? "text-ink" : "text-ink-3 hover:text-ink-2",
@@ -146,7 +146,7 @@ export function Segmented<T extends string>({
                 ref={thumbGlass}
                 layoutId={`seg-${id}`}
                 transition={springs.snappy}
-                className="absolute inset-0 rounded-[7px] bg-raised shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.1)] dark:bg-fill-strong"
+                className="absolute inset-0 rounded-[calc(var(--radius-ctl)_-_1px)] bg-raised shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.1)] dark:bg-fill-strong"
               />
             )}
             <span className="relative flex items-center gap-1.5">{option.label}</span>

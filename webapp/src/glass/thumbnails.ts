@@ -44,6 +44,7 @@ export async function renderThumbnails(
   } catch {
     return out;
   }
+  engine.fades = false;
   engine.resize(W, H, 2);
   const level1 = [shape({ x: 10, y: 10, w: 46, h: 68, radius: 11, kind: "chrome" })];
   const level2 = [
@@ -57,7 +58,8 @@ export async function renderThumbnails(
       background: photo ? "image" : (id as PresetId),
       image: photo ?? null,
       dark,
-      frost: 0.5,
+      blur: 0.6,
+      frost: 0.4,
       pointerLight: false,
       solid: false,
     });

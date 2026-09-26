@@ -57,6 +57,9 @@ uniform int uPreset;
 uniform float uDark;
 uniform sampler2D uImage;
 uniform vec2 uImageSize;
+// Cross-fade from the previous background (1 = only the new one).
+uniform sampler2D uPrev;
+uniform float uFade;
 out vec4 frag;
 ${COMMON}
 
@@ -215,7 +218,8 @@ void main() {
   else if (uPreset == 3) col = studio(st, A);
   else col = image(frag2);
   col += (hash12(frag2) - 0.5) / 255.0;
-  frag = vec4(clamp(col, 0.0, 1.0), 1.0);
+  col = mix(texture(uPrev, frag2 / uRes).rgb, clamp(col, 0.0, 1.0), uFade);
+  frag = vec4(col, 1.0);
 }`;
 
 /** Separable Gaussian (9 taps folded into 5 bilinear fetches). */
@@ -260,8 +264,8 @@ uniform vec2 uRes;
 uniform int uCount;
 uniform vec4 uRect[${MAX_SHAPES}];  // centre xy, half size xy (px, GL space)
 uniform vec4 uShape[${MAX_SHAPES}]; // radius, bezel, height, shadow blur
-uniform vec4 uTint[${MAX_SHAPES}];  // rgb, alpha
-uniform vec4 uOptic[${MAX_SHAPES}]; // frost, dispersion, rim, shadow strength
+uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
+uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
 uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, recessed
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
 uniform float uLegible[${MAX_SHAPES}]; // +1 keep light, -1 keep dark, 0 free
@@ -350,15 +354,15 @@ void main() {
     vec3 r = refract(vec3(0.0, 0.0, -1.0), n, 1.0 / 1.5);
     float thick = S.z * (0.2 + 0.8 * prof) * (1.0 + st.y * 0.45);
     vec2 off = r.xy / max(-r.z, 0.25) * thick;
-    float disp = O.y * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
+    float disp = O.y * 1.45 * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
-    // The rim is clear glass; frost and tint gather towards the middle.
+    // The rim is clear glass; blur and frost gather towards the middle.
     float inner = smoothstep(0.08, 0.95, t);
     // A touch of softness even at the rim keeps fine detail (photos, foliage)
     // from breaking into colour noise once it is refracted and split.
-    float frost = max(O.x * mix(0.06, 1.0, inner), 0.3);
+    float frost = max(O.x * mix(0.06, 1.0, inner), min(O.x, 0.3));
     vec3 sharp, soft, heavy;
     if (slope < 0.002) {
       sharp = texture(uSrc, uvG).rgb; soft = texture(uSoft, uvG).rgb; heavy = texture(uHeavy, uvG).rgb;
@@ -367,7 +371,7 @@ void main() {
     }
     vec3 base = frost < 0.5 ? mix(sharp, soft, frost * 2.0) : mix(soft, heavy, frost * 2.0 - 1.0);
 
-    // Vibrancy, then the glass tint.
+    // Vibrancy, then the milky haze of frosted glass.
     float lum = dot(base, vec3(0.299, 0.587, 0.114));
     base = clamp(mix(vec3(lum), base, 1.22) * (uDark > 0.5 ? 1.0 : 1.03), 0.0, 1.0);
     base = mix(base, T.rgb, T.a * mix(0.22, 1.0, inner) * (1.0 - st.y * 0.25));
@@ -379,8 +383,9 @@ void main() {
 
     // Shading across the bevel: lit side brighter, far side slightly deeper.
     float facing = dot(g, L2);
-    base *= 1.0 - 0.16 * u * u * max(-facing, 0.0) * step(0.0, recess);
-    base += 0.05 * u * u * max(facing, 0.0) * step(0.0, recess);
+    float shading = min(O.z, 1.0) * step(0.0, recess);
+    base *= 1.0 - 0.16 * u * u * max(-facing, 0.0) * shading;
+    base += 0.05 * u * u * max(facing, 0.0) * shading;
     if (recess < 0.0) base *= 1.0 - 0.12 * smoothstep(1.0, 0.0, t) * max(facing, 0.0);
 
     // Legibility: keep the middle of the glass within a luminance band, so
@@ -394,9 +399,9 @@ void main() {
         float lo = uDark > 0.5 ? 0.56 : 0.66;
         if (bl < lo) base = mix(base, vec3(1.0), clamp((lo - bl) / (1.0 - bl), 0.0, 1.0) * k);
       } else {
+        // Darken like tinted glass (keeping the colour) rather than painting over.
         float hi = uDark > 0.5 ? 0.3 : 0.34;
-        const vec3 NIGHT = vec3(0.06, 0.06, 0.07);
-        if (bl > hi) base = mix(base, NIGHT, clamp((bl - hi) / max(bl - 0.06, 1e-3), 0.0, 1.0) * k);
+        if (bl > hi) base *= mix(1.0, hi / bl, k);
       }
     }
 

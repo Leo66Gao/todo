@@ -102,7 +102,7 @@ export function SubjectView({ id }: { id: string }) {
         <div className="mx-auto grid w-full max-w-[1100px] grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-10 px-6 max-lg:grid-cols-1 max-sm:px-3">
           <div>
             {tasks.length === 0 && (
-              <div className="rounded-[12px] border border-dashed border-line-strong px-4 py-8 text-center">
+              <div className="rounded-[calc(var(--radius-ctl)_+_4px)] border border-dashed border-line-strong px-4 py-8 text-center">
                 <p className="text-sm font-medium">No tasks in {project.title}</p>
                 <Button className="mt-3" size="sm" icon={<Plus className="size-3.5" />} onClick={() => ui.newTask({ projectId: id })}>
                   New task

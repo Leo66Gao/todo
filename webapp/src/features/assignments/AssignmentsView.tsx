@@ -81,7 +81,7 @@ export function AssignmentsView() {
       <div className="scroll-area flex-1 pb-24">
         <div className="mx-auto w-full max-w-[820px] px-6 max-sm:px-3">
           {open.length > 0 && (
-            <div className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-[12px] border border-line">
+            <div className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">
               <Stat value={String(stats.dueSoon)} label="due in the next 7 days" />
               <Stat value={stats.work > 0 ? formatDuration(stats.work) : "—"} label="of work left" />
               <Stat value={stats.subsTotal > 0 ? `${stats.subsDone}/${stats.subsTotal}` : "—"} label="subtasks done" />
@@ -151,7 +151,7 @@ function AssignmentRow({ task }: { task: Task }) {
         tabIndex={-1}
         data-task-id={task.id}
         onClick={() => navigate({ view: "assignment", id: task.id })}
-        className="group flex items-start gap-1.5 rounded-[10px] py-2 pr-3 pl-1 transition-colors hover:bg-fill/70"
+        className="group flex items-start gap-1.5 rounded-[calc(var(--radius-ctl)_+_2px)] py-2 pr-3 pl-1 transition-colors hover:bg-fill/70"
       >
         <TaskCheck
           checked={task.isDone}

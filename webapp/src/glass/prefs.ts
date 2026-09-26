@@ -21,13 +21,18 @@ const isBackground = (id: unknown): id is BackgroundId =>
 export interface GlassPrefs {
   enabled: boolean;
   background: BackgroundId;
-  /** How frosted the glass is: 0 clear … 1 fully frosted. */
+  /** How much the glass blurs what is behind it: 0 none … 1 fully diffused. */
+  blur: number;
+  /** Milky haze in the glass: 0 clear … 1 fully frosted. */
   frost: number;
+  /** Corner radius of the glass panels, in CSS px; controls scale with it. */
+  radius: number;
   /** Highlights follow the pointer (desktop). */
   pointerLight: boolean;
 }
 
-const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", frost: 0.5, pointerLight: true };
+const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", blur: 0.75, frost: 0.4, radius: 22, pointerLight: true };
+export const RADIUS_RANGE = [10, 34] as const;
 const KEY = "glass";
 
 interface GlassState extends GlassPrefs {
@@ -39,16 +44,19 @@ interface GlassState extends GlassPrefs {
 export const useGlassPrefs = create<GlassState>(() => ({ ...DEFAULTS, image: null, hasImage: false }));
 
 function persist() {
-  const { enabled, background, frost, pointerLight } = useGlassPrefs.getState();
-  setLocal(KEY, { enabled, background, frost, pointerLight });
+  const { enabled, background, blur, frost, radius, pointerLight } = useGlassPrefs.getState();
+  setLocal(KEY, { enabled, background, blur, frost, radius, pointerLight });
 }
 
 export function restoreGlassPrefs() {
   const { finish, ...saved } = getLocal<Partial<GlassPrefs> & { finish?: string }>(KEY, {});
-  // The earlier three-step setting maps onto the slider.
-  const fromFinish = finish === "clear" ? 0.2 : finish === "frosted" ? 0.85 : undefined;
-  useGlassPrefs.setState({ ...DEFAULTS, ...(fromFinish != null && { frost: fromFinish }), ...saved });
-  if (typeof useGlassPrefs.getState().frost !== "number") useGlassPrefs.setState({ frost: DEFAULTS.frost });
+  // The earlier three-step setting maps onto the blur slider.
+  const fromFinish = finish === "clear" ? 0.25 : finish === "frosted" ? 0.9 : undefined;
+  useGlassPrefs.setState({ ...DEFAULTS, ...(fromFinish != null && { blur: fromFinish }), ...saved });
+  const state = useGlassPrefs.getState();
+  for (const key of ["blur", "frost", "radius"] as const) {
+    if (typeof state[key] !== "number" || !Number.isFinite(state[key])) useGlassPrefs.setState({ [key]: DEFAULTS[key] });
+  }
   // Backgrounds retired since they were chosen fall back to the default.
   if (!isBackground(useGlassPrefs.getState().background)) setGlassPrefs({ background: DEFAULTS.background });
   // Development aid: `?glass=<preset>` turns the theme on with that background.

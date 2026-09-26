@@ -117,7 +117,7 @@ export function TodayView() {
                   transition={springs.layout}
                   className="overflow-hidden"
                 >
-                  <div className="mt-4 rounded-[12px] bg-fill/70 px-2 py-1.5">
+                  <div className="mt-4 rounded-[calc(var(--radius-ctl)_+_4px)] bg-fill/70 px-2 py-1.5">
                     <div className="flex items-center gap-2 pl-2">
                       <span className="size-1.5 rounded-full bg-danger" />
                       <span className="flex-1 text-sm text-ink-2">

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
-import { noteScroll } from "./registry";
+import { noteScroll, refreshGlassShapes } from "./registry";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
 
@@ -21,6 +21,13 @@ export function useGlassDocumentClasses() {
       root.classList.remove("glass", ...PRESET_CLASSES);
     };
   }, [enabled, background]);
+
+  const radius = useGlassPrefs((s) => s.radius);
+  useEffect(() => {
+    document.documentElement.style.setProperty("--glass-radius", `${radius}px`);
+    // Let the new radii reach the DOM before the renderer re-reads them.
+    requestAnimationFrame(refreshGlassShapes);
+  }, [radius]);
 }
 
 /**
@@ -68,6 +75,7 @@ function GlassCanvas() {
       const s = useGlassPrefs.getState();
       const common = {
         dark: root.classList.contains("dark"),
+        blur: s.blur,
         frost: s.frost,
         pointerLight: s.pointerLight,
         solid: reducedTransparency.matches,
