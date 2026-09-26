@@ -192,12 +192,22 @@ export class GoogleCalendar {
   async authorize(opts: { interactive: boolean; email: string | null; uid: string }) {
     this.sessionUid = opts.uid;
     try {
+      let expectedEmail = opts.email;
       if (!opts.interactive && this.restoreCached(opts.email)) {
-        if (await this.verifyAccess()) return this.email;
+        expectedEmail ??= this.email;
+        let matchingAccount = false;
+        try {
+          matchingAccount = this.token != null && sameAccount(await tokenEmail(this.token), expectedEmail);
+        } catch {
+          // A cached token whose owner cannot be checked must not write events.
+        }
+        if (matchingAccount && await this.verifyAccess()) return this.email;
+        this.clearSession();
+        this.sessionUid = opts.uid;
       }
-      const token = await requestToken(opts.interactive, opts.email ?? this.email);
+      const token = await requestToken(opts.interactive, expectedEmail ?? this.email);
       if (!token) return null;
-      const email = opts.email ?? this.email;
+      const email = expectedEmail ?? this.email;
       if (!email) throw new Error("Google Calendar did not return an account email.");
       if (!sameAccount(await tokenEmail(token.accessToken), email)) {
         throw new Error(`Choose ${email} to connect Google Calendar.`);
