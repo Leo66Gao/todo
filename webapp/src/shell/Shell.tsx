@@ -57,6 +57,7 @@ import { startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileAddButton, MobileTabBar } from "./MobileBar";
+import { startOffline } from "@/lib/offline";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
 
@@ -73,6 +74,7 @@ export function Shell() {
     void startNative();
     startReminders();
     startAssignmentImport();
+    startOffline();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);

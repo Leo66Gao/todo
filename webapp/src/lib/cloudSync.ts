@@ -59,6 +59,8 @@ export class CloudSync {
   private unsubscribe: Unsubscribe | null = null;
   private retry: ReturnType<typeof setInterval> | null = null;
   private resub: ReturnType<typeof setTimeout> | null = null;
+  /** Uploads as soon as the connection returns, not at the next retry. */
+  private readonly reconnected = () => void this.flush();
 
   constructor(private readonly db: Firestore) {}
 
@@ -108,6 +110,7 @@ export class CloudSync {
     }
     this.listen(generation);
     this.retry = setInterval(() => void this.flush(), 15000);
+    if (typeof window !== "undefined") window.addEventListener("online", this.reconnected);
     void this.flush();
     return { ...this.records };
   }
@@ -184,7 +187,7 @@ export class CloudSync {
         const status = this.hasPending
           ? "Changes waiting to sync"
           : snapshot.metadata.fromCache
-            ? "Offline · saved on this device"
+            ? "Offline, saved on this device"
             : "Synced";
         if (status !== lastStatus) {
           lastStatus = status;
@@ -495,7 +498,9 @@ export class CloudSync {
     } catch (error) {
       if (generation === this.generation) {
         this.lastFlushError = String(error);
-        this.onStatus?.("Changes saved locally · retrying", String(error));
+        // Being offline isn't a fault: the changes upload when it's back.
+        if (typeof navigator !== "undefined" && !navigator.onLine) this.onStatus?.("Offline, saved on this device", null);
+        else this.onStatus?.("Changes saved on this device, retrying", String(error));
       }
     }
   }
@@ -503,6 +508,7 @@ export class CloudSync {
   async disconnect(): Promise<void> {
     this.generation++;
     if (this.retry) clearInterval(this.retry);
+    if (typeof window !== "undefined") window.removeEventListener("online", this.reconnected);
     if (this.resub) clearTimeout(this.resub);
     this.unsubscribe?.();
     this.unsubscribe = null;

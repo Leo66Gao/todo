@@ -710,6 +710,11 @@ async function restoreCalendarForAccount(user: User) {
     }
   }
   if (!calendarEnabled) return;
+  if (!navigator.onLine) {
+    // Offline, Google can't be asked: open straight away and reconnect later.
+    window.addEventListener("online", () => void (get().user?.uid === user.uid && restoreCalendarForAccount(user)), { once: true });
+    return;
+  }
   const email = await calendar.authorize({ interactive: false, email: user.email, uid: user.uid });
   if (get().user?.uid !== user.uid) return;
   if (email && email !== user.email) calendar.clearSession();
