@@ -9,6 +9,7 @@ import { cn } from "./cn";
 import { Button, Kbd } from "./controls";
 import { springs } from "./motion";
 import { PHONE, useMedia } from "./useMedia";
+import { haptic } from "@/lib/native";
 
 // ---------------------------------------------------------------------------
 // Modal
@@ -78,7 +79,10 @@ export function Modal({
                         dragConstraints: { top: 0, bottom: 0 },
                         dragElastic: { top: 0, bottom: 0.8 },
                         onDragEnd: (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
-                          if (info.offset.y > 110 || info.velocity.y > 600) onOpenChange(false);
+                          if (info.offset.y > 110 || info.velocity.y > 600) {
+                            haptic();
+                            onOpenChange(false);
+                          }
                         },
                       }
                     : {
@@ -306,7 +310,11 @@ export function ContextMenu({
   return (
     <RCM.Root
       modal={false}
-      onOpenChange={(open) => open && setResolved(typeof items === "function" ? items() : items)}
+      onOpenChange={(open) => {
+        if (!open) return;
+        haptic("medium");
+        setResolved(typeof items === "function" ? items() : items);
+      }}
     >
       <RCM.Trigger asChild disabled={disabled}>
         {children}

@@ -53,7 +53,7 @@ import { GlassLayer } from "@/glass/GlassLayer";
 import { restoreGlassPrefs, useGlassPrefs } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
-import { startNative } from "@/lib/native";
+import { haptic, startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileAddButton, MobileTabBar } from "./MobileBar";
@@ -156,6 +156,7 @@ function Workspace() {
     const data = e.active.data.current as TaskDragData | undefined;
     if (data?.type === "task") setDragging(data.task);
     ui.set({ dragging: true });
+    haptic("medium");
   };
 
   const settle = () => setTimeout(() => ui.set({ dragging: false }), 250);
@@ -185,6 +186,7 @@ function Workspace() {
     settle();
     const slot = slotFor(e);
     ui.set({ dropSlot: null });
+    if (e.over) haptic();
     if (slot) {
       // Dropped on the schedule: that day, at that time.
       const { task, day, minutes } = slot;

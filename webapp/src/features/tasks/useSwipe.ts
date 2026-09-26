@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { animate, useMotionValue } from "motion/react";
+import { haptic } from "@/lib/native";
 import { springs } from "@/ui/motion";
 
 const THRESHOLD = 72;
@@ -47,7 +48,10 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
       const over = Math.max(0, Math.abs(dx) - THRESHOLD);
       const shown = Math.sign(dx) * (Math.min(Math.abs(dx), THRESHOLD) + over * 0.35);
       x.set(shown);
-      setArmed(dx >= THRESHOLD ? "right" : dx <= -THRESHOLD ? "left" : null);
+      const next = dx >= THRESHOLD ? "right" : dx <= -THRESHOLD ? "left" : null;
+      // A tick as the action arms, so it's felt before letting go.
+      if (next && next !== armed) haptic();
+      setArmed(next);
     },
     onTouchEnd() {
       const fire = armed;

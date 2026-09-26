@@ -443,11 +443,12 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
           <Kbd>↩</Kbd>
           <span className="ml-1">to save</span>
         </span>
-        <div className="ml-auto flex gap-2">
-          <Button variant="ghost" onClick={() => ui.closeEditor()}>
+        {/* On phones the buttons share the width, within reach of a thumb. */}
+        <div className="ml-auto flex gap-2 max-sm:ml-0 max-sm:flex-1">
+          <Button variant="ghost" className="max-sm:h-11 max-sm:flex-1" onClick={() => ui.closeEditor()}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary" disabled={!canSave}>
+          <Button type="submit" variant="primary" className="max-sm:h-11 max-sm:flex-[2]" disabled={!canSave}>
             {existing ? "Save changes" : "Create task"}
           </Button>
         </div>
