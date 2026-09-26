@@ -144,6 +144,27 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  const exportDocx = async () => {
+    persist();
+    const current = useWorkspace.getState().notes.find((n) => n.id === note.id) ?? note;
+    try {
+      const { fileName, noteToDocx, saveFile } = await import("@/lib/noteFiles");
+      await saveFile(fileName(current.title, "docx"), await noteToDocx(current.title, current.content));
+    } catch {
+      toast("The Word document couldn’t be made.");
+    }
+  };
+  const exportPdf = async () => {
+    persist();
+    const current = useWorkspace.getState().notes.find((n) => n.id === note.id) ?? note;
+    try {
+      const { printNote } = await import("@/lib/noteFiles");
+      await printNote(current.title, current.content);
+    } catch {
+      toast("Printing isn’t available here.");
+    }
+  };
+
   const setSubject = (id: string | null) =>
     updateNote({ ...note, subjectId: id, folderId: null, updatedAt: new Date() });
   const setFolder = (id: string | null) => updateNote({ ...note, folderId: id, updatedAt: new Date() });
@@ -208,6 +229,9 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
                 </IconButton>
               }
               items={[
+                { label: "Export as Word document", onSelect: () => void exportDocx() },
+                { label: "Print or save as PDF…", onSelect: () => void exportPdf() },
+                { separator: true },
                 {
                   label: "Delete note…",
                   destructive: true,

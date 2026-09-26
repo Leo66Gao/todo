@@ -2,7 +2,8 @@
 
 import { formatDistanceToNowStrict, isToday, isYesterday, format } from "date-fns";
 import type { StudyNote } from "@/lib/model";
-import { uuid } from "@/lib/model";
+import { contentFromDelta } from "@/lib/delta";
+import { encodeNote, recordFits, uuid } from "@/lib/model";
 import type { Route } from "@/shell/nav";
 import { addNote, deleteNote, useWorkspace } from "@/store/workspace";
 import { confirmDialog } from "@/ui/overlay";
@@ -22,6 +23,34 @@ export function createNote(navigate: (r: Route) => void, opts: { subjectId?: str
   };
   addNote(note);
   navigate({ view: "note", id: note.id });
+}
+
+/** Makes a note from a Word document and opens it. */
+export async function importNote(file: File, navigate: (r: Route) => void, subjectId: string | null) {
+  try {
+    const { docxToContent } = await import("@/lib/noteFiles");
+    const { title, ops } = await docxToContent(file);
+    const now = new Date();
+    const note: StudyNote = {
+      id: uuid(),
+      title,
+      content: contentFromDelta(ops),
+      subjectId,
+      folderId: null,
+      attachments: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (!recordFits(encodeNote(note))) {
+      toast("This document is too large for one note. Split it and import the parts.");
+      return;
+    }
+    addNote(note);
+    navigate({ view: "note", id: note.id });
+    toast(`Imported “${title}”`);
+  } catch {
+    toast("This file couldn’t be read. Choose a Word document (.docx).");
+  }
 }
 
 export async function removeNote(note: StudyNote, after?: () => void) {

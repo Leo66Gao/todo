@@ -1,17 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, Plus, Search } from "lucide-react";
+import { ChevronDown, FileUp, Plus, Search } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { plainText } from "@/lib/delta";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { useWorkspace } from "@/store/workspace";
-import { Button } from "@/ui/controls";
+import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
-import { Menu } from "@/ui/overlay";
-import { createNote, noteGroup } from "./noteActions";
+import { Menu, Tooltip } from "@/ui/overlay";
+import { createNote, importNote, noteGroup } from "./noteActions";
 import { NoteRow } from "./NoteRow";
 
 export function NotesView() {
@@ -20,6 +20,7 @@ export function NotesView() {
   const projects = useWorkspace((s) => s.projects);
   const [query, setQuery] = useState("");
   const [subjectId, setSubjectId] = useState<string | "all">("all");
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -45,14 +46,32 @@ export function NotesView() {
         title="Notes"
         detail={notes.length > 0 ? `${notes.length} ${notes.length === 1 ? "note" : "notes"}` : undefined}
         actions={
-          <Button
-            variant="primary"
-            className="max-md:hidden"
-            icon={<Plus className="size-4" />}
-            onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}
-          >
-            <span className="max-sm:hidden">New note</span>
-          </Button>
+          <>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void importNote(file, navigate, subject?.id ?? null);
+              }}
+            />
+            <Tooltip label="Import a Word document">
+              <IconButton label="Import a Word document" onClick={() => fileInput.current?.click()}>
+                <FileUp className="size-4" />
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="primary"
+              className="max-md:hidden"
+              icon={<Plus className="size-4" />}
+              onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}
+            >
+              <span className="max-sm:hidden">New note</span>
+            </Button>
+          </>
         }
       />
       <div className="scroll-area flex-1 pb-24">
