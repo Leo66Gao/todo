@@ -18,6 +18,8 @@ import type { TaskDragData } from "@/features/tasks/TaskRow";
 import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { ContextMenu, Popover } from "@/ui/overlay";
+import { eventsOnDay, useEvents, type GEvent } from "@/lib/googleEvents";
+import { EventRow, openEvent } from "@/features/events/EventSheet";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -31,6 +33,7 @@ export function CalendarView() {
     const first = startOfWeek(new Date(monthKey));
     return Array.from({ length: 42 }, (_, i) => addDays(first, i));
   }, [monthKey]);
+  const events = useEvents(days[0], addDays(days[0], 42));
   const byDay = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const t of all) {
@@ -106,6 +109,7 @@ export function CalendarView() {
                     inMonth={d.getMonth() === month.getMonth()}
                     selected={sameDay(d, selected)}
                     tasks={byDay.get(dayKey(d)) ?? []}
+                    events={events}
                     onPick={() => pick(d)}
                   />
                 ))}
@@ -113,7 +117,7 @@ export function CalendarView() {
             </AnimatePresence>
           </div>
         </div>
-        <Agenda day={selected} all={all} />
+        <Agenda day={selected} all={all} events={events} />
       </div>
     </>
   );
@@ -181,20 +185,28 @@ function MonthCell({
   inMonth,
   selected,
   tasks,
+  events,
   onPick,
 }: {
   date: Date;
   inMonth: boolean;
   selected: boolean;
   tasks: Task[];
+  events: GEvent[];
   onPick: () => void;
 }) {
+  const dayEvents = useMemo(() => {
+    const { allDay, timed } = eventsOnDay(events, date);
+    return [...allDay, ...timed];
+  }, [events, date]);
   const { setNodeRef, isOver } = useDroppable({ id: `cal-${date.getTime()}`, data: { type: "day", date } });
   const projects = useProjectMap();
   const lastClick = useRef(0);
   const isToday = sameDay(date, today());
-  const visible = tasks.slice(0, 3);
-  const more = tasks.length - visible.length;
+  // Events first (they are fixed), then tasks, three lines in all.
+  const shownEvents = dayEvents.slice(0, 3);
+  const visible = tasks.slice(0, 3 - shownEvents.length);
+  const more = tasks.length + dayEvents.length - visible.length - shownEvents.length;
   return (
     <div
       ref={setNodeRef}
@@ -223,7 +235,10 @@ function MonthCell({
       </div>
       {/* Phones: a dot per task (up to three); the agenda below lists them. */}
       <div className="flex h-1.5 justify-center gap-[3px] md:hidden">
-        {tasks.slice(0, 3).map((t) => (
+        {dayEvents.slice(0, 3).map((e) => (
+          <span key={e.key} className="size-[5px] rounded-full" style={{ background: e.color }} />
+        ))}
+        {tasks.slice(0, Math.max(0, 3 - dayEvents.length)).map((t) => (
           <span
             key={t.id}
             className={cn("size-[5px] rounded-full", t.isDone ? "bg-ink-4" : "bg-ink-2")}
@@ -232,6 +247,21 @@ function MonthCell({
         ))}
       </div>
       <div className="contents max-md:hidden">
+        {shownEvents.map((e) => (
+          <button
+            key={e.key}
+            type="button"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              openEvent(e);
+            }}
+            className="flex h-[19px] min-w-0 shrink-0 items-center gap-1.5 rounded-[5px] px-1.5 text-left text-2xs transition-colors hover:bg-fill-strong"
+            style={{ background: `color-mix(in srgb, ${e.color} 14%, transparent)` }}
+          >
+            {!e.allDay && <span className="shrink-0 text-ink-3 tnum">{formatClock(e.start)}</span>}
+            <span className="truncate">{e.title}</span>
+          </button>
+        ))}
         {visible.map((t) => (
           <CalendarChip key={t.id} task={t} />
         ))}
@@ -286,12 +316,16 @@ function CalendarChip({ task }: { task: Task }) {
   );
 }
 
-function Agenda({ day, all }: { day: Date; all: Task[] }) {
+function Agenda({ day, all, events }: { day: Date; all: Task[]; events: GEvent[] }) {
   const { timed, untimed, done } = useMemo(() => tasksForDay(all, day), [all, day]);
+  const dayEvents = useMemo(() => {
+    const { allDay, timed: timedEvents } = eventsOnDay(events, day);
+    return [...allDay, ...timedEvents];
+  }, [events, day]);
   useEffect(() => {
     ui.set({ visibleOrder: [...timed, ...untimed, ...done].map((t) => t.id) });
   }, [timed, untimed, done]);
-  const empty = timed.length + untimed.length + done.length === 0;
+  const empty = timed.length + untimed.length + done.length + dayEvents.length === 0;
   return (
     <aside className="scroll-area h-full min-h-0 w-[320px] shrink-0 border-l border-line px-3 pt-4 pb-10 max-xl:h-auto max-xl:w-full max-xl:flex-1 max-xl:shrink max-xl:border-t max-xl:border-l-0">
       <div className="flex items-baseline justify-between px-2 pb-3">
@@ -302,6 +336,15 @@ function Agenda({ day, all }: { day: Date; all: Task[] }) {
         <p className="px-2 py-6 text-sm text-ink-3">Nothing planned.</p>
       ) : (
         <>
+          {dayEvents.length > 0 && (
+            <Section title="Calendar" count={dayEvents.length}>
+              <div className="space-y-px">
+                {dayEvents.map((e) => (
+                  <EventRow key={e.key} event={e} />
+                ))}
+              </div>
+            </Section>
+          )}
           {timed.length > 0 && (
             <Section title="Scheduled" count={timed.length}>
               <TaskList tasks={timed} />

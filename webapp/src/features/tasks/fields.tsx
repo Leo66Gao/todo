@@ -107,11 +107,14 @@ export function TimeField({
   onChange,
   plain,
   className,
+  clearable = true,
 }: {
   value: ClockTime | null;
   onChange: (time: ClockTime | null) => void;
   plain?: boolean;
   className?: string;
+  /** Offer "no time" (a task can have none; an event can't). */
+  clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -124,7 +127,7 @@ export function TimeField({
           plain={plain}
           muted={!value}
           className={className}
-          onClear={value ? () => onChange(null) : undefined}
+          onClear={value && clearable ? () => onChange(null) : undefined}
         >
           {value ? clockLabel(value) : "No time"}
         </FieldButton>
@@ -137,7 +140,7 @@ export function TimeField({
           setOpen(false);
         }}
         onClear={
-          value
+          value && clearable
             ? () => {
                 onChange(null);
                 setOpen(false);

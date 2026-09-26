@@ -9,7 +9,11 @@ import { parseDartDate, toDartIso } from "./dart";
 import * as prefs from "./prefs";
 
 export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
-const API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+/** Lists your calendars (to show their events, e.g. a subscribed ManageBac feed). */
+export const CALENDAR_LIST_SCOPE = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+export const CALENDAR_SCOPES = [CALENDAR_SCOPE, CALENDAR_LIST_SCOPE];
+const BASE = "https://www.googleapis.com/calendar/v3";
+const API = `${BASE}/calendars/primary/events`;
 
 interface TokenResponse {
   access_token?: string;
@@ -57,7 +61,7 @@ async function requestToken(
 ): Promise<{ accessToken: string; expiry: Date } | null> {
   if (isNative()) {
     const { accessToken } = await GoogleAuthorization.authorize({
-      scopes: [CALENDAR_SCOPE, "email"],
+      scopes: [...CALENDAR_SCOPES, "email"],
       email: loginHint,
       interactive,
     });
@@ -76,7 +80,7 @@ async function requestToken(
     const client = window.google!.accounts!.oauth2!.initTokenClient({
       client_id: googleWebClientId,
       // `email` lets the token be checked against the signed-in account.
-      scope: `${CALENDAR_SCOPE} email`,
+      scope: `${CALENDAR_SCOPES.join(" ")} email`,
       include_granted_scopes: true,
       prompt: interactive ? "" : "none",
       login_hint: loginHint ?? undefined,
@@ -120,13 +124,37 @@ async function tokenEmail(accessToken: string): Promise<string | null> {
 
 const sameAccount = (a: string | null, b: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
   ) {
     super(message);
   }
+}
+
+export interface RawCalendar {
+  id: string;
+  summary?: string;
+  summaryOverride?: string;
+  backgroundColor?: string;
+  primary?: boolean;
+  accessRole?: "freeBusyReader" | "reader" | "writer" | "owner";
+  selected?: boolean;
+}
+
+type EventTime = { date?: string; dateTime?: string; timeZone?: string };
+export interface RawEvent {
+  id: string;
+  summary?: string;
+  start?: EventTime;
+  end?: EventTime;
+  location?: string;
+  description?: string;
+  htmlLink?: string;
+  status?: string;
+  recurringEventId?: string;
+  extendedProperties?: { private?: Record<string, string> };
 }
 
 export interface EventInput {
@@ -359,6 +387,54 @@ export class GoogleCalendar {
     } catch (error) {
       this.setError("Update failed", error);
       return false;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Reading and editing your own calendars' events (these throw ApiError).
+
+  async listCalendars(): Promise<RawCalendar[]> {
+    const data = await this.request(
+      "GET",
+      `${BASE}/users/me/calendarList?fields=items(id,summary,summaryOverride,backgroundColor,primary,accessRole,selected)`,
+    );
+    return (data?.items ?? []) as RawCalendar[];
+  }
+
+  async listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<RawEvent[]> {
+    const out: RawEvent[] = [];
+    let pageToken: string | undefined;
+    do {
+      const params = new URLSearchParams({
+        singleEvents: "true",
+        orderBy: "startTime",
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        maxResults: "250",
+        fields: "items(id,summary,start,end,location,description,htmlLink,extendedProperties,recurringEventId,status),nextPageToken",
+      });
+      if (pageToken) params.set("pageToken", pageToken);
+      const data = await this.request("GET", `${BASE}/calendars/${encodeURIComponent(calendarId)}/events?${params}`);
+      out.push(...((data?.items ?? []) as RawEvent[]));
+      pageToken = data?.nextPageToken;
+    } while (pageToken);
+    return out;
+  }
+
+  async patchCalendarEvent(calendarId: string, eventId: string, body: Record<string, unknown>): Promise<RawEvent> {
+    return (await this.request(
+      "PATCH",
+      `${BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      body,
+    )) as RawEvent;
+  }
+
+  async removeCalendarEvent(calendarId: string, eventId: string): Promise<void> {
+    try {
+      await this.request("DELETE", `${BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`);
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 404 || error.status === 410)) return;
+      throw error;
     }
   }
 

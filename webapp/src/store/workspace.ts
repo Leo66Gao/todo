@@ -19,7 +19,7 @@ import {
 } from "firebase/auth";
 import { CloudSync } from "@/lib/cloudSync";
 import {
-  CALENDAR_SCOPE,
+  CALENDAR_SCOPES,
   GoogleCalendar,
   calendarActionKey,
   normalizeOutbox,
@@ -111,6 +111,8 @@ let authQueue: Promise<void> = Promise.resolve();
 let started = false;
 
 const calendar = new GoogleCalendar();
+/** The signed-in account's Google Calendar client (events are read through it too). */
+export const calendarClient = () => calendar;
 let calendarEnabled = false;
 let calendarOwnerUid: string | null = null;
 let outbox: Record<string, CalendarAction> = {};
@@ -767,7 +769,7 @@ export async function connectCalendar() {
   }
   prefs.setString(CALENDAR_REDIRECT_KEY, user.uid);
   const provider = new GoogleAuthProvider();
-  provider.addScope(CALENDAR_SCOPE);
+  for (const scope of CALENDAR_SCOPES) provider.addScope(scope);
   try {
     await reauthenticateWithRedirect(user, provider);
   } catch (error) {

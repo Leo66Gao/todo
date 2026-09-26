@@ -13,6 +13,9 @@ import { patchTask } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
+import { toast } from "@/ui/toast";
+import { eventsOnDay, updateEvent, type GEvent } from "@/lib/googleEvents";
+import { openEvent } from "@/features/events/EventSheet";
 
 const HOUR = 44;
 const SNAP = 15;
@@ -21,16 +24,24 @@ const MIN_BLOCK = 30;
 const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
 const atMinutes = (day: Date, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, m);
 
-type Placed = { task: Task; start: number; end: number; lane: number; lanes: number };
+type Item = { kind: "task"; task: Task } | { kind: "event"; event: GEvent };
+type Placed = { item: Item; start: number; end: number; lane: number; lanes: number };
 
 /** Greedy lane assignment so overlapping blocks sit side by side. */
-function place(tasks: Task[]): Placed[] {
-  const items = tasks
-    .map((task) => {
+function place(tasks: Task[], events: GEvent[], day: Date): Placed[] {
+  const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+  const items: Placed[] = [
+    ...tasks.map((task) => {
       const start = minutesOf(task.startTime!);
-      return { task, start, end: start + Math.max(MIN_BLOCK, task.durationMinutes), lane: 0, lanes: 1 };
-    })
-    .sort((a, b) => a.start - b.start || b.end - a.end);
+      return { item: { kind: "task" as const, task }, start, end: start + Math.max(MIN_BLOCK, task.durationMinutes), lane: 0, lanes: 1 };
+    }),
+    ...events.map((event) => {
+      // An event running over midnight shows the part on this day.
+      const start = Math.max(0, Math.round((event.start.getTime() - dayStart) / 60000));
+      const end = Math.min(24 * 60, Math.round((event.end.getTime() - dayStart) / 60000));
+      return { item: { kind: "event" as const, event }, start, end: Math.max(end, start + MIN_BLOCK), lane: 0, lanes: 1 };
+    }),
+  ].sort((a, b) => a.start - b.start || b.end - a.end);
   let group: Placed[] = [];
   let groupEnd = -1;
   const flush = () => {
@@ -66,11 +77,12 @@ function useNow() {
  * duration; drag a block to move it, or click an empty slot to plan a task
  * at that time.
  */
-export function ScheduleRail({ day, tasks }: { day: Date; tasks: Task[] }) {
+export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Task[]; events?: GEvent[] }) {
   const now = useNow();
   const isToday = sameDay(day, now);
   const timed = useMemo(() => tasks.filter((t) => t.startTime && sameDay(t.date, day)), [tasks, day]);
-  const placed = useMemo(() => place(timed), [timed]);
+  const timedEvents = useMemo(() => eventsOnDay(events, day).timed, [events, day]);
+  const placed = useMemo(() => place(timed, timedEvents, day), [timed, timedEvents, day]);
 
   const first = Math.min(8, ...(isToday ? [now.getHours()] : []), ...placed.map((p) => Math.floor(p.start / 60)));
   const nowHour = isToday ? Math.ceil((minutesOf(now) + 1) / 60) : 0;
@@ -135,9 +147,13 @@ export function ScheduleRail({ day, tasks }: { day: Date; tasks: Task[] }) {
                 New task at {formatClock(atMinutes(day, hover))}
               </div>
             )}
-            {placed.map((p) => (
-              <Block key={p.task.id} placed={p} top={top} bounds={[first * 60, last * 60]} />
-            ))}
+            {placed.map((p) =>
+              p.item.kind === "task" ? (
+                <Block key={p.item.task.id} placed={p} task={p.item.task} top={top} bounds={[first * 60, last * 60]} />
+              ) : (
+                <EventBlock key={p.item.event.key} placed={p} event={p.item.event} top={top} bounds={[first * 60, last * 60]} />
+              ),
+            )}
           </div>
 
           {isToday && minutesOf(now) >= first * 60 && minutesOf(now) <= last * 60 && (
@@ -156,17 +172,106 @@ export function ScheduleRail({ day, tasks }: { day: Date; tasks: Task[] }) {
   );
 }
 
-function Block({ placed, top, bounds }: { placed: Placed; top: (m: number) => number; bounds: [number, number] }) {
-  const { task, start, end, lane, lanes } = placed;
+type BlockProps = { placed: Placed; top: (m: number) => number; bounds: [number, number] };
+
+/** Vertical drag with 15-minute snapping; a press without movement is a tap. */
+function useBlockDrag(start: number, end: number, bounds: [number, number], onMove: (minutes: number) => void, onTap: () => void) {
+  const [shift, setShift] = useState(0);
+  const drag = useRef<{ y: number; moved: boolean } | null>(null);
+  const delta = Math.round(((shift / HOUR) * 60) / SNAP) * SNAP;
+  const clamped = Math.max(bounds[0] - start, Math.min(bounds[1] - end, delta));
+  const handlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = { y: e.clientY, moved: false };
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!drag.current) return;
+      const dy = e.clientY - drag.current.y;
+      if (Math.abs(dy) > 3) drag.current.moved = true;
+      if (drag.current.moved) setShift(dy);
+    },
+    onPointerUp: () => {
+      const moved = drag.current?.moved;
+      drag.current = null;
+      setShift(0);
+      if (!moved) onTap();
+      else if (clamped !== 0) onMove(clamped);
+    },
+    onPointerCancel: () => {
+      drag.current = null;
+      setShift(0);
+    },
+  };
+  return { shift, clamped, handlers };
+}
+
+function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent }) {
+  const { start, end, lane, lanes } = placed;
+  const { shift, clamped, handlers } = useBlockDrag(
+    start,
+    end,
+    event.writable ? bounds : [start, end],
+    (minutes) => {
+      const ms = minutes * 60000;
+      updateEvent(event, { start: new Date(event.start.getTime() + ms), end: new Date(event.end.getTime() + ms) }).catch((error) =>
+        toast(`Couldn’t move the event: ${error instanceof Error ? error.message : String(error)}`),
+      );
+    },
+    () => openEvent(event),
+  );
+  const shown = start + clamped;
+  const height = ((end - start) / 60) * HOUR;
+  const compact = height < 40;
+  return (
+    <motion.div
+      layout={shift === 0 ? "position" : false}
+      transition={springs.layout}
+      role="button"
+      tabIndex={-1}
+      {...handlers}
+      className={cn(
+        "absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] px-2 select-none",
+        compact ? "justify-center py-0" : "py-1",
+        shift !== 0 && "z-10 shadow-[0_4px_14px_-6px_rgb(0_0_0/0.25)]",
+      )}
+      style={{
+        top: top(shown) + 1,
+        height: height - 2,
+        left: `calc(${(lane / lanes) * 100}% + 4px)`,
+        width: `calc(${100 / lanes}% - 6px)`,
+        // The calendar's own colour, softly: events read apart from tasks.
+        background: `color-mix(in srgb, ${event.color} 18%, transparent)`,
+        boxShadow: `inset 2px 0 0 ${event.color}`,
+      }}
+    >
+      <span className="truncate text-xs leading-4 font-medium">{event.title}</span>
+      {!compact && (
+        <span className="truncate text-2xs leading-4 text-ink-3 tnum">
+          {formatClock(new Date(event.start.getTime() + clamped * 60000))}–{formatClock(new Date(event.end.getTime() + clamped * 60000))}
+        </span>
+      )}
+    </motion.div>
+  );
+}
+
+function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
+  const { start, end, lane, lanes } = placed;
   const navigate = useNavigate();
   const projects = useProjectMap();
   const selected = useUI((s) => s.selectedId === task.id || s.inspectorId === task.id);
   const project = task.projectId ? projects.get(task.projectId) : undefined;
-  const [shift, setShift] = useState(0);
-  const drag = useRef<{ y: number; moved: boolean } | null>(null);
-
-  const delta = Math.round(((shift / HOUR) * 60) / SNAP) * SNAP;
-  const clamped = Math.max(bounds[0] - start, Math.min(bounds[1] - end, delta));
+  const { shift, clamped, handlers } = useBlockDrag(
+    start,
+    end,
+    bounds,
+    (minutes) => patchTask(task.id, { startTime: new Date(task.startTime!.getTime() + minutes * 60000) }),
+    () => {
+      ui.select(task.id);
+      openTask(task, navigate);
+    },
+  );
   const shown = start + clamped;
   const height = ((end - start) / 60) * HOUR;
   const compact = height < 40;
@@ -179,35 +284,7 @@ function Block({ placed, top, bounds }: { placed: Placed; top: (m: number) => nu
         role="button"
         tabIndex={-1}
         data-task-id={task.id}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          e.currentTarget.setPointerCapture(e.pointerId);
-          drag.current = { y: e.clientY, moved: false };
-        }}
-        onPointerMove={(e) => {
-          if (!drag.current) return;
-          const dy = e.clientY - drag.current.y;
-          if (Math.abs(dy) > 3) drag.current.moved = true;
-          if (drag.current.moved) setShift(dy);
-        }}
-        onPointerUp={() => {
-          const moved = drag.current?.moved;
-          drag.current = null;
-          setShift(0);
-          if (moved) {
-            if (clamped !== 0) {
-              const next = new Date(task.startTime!.getTime() + clamped * 60000);
-              patchTask(task.id, { startTime: next });
-            }
-            return;
-          }
-          ui.select(task.id);
-          openTask(task, navigate);
-        }}
-        onPointerCancel={() => {
-          drag.current = null;
-          setShift(0);
-        }}
+        {...handlers}
         className={cn(
           "absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] border-l-2 px-2 select-none",
           compact ? "justify-center py-0" : "py-1",

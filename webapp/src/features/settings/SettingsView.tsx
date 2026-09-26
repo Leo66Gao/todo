@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -30,6 +30,7 @@ import { Button, Segmented, Slider, Spinner, Switch } from "@/ui/controls";
 import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { isNative } from "@/lib/native";
+import { ensureMonths, modeOf, setCalendarMode, useGoogleEvents } from "@/lib/googleEvents";
 import { LEAD_OPTIONS, requestReminderPermission, setReminderPrefs, useReminderPrefs, type ReminderPrefs } from "@/lib/reminders";
 import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
@@ -434,7 +435,7 @@ function CalendarSection() {
   const error = useWorkspace((s) => s.syncError);
   if (!firebaseConfigured) return null;
   return (
-    <Group title="Google Calendar" description="Open tasks appear as events in your primary calendar; completed ones are removed.">
+    <Group title="Google Calendar" description="Open tasks appear as events in your main calendar, and your calendars’ events appear here.">
       <Item
         title={connected ? "Connected" : "Not connected"}
         detail={!user ? "Sign in first to connect your calendar." : connected ? user.email : "You’ll be sent to Google to allow access, then brought back here."}
@@ -449,8 +450,63 @@ function CalendarSection() {
           </Button>
         )}
       </Item>
+      {connected && <CalendarList />}
       {error && <div className="px-4 py-2.5 text-xs text-danger">{error}</div>}
     </Group>
+  );
+}
+
+/** Your Google calendars: show their events, hide them, or import them as assignments. */
+function CalendarList() {
+  const calendars = useGoogleEvents((s) => s.calendars);
+  const modes = useGoogleEvents((s) => s.modes);
+  const listMissing = useGoogleEvents((s) => s.listMissing);
+  useEffect(() => {
+    // Loading this month also loads the list of calendars.
+    const now = new Date();
+    ensureMonths(new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 1));
+  }, []);
+  return (
+    <>
+      {listMissing && (
+        <Item title="Show all your calendars" detail="Reconnect once so Todo can list your other calendars (for example a ManageBac feed).">
+          <Button size="sm" onClick={() => void connectCalendar()}>
+            Reconnect
+          </Button>
+        </Item>
+      )}
+      {calendars.map((c) => (
+        <Item
+          key={c.id}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
+              <span className="truncate">{c.name}</span>
+            </span>
+          }
+          detail={modeOf(c, modes) === "assignments" ? "Each event becomes an assignment, matched to a subject." : undefined}
+        >
+          <Segmented
+            size="sm"
+            value={modeOf(c, modes)}
+            onChange={(v) => setCalendarMode(c.id, v)}
+            options={[
+              { value: "show", label: "Show" },
+              { value: "hide", label: "Hide" },
+              ...(c.primary ? [] : [{ value: "assignments" as const, label: "Assignments" }]),
+            ]}
+          />
+        </Item>
+      ))}
+      <details className="group px-4 py-3 text-xs text-ink-3">
+        <summary className="cursor-pointer list-none text-ink-2 transition-colors hover:text-ink">How to add ManageBac deadlines</summary>
+        <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
+          <li>In ManageBac, open Calendar and choose Export (or Subscribe), then copy the calendar link.</li>
+          <li>In Google Calendar on a computer: Other calendars → + → From URL, and paste the link.</li>
+          <li>Back here, set that calendar to Assignments. New deadlines then arrive as assignments.</li>
+        </ol>
+      </details>
+    </>
   );
 }
 

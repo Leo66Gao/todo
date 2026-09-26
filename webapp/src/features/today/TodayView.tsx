@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { formatDuration, relativeDay, sameDay, today } from "@/lib/time";
+import { addDays, formatDuration, relativeDay, sameDay, today } from "@/lib/time";
+import { useEvents } from "@/lib/googleEvents";
+import { EventRow } from "@/features/events/EventSheet";
 import { PageHeader } from "@/shell/Shell";
 import { ui, useUI } from "@/shell/ui";
 import { overdueTasks, tasksForDay, useAllTasks, workMinutes } from "@/features/tasks/meta";
@@ -22,6 +24,7 @@ export function TodayView() {
   const day = useUI((s) => s.day);
   const all = useAllTasks();
   const { timed, untimed, done } = useMemo(() => tasksForDay(all, day), [all, day]);
+  const events = useEvents(day, addDays(day, 1));
   const isToday = sameDay(day, today());
   const overdue = useMemo(() => (isToday ? overdueTasks(all) : []), [all, isToday]);
   const [reviewing, setReviewing] = useState(false);
@@ -169,8 +172,17 @@ export function TodayView() {
             </AnimatePresence>
 
             <div className="mt-5">
+              {events.length > 0 && (
+                <Section title="Calendar" count={events.length}>
+                  <div className="space-y-px">
+                    {events.map((e) => (
+                      <EventRow key={e.key} event={e} />
+                    ))}
+                  </div>
+                </Section>
+              )}
               {total === 0 ? (
-                <EmptyDay day={day} />
+                events.length === 0 && <EmptyDay day={day} />
               ) : (
                 <>
                   {timed.length > 0 && (
@@ -207,7 +219,7 @@ export function TodayView() {
             </div>
           </div>
           <div className="hidden pt-4 pb-6 @min-[1060px]:flex">
-            <ScheduleRail day={day} tasks={all} />
+            <ScheduleRail day={day} tasks={all} events={events} />
           </div>
         </div>
       </div>

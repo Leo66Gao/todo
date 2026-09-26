@@ -23,6 +23,7 @@ import { moveTask, openTask, removeTask } from "@/features/tasks/actions";
 import { TaskDragPreview, type TaskDragData } from "@/features/tasks/TaskRow";
 import { TaskEditorHost } from "@/features/tasks/TaskEditor";
 import { InspectorPanel, InspectorSheet } from "@/features/tasks/Inspector";
+import { EventSheet } from "@/features/events/EventSheet";
 import { CommandPalette } from "@/features/command/CommandPalette";
 import { ShortcutsSheet } from "@/features/command/ShortcutsSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
@@ -48,6 +49,7 @@ import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
 import { startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
+import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileAddButton, MobileTabBar } from "./MobileBar";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
@@ -64,6 +66,7 @@ export function Shell() {
     restoreGlassPrefs();
     void startNative();
     startReminders();
+    startAssignmentImport();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
@@ -264,6 +267,7 @@ function Workspace() {
         <InspectorPanel />
       </div>
       <InspectorSheet />
+      <EventSheet />
       <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.2, 0.9, 0.25, 1)" }}>
         {dragging && <TaskDragPreview task={dragging} />}
       </DragOverlay>

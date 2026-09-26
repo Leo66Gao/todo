@@ -23,6 +23,8 @@ import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
+import { eventsOnDay, useEvents, type GEvent } from "@/lib/googleEvents";
+import { EventRow } from "@/features/events/EventSheet";
 
 function weekTitle(start: Date) {
   const diff = Math.round((start.getTime() - startOfWeek(today()).getTime()) / (7 * 864e5));
@@ -44,6 +46,7 @@ export function WeekView() {
       }),
     [all, startKey],
   );
+  const events = useEvents(new Date(startKey), addDays(new Date(startKey), 7));
   const stats = useMemo(() => {
     const list = columns.flatMap((c) => c.tasks);
     const done = list.filter((t) => t.isDone).length;
@@ -108,14 +111,18 @@ export function WeekView() {
       </div>
       <div className="scroll-area flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto">
         {columns.map((col) => (
-          <DayColumn key={col.date.getTime()} date={col.date} tasks={col.tasks} />
+          <DayColumn key={col.date.getTime()} date={col.date} tasks={col.tasks} events={events} />
         ))}
       </div>
     </>
   );
 }
 
-function DayColumn({ date, tasks }: { date: Date; tasks: Task[] }) {
+function DayColumn({ date, tasks, events }: { date: Date; tasks: Task[]; events: GEvent[] }) {
+  const dayEvents = useMemo(() => {
+    const { allDay, timed } = eventsOnDay(events, date);
+    return [...allDay, ...timed];
+  }, [events, date]);
   const { setNodeRef, isOver } = useDroppable({ id: `week-${date.getTime()}`, data: { type: "day", date } });
   const isToday = sameDay(date, today());
   const open = tasks.filter((t) => !t.isDone).length;
@@ -145,6 +152,13 @@ function DayColumn({ date, tasks }: { date: Date; tasks: Task[] }) {
         {open > 0 && <span className="ml-auto text-2xs text-ink-3 tnum">{open}</span>}
       </header>
       <div className="scroll-area flex-1 px-1.5 pb-2 max-md:flex-none max-md:overflow-visible">
+        {dayEvents.length > 0 && (
+          <div className="mb-1 space-y-px">
+            {dayEvents.map((e) => (
+              <EventRow key={e.key} event={e} compact />
+            ))}
+          </div>
+        )}
         <SortableContext id={`week-${date.getTime()}`} items={sortableIds} strategy={verticalListSortingStrategy}>
           <AnimatePresence initial={false}>
             {tasks.map((task) => (
