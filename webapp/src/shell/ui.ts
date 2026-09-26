@@ -33,6 +33,8 @@ interface UIState {
   visibleOrder: string[];
   /** True while a drag is in flight or just settled (pauses layout animation). */
   dragging: boolean;
+  /** Where a task dragged over the schedule would land. */
+  dropSlot: { day: number; minutes: number; duration: number } | null;
 }
 
 export const useUI = create<UIState>(() => ({
@@ -48,6 +50,7 @@ export const useUI = create<UIState>(() => ({
   sidebarCollapsed: false,
   visibleOrder: [],
   dragging: false,
+  dropSlot: null,
 }));
 
 export const ui = {

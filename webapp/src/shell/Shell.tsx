@@ -13,12 +13,13 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { Menu as MenuIcon } from "lucide-react";
 import type { Task } from "@/lib/model";
 import { restoreAppearance, useAppearance } from "@/lib/appearance";
-import { addDays, relativeDay, sameDay, today } from "@/lib/time";
+import { addDays, formatClock, relativeDay, sameDay, today } from "@/lib/time";
 import { moveTask, openTask, removeTask } from "@/features/tasks/actions";
 import { TaskDragPreview, type TaskDragData } from "@/features/tasks/TaskRow";
 import { TaskEditorHost } from "@/features/tasks/TaskEditor";
@@ -28,6 +29,7 @@ import { CommandPalette } from "@/features/command/CommandPalette";
 import { ShortcutsSheet } from "@/features/command/ShortcutsSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
 import { TodayView } from "@/features/today/TodayView";
+import type { SlotDropData } from "@/features/today/ScheduleRail";
 import { WeekView } from "@/features/week/WeekView";
 import { CalendarView } from "@/features/calendar/CalendarView";
 import { AssignmentsView } from "@/features/assignments/AssignmentsView";
@@ -37,7 +39,7 @@ import { SubjectView } from "@/features/subjects/SubjectView";
 import { NotesView } from "@/features/notes/NotesView";
 import { NoteView } from "@/features/notes/NoteView";
 import { SettingsView } from "@/features/settings/SettingsView";
-import { milestonesOf, moveTaskBefore, patchTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
+import { milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
@@ -153,9 +155,44 @@ function Workspace() {
 
   const settle = () => setTimeout(() => ui.set({ dragging: false }), 250);
 
+  /** Where the pointer is, from where the drag started and how far it's gone. */
+  const pointerY = (e: DragMoveEvent | DragEndEvent) => {
+    const start = e.activatorEvent as PointerEvent | TouchEvent | null;
+    const y = start && "touches" in start ? start.touches[0]?.clientY : (start as PointerEvent | null)?.clientY;
+    return (y ?? 0) + e.delta.y;
+  };
+  const slotFor = (e: DragMoveEvent | DragEndEvent) => {
+    const data = e.active.data.current as TaskDragData | undefined;
+    const target = e.over?.data.current as SlotDropData | undefined;
+    if (!data || data.task.milestone || target?.type !== "slot") return null;
+    const duration = data.task.durationMinutes || 60;
+    return { task: data.task, day: target.day, minutes: target.minutesAt(pointerY(e), duration), duration };
+  };
+  const onDragMove = (e: DragMoveEvent) => {
+    const slot = slotFor(e);
+    const current = ui.get().dropSlot;
+    const next = slot ? { day: slot.day.getTime(), minutes: slot.minutes, duration: slot.duration } : null;
+    if (next?.minutes !== current?.minutes || next?.day !== current?.day) ui.set({ dropSlot: next });
+  };
+
   const onDragEnd = (e: DragEndEvent) => {
     setDragging(null);
     settle();
+    const slot = slotFor(e);
+    ui.set({ dropSlot: null });
+    if (slot) {
+      // Dropped on the schedule: that day, at that time.
+      const { task, day, minutes } = slot;
+      const before = { date: task.date, startTime: task.startTime };
+      if (!sameDay(task.date, day)) rescheduleTask(task.id, day);
+      const startTime = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes);
+      patchTask(task.id, { startTime, durationMinutes: task.durationMinutes || 60 });
+      toast(`Scheduled at ${formatClock(startTime)}`, {
+        label: "Undo",
+        run: () => patchTask(task.id, { ...before, durationMinutes: task.durationMinutes }),
+      });
+      return;
+    }
     const data = e.active.data.current as TaskDragData | undefined;
     const over = e.over;
     if (!data || !over) return;
@@ -203,9 +240,11 @@ function Workspace() {
       sensors={sensors}
       collisionDetection={collision}
       onDragStart={onDragStart}
+      onDragMove={onDragMove}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
         setDragging(null);
+        ui.set({ dropSlot: null });
         settle();
       }}
     >

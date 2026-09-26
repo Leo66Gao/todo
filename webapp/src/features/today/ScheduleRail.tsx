@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useDroppable } from "@dnd-kit/core";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { formatClock, sameDay } from "@/lib/time";
@@ -22,6 +23,14 @@ const SNAP = 15;
 const MIN_BLOCK = 30;
 
 const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
+
+/** A task dropped on the schedule: a time slot on a day. */
+export interface SlotDropData {
+  type: "slot";
+  day: Date;
+  /** The snapped start (minutes after midnight) for a pointer position. */
+  minutesAt: (clientY: number, duration: number) => number;
+}
 const atMinutes = (day: Date, m: number) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, m);
 
 type Item = { kind: "task"; task: Task } | { kind: "event"; event: GEvent };
@@ -102,6 +111,22 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
   }, [dayKey]);
 
   const [hover, setHover] = useState<number | null>(null);
+  const timeline = useRef<HTMLDivElement | null>(null);
+  const { setNodeRef: dropRef } = useDroppable({
+    id: `rail-${dayKey}`,
+    data: {
+      type: "slot",
+      day,
+      minutesAt: (clientY: number, duration: number) => {
+        const rect = timeline.current?.getBoundingClientRect();
+        if (!rect) return first * 60;
+        // The block is held by its top third, so it lands where it's drawn.
+        const m = first * 60 + ((clientY - rect.top) / HOUR) * 60 - Math.min(duration, 60) / 3;
+        return Math.max(first * 60, Math.min(last * 60 - Math.max(MIN_BLOCK, duration), Math.round(m / SNAP) * SNAP));
+      },
+    } satisfies SlotDropData,
+  });
+  const dropSlot = useUI((s) => (s.dropSlot?.day === dayKey ? s.dropSlot : null));
   const slotAt = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const m = first * 60 + ((e.clientY - rect.top) / HOUR) * 60;
@@ -114,7 +139,14 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
         <span className="text-xs font-semibold text-ink-2">Schedule</span>
       </div>
       <div ref={scroller} className="scroll-area relative mt-1 min-h-0 flex-1 rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">
-        <div className="relative my-3" style={{ height: hours.length * HOUR }}>
+        <div
+          ref={(el) => {
+            timeline.current = el;
+            dropRef(el);
+          }}
+          className="relative my-3"
+          style={{ height: hours.length * HOUR }}
+        >
           {hours.map((h) => (
             <div key={h} className="absolute inset-x-0 flex items-start" style={{ top: (h - first) * HOUR }}>
               <span
@@ -139,7 +171,22 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
               ui.newTask({ date: day, startTime: atMinutes(day, slotAt(e)) });
             }}
           >
-            {hover != null && (
+            <AnimatePresence>
+              {dropSlot && (
+                <motion.div
+                  key="drop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, top: top(dropSlot.minutes) + 1 }}
+                  exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                  transition={springs.snappy}
+                  className="pointer-events-none absolute inset-x-1 z-20 flex items-start rounded-[7px] border border-dashed border-accent bg-[color-mix(in_srgb,var(--accent)_12%,var(--raised))] px-2 py-1 text-2xs font-medium text-accent tnum"
+                  style={{ height: (Math.max(MIN_BLOCK, dropSlot.duration) / 60) * HOUR - 2 }}
+                >
+                  {formatClock(atMinutes(day, dropSlot.minutes))}–{formatClock(atMinutes(day, dropSlot.minutes + Math.max(dropSlot.duration, SNAP)))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {hover != null && !dropSlot && (
               <div
                 className="pointer-events-none absolute inset-x-1 flex items-center rounded-[7px] border border-dashed border-line-strong px-2 text-2xs text-ink-3"
                 style={{ top: top(hover) + 1, height: HOUR / 2 - 2 }}
