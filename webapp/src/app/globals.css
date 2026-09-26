@@ -265,6 +265,17 @@ textarea {
   text-decoration-color: var(--accent-line);
   text-underline-offset: 2px;
 }
+/* Links to other notes read as part of the text, not as web links. */
+.rt .ql-editor a[href^="/note?id="] {
+  color: var(--ink);
+  font-weight: 550;
+  text-decoration-color: var(--line-strong);
+  text-decoration-thickness: 1.5px;
+  cursor: pointer;
+}
+.rt .ql-editor a[href^="/note?id="]:hover {
+  text-decoration-color: var(--ink-3);
+}
 .rt .ql-editor blockquote {
   border-left: 2px solid var(--line-strong);
   padding-left: 12px;

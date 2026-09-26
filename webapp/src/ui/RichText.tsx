@@ -7,8 +7,10 @@ import {
   Bold,
   Code2,
   Heading1,
+  FileText,
   Heading2,
   Pilcrow,
+  Plus,
   Italic,
   Link2,
   List,
@@ -69,7 +71,18 @@ export interface RichTextProps {
   minHeight?: number;
   toolbarClassName?: string;
   onReady?: (quill: QuillType) => void;
+  /** Enables "[[" links to other notes. */
+  noteLinks?: NoteLinks;
 }
+
+export interface NoteLinks {
+  search: (query: string) => { id: string; title: string; hint?: string }[];
+  /** Makes a note with this title and returns its ID. */
+  create: (title: string) => string;
+}
+
+/** Links to notes are stored as this app's own relative URLs. */
+export const noteHref = (id: string) => `/note?id=${encodeURIComponent(id)}`;
 
 export function RichText({
   value,
@@ -82,6 +95,7 @@ export function RichText({
   minHeight,
   toolbarClassName,
   onReady,
+  noteLinks,
 }: RichTextProps) {
   const host = useRef<HTMLDivElement>(null);
   const quillRef = useRef<QuillType | null>(null);
@@ -95,6 +109,11 @@ export function RichText({
     slashRef.current = next;
     setSlashState(next);
   };
+  const linksRef = useRef(noteLinks);
+  useEffect(() => {
+    linksRef.current = noteLinks;
+  }, [noteLinks]);
+  const entries = (menu: Slash | null) => (menu ? menuEntries(menu, linksRef.current) : []);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -142,18 +161,24 @@ export function RichText({
         lastEmitted.current = content;
         onChangeRef.current(content);
         setFormats(quill.getFormat() as Record<string, unknown>);
-        const next = slashAt(quill, cursorAfter(delta.ops as DeltaOp[]));
+        const next = slashAt(quill, cursorAfter(delta.ops as DeltaOp[]), !!linksRef.current);
         const open = slashRef.current;
         setSlash(next && open?.index === next.index && open.query === next.query ? open : next);
       });
       quill.on("selection-change", (range) => {
         if (range) setFormats(quill.getFormat(range) as Record<string, unknown>);
         // Moving away from the "/" closes the menu.
-        if (slashRef.current && (!range || slashAt(quill, range.index)?.index !== slashRef.current.index)) setSlash(null);
+        if (slashRef.current && (!range || slashAt(quill, range.index, !!linksRef.current)?.index !== slashRef.current.index)) setSlash(null);
       });
       // Cmd/Ctrl-click opens links; plain clicks keep editing.
       quill.root.addEventListener("click", (e) => {
         const a = (e.target as HTMLElement).closest("a");
+        const href = a?.getAttribute("href") ?? "";
+        if (href.startsWith("/note?id=")) {
+          e.preventDefault();
+          window.history.pushState(null, "", href);
+          return;
+        }
         if (a && (e.metaKey || e.ctrlKey)) {
           const href = safeLink(a.getAttribute("href"));
           if (href) window.open(href, "_blank", "noopener");
@@ -220,13 +245,23 @@ export function RichText({
     }
   };
 
-  const runSlash = (item: SlashItem) => {
+  const runSlash = (entry: Entry) => {
     const quill = quillRef.current;
     const menu = slashRef.current;
     if (!quill || !menu) return;
     setSlash(null);
-    quill.deleteText(menu.index, 1 + menu.query.length, "user");
+    quill.deleteText(menu.index, (menu.kind === "link" ? 2 : 1) + menu.query.length, "user");
     quill.setSelection(menu.index, 0, "silent");
+    if (entry.note || entry.create != null) {
+      const title = entry.note?.title ?? entry.create!;
+      const id = entry.note?.id ?? linksRef.current?.create(title);
+      if (!id) return;
+      quill.insertText(menu.index, title, { link: noteHref(id) }, "user");
+      quill.insertText(menu.index + title.length, " ", { link: false }, "user");
+      quill.setSelection(menu.index + title.length + 1, 0, "silent");
+      return;
+    }
+    const item = entry.block!;
     if (item.key === "formula") {
       void editFormula(quill, "", null);
       return;
@@ -239,6 +274,8 @@ export function RichText({
     for (const [format, value] of Object.entries(line)) quill.formatLine(menu.index, 1, format, value, "user");
     setFormats(quill.getFormat() as Record<string, unknown>);
   };
+
+  const shownEntries = slash ? menuEntries(slash, noteLinks) : [];
 
   const isActive = (tool: Tool) => {
     const v = formats[tool.format];
@@ -315,7 +352,7 @@ export function RichText({
           onKeyDownCapture={(e) => {
             const menu = slashRef.current;
             if (menu) {
-              const items = slashItems(menu.query);
+              const items = entries(menu);
               const move = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
               if (move && items.length) {
                 e.preventDefault();
@@ -348,8 +385,13 @@ export function RichText({
           }}
         />
         <AnimatePresence>
-          {slash && slashItems(slash.query).length > 0 && (
-            <SlashMenu slash={slash} onPick={runSlash} onHover={(active) => setSlash({ ...slash, active })} />
+          {slash && shownEntries.length > 0 && (
+            <SlashMenu
+              slash={slash}
+              items={shownEntries}
+              onPick={runSlash}
+              onHover={(active) => setSlash({ ...slash, active })}
+            />
           )}
         </AnimatePresence>
       </div>
@@ -518,7 +560,9 @@ function installMathAndMarkdown(quill: QuillType, Delta: DeltaCtor, onFormula: (
 // Slash menu: "/" at the start of a line or after a space picks a block.
 
 interface Slash {
-  /** Where the "/" is. */
+  /** "/" for blocks, "[[" for a link to a note. */
+  kind: "slash" | "link";
+  /** Where the "/" or "[[" is. */
   index: number;
   query: string;
   active: number;
@@ -548,9 +592,39 @@ const SLASH_ITEMS: SlashItem[] = [
   { key: "formula", label: "Formula", hint: "$…$", icon: <Sigma />, words: "formula maths math equation latex" },
 ];
 
-function slashItems(query: string) {
-  const q = query.toLowerCase();
-  return SLASH_ITEMS.filter((i) => !q || i.words.split(" ").some((w) => w.startsWith(q)));
+interface Entry {
+  key: string;
+  label: string;
+  hint?: string;
+  icon: React.ReactNode;
+  block?: SlashItem;
+  note?: { id: string; title: string };
+  create?: string;
+}
+
+function menuEntries(menu: Slash, links?: NoteLinks): Entry[] {
+  if (menu.kind === "slash") {
+    const q = menu.query.toLowerCase();
+    return SLASH_ITEMS.filter((i) => !q || i.words.split(" ").some((w) => w.startsWith(q))).map((block) => ({
+      key: block.key,
+      label: block.label,
+      hint: block.hint,
+      icon: block.icon,
+      block,
+    }));
+  }
+  if (!links) return [];
+  const query = menu.query.trim();
+  const found: Entry[] = links.search(query).slice(0, 6).map((n) => ({
+    key: n.id,
+    label: n.title,
+    hint: n.hint,
+    icon: <FileText />,
+    note: n,
+  }));
+  const exact = found.some((e) => e.label.toLowerCase() === query.toLowerCase());
+  if (query && !exact) found.push({ key: "create", label: `New note “${query}”`, icon: <Plus />, create: query });
+  return found;
 }
 
 /**
@@ -568,8 +642,8 @@ function cursorAfter(ops: DeltaOp[]): number | undefined {
   return undefined;
 }
 
-/** The open slash command at the cursor, if any. */
-function slashAt(quill: QuillType, at?: number): Slash | null {
+/** The open "/" or "[[" menu at the cursor, if any. */
+function slashAt(quill: QuillType, at?: number, links = false): Slash | null {
   const selection = quill.getSelection();
   const range = at != null ? { index: at, length: 0 } : selection;
   if (!range || range.length) return null;
@@ -577,27 +651,37 @@ function slashAt(quill: QuillType, at?: number): Slash | null {
   if (format["code-block"] || format.code) return null;
   const [, offset] = quill.getLine(range.index) as unknown as [unknown, number];
   const before = quill.getText(range.index - offset, offset);
-  const m = before.match(/(?:^|\s)\/([a-zA-Z]{0,12})$/);
+  const link = links ? before.match(/\[\[([^[\]\n]{0,60})$/) : null;
+  const m = link ?? before.match(/(?:^|\s)\/([a-zA-Z]{0,12})$/);
   if (!m) return null;
-  const index = range.index - m[1].length - 1;
+  const index = range.index - m[1].length - (link ? 2 : 1);
   const bounds = quill.getBounds(index);
   if (!bounds) return null;
-  return { index, query: m[1], active: 0, left: bounds.left, top: bounds.top + bounds.height };
+  return { kind: link ? "link" : "slash", index, query: m[1], active: 0, left: bounds.left, top: bounds.top + bounds.height };
 }
 
-function SlashMenu({ slash, onPick, onHover }: { slash: Slash; onPick: (item: SlashItem) => void; onHover: (active: number) => void }) {
-  const items = slashItems(slash.query);
+function SlashMenu({
+  slash,
+  items,
+  onPick,
+  onHover,
+}: {
+  slash: Slash;
+  items: Entry[];
+  onPick: (item: Entry) => void;
+  onHover: (active: number) => void;
+}) {
   const active = Math.min(slash.active, items.length - 1);
   return (
     <motion.div
       role="listbox"
-      aria-label="Blocks"
+      aria-label={slash.kind === "link" ? "Notes" : "Blocks"}
       initial={{ opacity: 0, y: -4, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
       transition={{ duration: 0.16, ease: [0.2, 0.9, 0.25, 1] }}
       style={{ left: Math.max(0, slash.left - 8), top: slash.top + 6, transformOrigin: "top left" }}
-      className="glass-overlay absolute z-30 w-60 rounded-pop bg-raised p-1 shadow-pop"
+      className="glass-overlay absolute z-30 w-64 rounded-pop bg-raised p-1 shadow-pop"
       onMouseDown={(e) => e.preventDefault()}
     >
       {items.map((item, i) => (
@@ -614,8 +698,10 @@ function SlashMenu({ slash, onPick, onHover }: { slash: Slash; onPick: (item: Sl
           )}
         >
           {item.icon}
-          <span className="flex-1">{item.label}</span>
-          {item.hint && <span className="font-mono text-[11px] text-ink-4">{item.hint}</span>}
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          {item.hint && (
+            <span className={cn("shrink-0 text-[11px] text-ink-4", slash.kind === "slash" && "font-mono")}>{item.hint}</span>
+          )}
         </button>
       ))}
     </motion.div>

@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronLeft, Folder, MoreHorizontal } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type QuillType from "quill";
+import { ChevronDown, ChevronLeft, FileText, Folder, MoreHorizontal } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { isEmptyContent } from "@/lib/delta";
 import { encodeNote, recordFits, uuid, type StudyNote } from "@/lib/model";
+import { countWords, formatCount } from "@/lib/words";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
-import { addFolder, deleteNote, updateNote, useWorkspace } from "@/store/workspace";
+import { addFolder, addNote, deleteNote, updateNote, useWorkspace } from "@/store/workspace";
 import { Button, IconButton } from "@/ui/controls";
-import { Menu, promptDialog } from "@/ui/overlay";
-import { RichText } from "@/ui/RichText";
+import { cn } from "@/ui/cn";
+import { Menu, Popover, promptDialog } from "@/ui/overlay";
+import { noteHref, RichText, type NoteLinks } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
 import { editedLabel, removeNote } from "./noteActions";
 
@@ -51,6 +54,41 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
     // A title that changed elsewhere replaces the field unless it's being typed in.
     if (note.title !== savedTitle && !editingTitle) setTitle(shownTitle(note.title));
   }
+
+  const [quill, setQuill] = useState<QuillType | null>(null);
+  const noteLinks = useMemo<NoteLinks>(
+    () => ({
+      search: (query) => {
+        const { notes, projects } = useWorkspace.getState();
+        const q = query.toLowerCase();
+        return notes
+          .filter((n) => n.id !== note.id && n.title.trim() && (!q || n.title.toLowerCase().includes(q)))
+          .sort(
+            (a, b) =>
+              Number(b.title.toLowerCase().startsWith(q)) - Number(a.title.toLowerCase().startsWith(q)) ||
+              b.updatedAt.getTime() - a.updatedAt.getTime(),
+          )
+          .map((n) => ({ id: n.id, title: n.title, hint: projects.find((p) => p.id === n.subjectId)?.title }));
+      },
+      create: (title) => {
+        const now = new Date();
+        const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+        const created: StudyNote = {
+          id: uuid(),
+          title,
+          content: "",
+          subjectId: current?.subjectId ?? null,
+          folderId: current?.folderId ?? null,
+          attachments: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        addNote(created);
+        return created.id;
+      },
+    }),
+    [note.id],
+  );
 
   const subject = projects.find((p) => p.id === note.subjectId);
   const subjectFolders = folders.filter((f) => f.subjectId === note.subjectId);
@@ -202,21 +240,165 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             placeholder="Untitled note"
             className="field-sizing-content block w-full resize-none bg-transparent font-display text-xl font-semibold tracking-[-0.015em] outline-none placeholder:text-ink-4"
           />
-          <p className="mt-1 mb-5 text-xs text-ink-3">{editedLabel(note.updatedAt)}</p>
+          <div className="mt-1 mb-5 flex items-center justify-between gap-3 text-xs text-ink-3">
+            <span>{editedLabel(note.updatedAt)}</span>
+            <WordCount quill={quill} note={note} />
+          </div>
           <RichText
             value={note.content}
             toolbar="full"
             toolbarClassName="sticky top-0 z-10 -mx-2 bg-canvas/90 px-1 py-1.5 backdrop-blur-md"
             reading
             minHeight={320}
-            placeholder="Start writing…"
+            placeholder="Start writing, or type / for blocks and [[ to link a note"
+            onReady={setQuill}
+            noteLinks={noteLinks}
             onChange={(content) => {
               draft.current.content = content;
               schedule();
             }}
           />
+          <Backlinks note={note} />
         </article>
       </div>
     </>
+  );
+}
+
+/** Words in the note (and in the selection), against an optional limit. */
+function WordCount({ quill, note }: { quill: QuillType | null; note: StudyNote }) {
+  const [counts, setCounts] = useState({ total: 0, selected: 0 });
+  useEffect(() => {
+    if (!quill) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const range = quill.getSelection();
+        setCounts({
+          total: countWords(quill.getText()),
+          selected: range && range.length ? countWords(quill.getText(range.index, range.length)) : 0,
+        });
+      });
+    };
+    measure();
+    quill.on("editor-change", measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      quill.off("editor-change", measure);
+    };
+  }, [quill]);
+
+  const limit = typeof note.extra?.wordLimit === "number" ? note.extra.wordLimit : null;
+  const setLimit = (value: number | null) => {
+    const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+    if (!current) return;
+    const extra = { ...current.extra };
+    if (value) extra.wordLimit = value;
+    else delete extra.wordLimit;
+    updateNote({ ...current, extra });
+  };
+  const over = limit != null && counts.total > limit;
+  const label = counts.selected
+    ? `${formatCount(counts.selected)} of ${formatCount(counts.total)} words`
+    : limit
+      ? `${formatCount(counts.total)} / ${formatCount(limit)} words`
+      : `${formatCount(counts.total)} ${counts.total === 1 ? "word" : "words"}`;
+
+  return (
+    <Popover
+      align="end"
+      className="w-64 p-3"
+      trigger={
+        <button
+          type="button"
+          className={cn("tnum -mr-1.5 rounded-[6px] px-1.5 py-0.5 transition-colors hover:bg-fill hover:text-ink", over && "text-danger hover:text-danger")}
+        >
+          {label}
+        </button>
+      }
+    >
+      {(close) => (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const value = Number(new FormData(e.currentTarget).get("limit"));
+            setLimit(Number.isFinite(value) && value > 0 ? Math.round(value) : null);
+            close();
+          }}
+        >
+          <label className="text-sm font-medium" htmlFor="word-limit">
+            Word limit
+          </label>
+          <p className="mt-0.5 text-xs text-ink-3">The count turns red past it. Formulas don’t count.</p>
+          <div className="mt-2.5 flex gap-2">
+            <input
+              id="word-limit"
+              name="limit"
+              type="number"
+              min={1}
+              inputMode="numeric"
+              autoFocus
+              defaultValue={limit ?? ""}
+              placeholder="e.g. 1500"
+              className="tnum h-8 min-w-0 flex-1 rounded-ctl border border-line-strong bg-canvas px-2.5 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
+            />
+            <Button type="submit" size="sm" variant="primary">
+              Set
+            </Button>
+          </div>
+          {limit != null && (
+            <button
+              type="button"
+              onClick={() => {
+                setLimit(null);
+                close();
+              }}
+              className="mt-2 text-xs text-ink-3 hover:text-ink"
+            >
+              Remove limit
+            </button>
+          )}
+        </form>
+      )}
+    </Popover>
+  );
+}
+
+/** Notes that link here. */
+function Backlinks({ note }: { note: StudyNote }) {
+  const navigate = useNavigate();
+  const href = noteHref(note.id);
+  const notes = useWorkspace((s) => s.notes);
+  const projects = useWorkspace((s) => s.projects);
+  const linking = useMemo(() => notes.filter((n) => n.id !== note.id && n.content.includes(`"${href}"`)), [notes, note.id, href]);
+  if (linking.length === 0) return null;
+  return (
+    <section className="mt-14 border-t border-line pt-4">
+      <h2 className="mb-1.5 text-xs font-medium text-ink-3">Linked from</h2>
+      <ul className="-mx-2">
+        {linking.map((n) => {
+          const subject = projects.find((p) => p.id === n.subjectId);
+          return (
+            <li key={n.id}>
+              <button
+                type="button"
+                onClick={() => navigate({ view: "note", id: n.id })}
+                className="flex h-8 w-full items-center gap-2.5 rounded-ctl px-2 text-left text-sm transition-colors hover:bg-fill"
+              >
+                <FileText className="size-3.5 shrink-0 text-ink-3" />
+                <span className="min-w-0 flex-1 truncate">{n.title || "Untitled note"}</span>
+                {subject && (
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-3">
+                    <span className="size-1.5 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />
+                    {subject.title}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
