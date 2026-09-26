@@ -66,7 +66,8 @@ async function requestToken(
     };
     const client = window.google!.accounts!.oauth2!.initTokenClient({
       client_id: googleWebClientId,
-      scope: CALENDAR_SCOPE,
+      // `email` lets the token be checked against the signed-in account.
+      scope: `${CALENDAR_SCOPE} email`,
       include_granted_scopes: true,
       prompt: interactive ? "" : "none",
       login_hint: loginHint ?? undefined,
@@ -94,6 +95,21 @@ async function requestToken(
     setTimeout(() => finish(null), interactive ? 120000 : 8000);
   });
 }
+
+/**
+ * The Google account an access token was issued for. `login_hint` is only a
+ * hint, so a token is checked before it is used to write events.
+ */
+async function tokenEmail(accessToken: string): Promise<string | null> {
+  const response = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+  );
+  if (!response.ok) return null;
+  const data = (await response.json()) as { email?: string; email_verified?: string | boolean };
+  return typeof data.email === "string" ? data.email.toLowerCase() : null;
+}
+
+const sameAccount = (a: string | null, b: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 
 class ApiError extends Error {
   constructor(
@@ -183,6 +199,9 @@ export class GoogleCalendar {
       if (!token) return null;
       const email = opts.email ?? this.email;
       if (!email) throw new Error("Google Calendar did not return an account email.");
+      if (!sameAccount(await tokenEmail(token.accessToken), email)) {
+        throw new Error(`Choose ${email} to connect Google Calendar.`);
+      }
       this.apply(email, token.accessToken, token.expiry, opts.uid);
       return email;
     } catch (error) {
@@ -243,7 +262,12 @@ export class GoogleCalendar {
     if (!needsRefresh) return this.token;
     try {
       const refreshed = await requestToken(false, this.email);
-      if (refreshed && this.email && this.sessionUid) {
+      if (
+        refreshed &&
+        this.email &&
+        this.sessionUid &&
+        sameAccount(await tokenEmail(refreshed.accessToken), this.email)
+      ) {
         this.apply(this.email, refreshed.accessToken, refreshed.expiry, this.sessionUid);
       }
     } catch {

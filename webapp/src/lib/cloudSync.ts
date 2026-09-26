@@ -200,9 +200,9 @@ export class CloudSync {
     );
   }
 
-  private persist() {
+  private persist(): boolean {
     const uid = this.uid;
-    if (!uid) return;
+    if (!uid) return false;
     const encoded = JSON.stringify({
       records: this.records,
       pending: this.pending,
@@ -210,7 +210,7 @@ export class CloudSync {
       pendingIds: this.pendingIds,
       ...(this.lastSyncMillis != null ? { lastSync: this.lastSyncMillis } : {}),
     });
-    prefs.setString(`cloud.${uid}`, encoded);
+    return prefs.setString(`cloud.${uid}`, encoded);
   }
 
   async writeChanges(changes: Pending): Promise<void> {
@@ -225,9 +225,19 @@ export class CloudSync {
       if (value == null) delete this.records[key];
       else this.records[key] = value;
     }
-    this.persist();
+    // Upload even when the device copy can't be written, but report it so the
+    // caller keeps the change and tries to store it again.
+    let stored = false;
+    let failure: unknown = null;
+    try {
+      stored = this.persist();
+    } catch (error) {
+      failure = error;
+    }
     this.onStatus?.("Changes waiting to sync", null);
     void this.flush();
+    if (failure) throw failure;
+    if (!stored) throw new Error("This browser is blocking device storage.");
   }
 
   private document(key: string, payload: string | null) {

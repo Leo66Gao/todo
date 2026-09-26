@@ -129,12 +129,24 @@ const refreshCalendarFlag = () =>
 // ---------------------------------------------------------------------------
 // Records ⇄ state
 
+// State objects are replaced, never mutated, so an unchanged object keeps its
+// encoding and each save only serializes what was edited.
+const encoded = new WeakMap<object, string>();
+function cachedJson<T extends object>(value: T, encode: (v: T) => unknown): string {
+  let json = encoded.get(value);
+  if (json === undefined) {
+    json = JSON.stringify(encode(value));
+    encoded.set(value, json);
+  }
+  return json;
+}
+
 function encodeRecords(state: WorkspaceState = get()): Records {
   const out: Records = {};
-  for (const t of state.tasks) out[`task:${t.id}`] = JSON.stringify(encodeTask(t));
-  for (const p of state.projects) out[`project:${p.id}`] = JSON.stringify(encodeProject(p));
-  for (const n of state.notes) out[`note:${n.id}`] = JSON.stringify(encodeNote(n));
-  for (const f of state.folders) out[`folder:${f.id}`] = JSON.stringify(encodeFolder(f));
+  for (const t of state.tasks) out[`task:${t.id}`] = cachedJson(t, encodeTask);
+  for (const p of state.projects) out[`project:${p.id}`] = cachedJson(p, encodeProject);
+  for (const n of state.notes) out[`note:${n.id}`] = cachedJson(n, encodeNote);
+  for (const f of state.folders) out[`folder:${f.id}`] = cachedJson(f, encodeFolder);
   out["settings:workspace"] = JSON.stringify(encodeSettings(state.settings));
   out["settings:tags"] = JSON.stringify(state.tags);
   out["settings:order"] = JSON.stringify(state.tasks.map((t) => t.id));
@@ -188,29 +200,51 @@ function applyRecords(records: Records) {
   baseline = encodeRecords();
 }
 
-async function saveData() {
+let saveQueue: Promise<void> = Promise.resolve();
+let saveRetry: ReturnType<typeof setTimeout> | null = null;
+
+/** Saves are serialized so each one diffs against what was actually stored. */
+function saveData(): Promise<void> {
+  saveQueue = saveQueue.then(writeChanges, writeChanges);
+  return saveQueue;
+}
+
+async function writeChanges() {
   const next = encodeRecords();
   const changes: Record<string, string | null> = {};
   for (const [key, value] of Object.entries(next)) if (baseline[key] !== value) changes[key] = value;
   for (const key of Object.keys(baseline)) if (!(key in next)) changes[key] = null;
-  baseline = next;
   if (Object.keys(changes).length === 0) return;
-  if (get().user && cloud) {
-    try {
+  try {
+    if (get().user && cloud) {
       await cloud.writeChanges(changes);
-    } catch (error) {
-      set({ cloudError: `Could not save changes: ${String(error)}` });
+    } else {
+      const stored =
+        prefs.setString("activeGuestWorkspace", JSON.stringify(next)) &&
+        // The original tasks key stays in step for older builds.
+        prefs.setStringList(
+          "tasks",
+          get().tasks.map((t) => JSON.stringify(encodeTask(t))),
+        );
+      if (!stored) throw new Error("This browser is blocking device storage.");
     }
-  } else {
-    try {
-      prefs.setString("activeGuestWorkspace", JSON.stringify(next));
-      // The original tasks key stays in step for older builds.
-      prefs.setStringList(
-        "tasks",
-        get().tasks.map((t) => JSON.stringify(encodeTask(t))),
-      );
-    } catch (error) {
-      set({ cloudError: `Could not save on this device: ${String(error)}` });
+    // The baseline only moves once the change is stored, so a failed save is retried.
+    baseline = next;
+    if (saveRetry) clearTimeout(saveRetry);
+    saveRetry = null;
+    if (get().cloudError?.startsWith("Could not save")) set({ cloudError: null });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    set({
+      cloudError: get().user
+        ? `Could not save changes on this device: ${message}`
+        : `Could not save on this device: ${message}`,
+    });
+    if (!saveRetry) {
+      saveRetry = setTimeout(() => {
+        saveRetry = null;
+        void saveData();
+      }, 5000);
     }
   }
 }
@@ -455,6 +489,26 @@ function toIsoLocal(d: Date) {
 }
 
 const outboxKey = (uid: string) => `calendar.outbox.${uid}`;
+
+// What this browser last wrote to Google Calendar for each task, so a page load
+// only re-exports tasks that changed since (not every open task).
+const exportedKey = (uid: string) => `calendarExported.${uid}`;
+const exportFingerprint = (action: CalendarAction) =>
+  JSON.stringify([
+    action.eventId,
+    action.revision,
+    action.title,
+    action.description,
+    action.startTime,
+    action.isAllDay,
+    action.durationMinutes,
+  ]);
+function markExported(uid: string, taskId: string, fingerprint: string | null) {
+  const exported = prefs.getLocal<Record<string, string>>(exportedKey(uid), {});
+  if (fingerprint == null) delete exported[taskId];
+  else exported[taskId] = fingerprint;
+  prefs.setLocal(exportedKey(uid), exported);
+}
 const persistOutbox = (uid: string) => prefs.setString(outboxKey(uid), JSON.stringify(outbox));
 
 function storeCalendarAction(uid: string, action: CalendarAction) {
@@ -565,11 +619,15 @@ async function flushCalendarOutbox(uid: string) {
         !task || task.isDone || (revision != null && task.calendarEventRevision !== revision);
       if (stale) {
         storeCalendarAction(uid, { operation: "delete", taskId, eventId: id, revision });
-      } else if (task.googleEventId !== id) {
-        patchTaskSilently(taskId, { googleEventId: id });
-        await saveData();
+      } else {
+        markExported(uid, taskId, exportFingerprint({ ...action, eventId: id }));
+        if (task.googleEventId !== id) {
+          patchTaskSilently(taskId, { googleEventId: id });
+          await saveData();
+        }
       }
     } else {
+      markExported(uid, taskId, null);
       const task = get().tasks.find((t) => t.id === taskId);
       const revision = action.revision as number | undefined;
       const superseded = task != null && revision != null && task.calendarEventRevision !== revision;
@@ -633,6 +691,7 @@ async function restoreCalendarForAccount(user: User) {
   refreshCalendarFlag();
   startCalendarRetry();
   if (!get().calendarConnected) return;
+  const exported = prefs.getLocal<Record<string, string>>(exportedKey(user.uid), {});
   for (const task of get().tasks) {
     if (task.isDone && hasCalendarExport(task)) {
       if (!(`delete:${task.googleEventId}` in outbox)) {
@@ -641,7 +700,10 @@ async function restoreCalendarForAccount(user: User) {
       }
       enqueueCalendarDeletion(user.uid, get().tasks.find((t) => t.id === task.id)!);
     } else if (!task.isDone && !task.isConflictCopy) {
-      storeCalendarAction(user.uid, upsertAction(user.uid, task));
+      const action = upsertAction(user.uid, task);
+      // Unchanged since this browser last exported it: nothing to send.
+      if (task.googleEventId && exported[task.id] === exportFingerprint(action)) continue;
+      storeCalendarAction(user.uid, action);
     }
   }
   void scheduleCalendarFlush();
@@ -1026,6 +1088,9 @@ export function deleteProject(id: string) {
   set({
     projects: get().projects.filter((p) => p.id !== id),
     tasks: get().tasks.map((t) => (t.projectId === id ? { ...t, projectId: null } : t)),
+    // Notes and folders stay, without a subject (as the delete dialog says).
+    notes: get().notes.map((n) => (n.subjectId === id ? { ...n, subjectId: null } : n)),
+    folders: get().folders.map((f) => (f.subjectId === id ? { ...f, subjectId: null } : f)),
   });
   void saveData();
 }

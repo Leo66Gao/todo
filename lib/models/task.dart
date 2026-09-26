@@ -15,6 +15,11 @@ class Task {
   TaskType type;
   TaskPriority priority;
   int difficulty;
+
+  /// Difficulty 1 also means "not set" in older records; this marks a Level 1
+  /// the user actually chose. Only written when true so older payloads stay
+  /// byte-identical.
+  bool difficultySelected;
   int durationMinutes;
   String? projectId;
   String? parentTaskId;
@@ -35,6 +40,7 @@ class Task {
     this.type = TaskType.todo,
     this.priority = TaskPriority.none,
     this.difficulty = 1,
+    this.difficultySelected = false,
     this.durationMinutes = 0,
     this.projectId,
     this.parentTaskId,
@@ -66,7 +72,11 @@ class Task {
         'googleEventId': googleEventId,
         'calendarEventRevision': calendarEventRevision,
         'isConflictCopy': isConflictCopy,
+        if (difficultySelected && difficulty == 1) 'difficultySelected': true,
       };
+
+  /// Whether a difficulty level was chosen (the form shows "None" otherwise).
+  bool get hasDifficulty => difficulty > 1 || difficultySelected;
 
   factory Task.fromJson(Map<String, dynamic> json) {
     final subList = json['subtasks'] as List?;
@@ -85,6 +95,7 @@ class Task {
           (e) => e.toString() == json['priority'],
           orElse: () => TaskPriority.none),
       difficulty: json['difficulty'] ?? 1,
+      difficultySelected: json['difficultySelected'] == true,
       durationMinutes: json['durationMinutes'] ?? 0,
       projectId: json['projectId'],
       parentTaskId: json['parentTaskId'],

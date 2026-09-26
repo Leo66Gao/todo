@@ -38,7 +38,7 @@ void showAddTaskDialog(BuildContext context,
   double difficulty = (existingTask?.difficulty ?? 1).toDouble();
   // Difficulty is "dormant" (Lvl 1 = nothing set) until the user taps the
   // slider, mirroring how priority starts at none.
-  bool difficultyActive = existingTask != null && existingTask.difficulty > 1;
+  bool difficultyActive = existingTask != null && existingTask.hasDifficulty;
 
   double durationSliderVal;
   if (existingTask != null) {
@@ -453,6 +453,8 @@ void showAddTaskDialog(BuildContext context,
                                 startTime: finalStartTime,
                                 type: type,
                                 difficulty: difficulty.toInt(),
+                                difficultySelected: difficultyActive &&
+                                    difficulty.toInt() == 1,
                                 priority: priority,
                                 projectId: selectedProjectId,
                                 durationMinutes: finalMinutes,
@@ -474,6 +476,8 @@ void showAddTaskDialog(BuildContext context,
                                 startTime: finalStartTime,
                                 type: type,
                                 difficulty: difficulty.toInt(),
+                                difficultySelected: difficultyActive &&
+                                    difficulty.toInt() == 1,
                                 priority: priority,
                                 projectId: selectedProjectId,
                                 durationMinutes: finalMinutes,

@@ -39,10 +39,15 @@ export function getStringList(key: string): string[] | null {
   return Array.isArray(value) && value.every((v) => typeof v === "string") ? value : null;
 }
 
-function write(key: string, value: unknown) {
+/**
+ * Returns false when device storage is unavailable (blocked or private mode).
+ * Throws when the browser refuses the write, e.g. because storage is full.
+ */
+function write(key: string, value: unknown): boolean {
   const s = storage();
-  if (!s) return;
+  if (!s) return false;
   s.setItem(PREFIX + key, JSON.stringify(value));
+  return true;
 }
 
 export const setString = (key: string, value: string) => write(key, value);

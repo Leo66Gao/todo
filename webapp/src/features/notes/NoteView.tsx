@@ -37,11 +37,20 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   const navigate = useNavigate();
   const projects = useWorkspace((s) => s.projects);
   const folders = useWorkspace((s) => s.folders);
-  const [title, setTitle] = useState(note.title === "Untitled note" ? "" : note.title);
-  const draft = useRef({ title: note.title, content: note.content });
+  const shownTitle = (t: string) => (t === "Untitled note" ? "" : t);
+  const [title, setTitle] = useState(shownTitle(note.title));
+  // Only the fields edited here are written back, so a change that arrives
+  // from another device to the other field is never overwritten by a stale draft.
+  const draft = useRef<{ title?: string; content?: string }>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dirty = useRef(false);
-  const [, force] = useState(0);
+  const [savedTitle, setSavedTitle] = useState(note.title);
+  const [syncedTitle, setSyncedTitle] = useState(note.title);
+  const [editingTitle, setEditingTitle] = useState(false);
+  if (note.title !== syncedTitle) {
+    setSyncedTitle(note.title);
+    // A title that changed elsewhere replaces the field unless it's being typed in.
+    if (note.title !== savedTitle && !editingTitle) setTitle(shownTitle(note.title));
+  }
 
   const subject = projects.find((p) => p.id === note.subjectId);
   const subjectFolders = folders.filter((f) => f.subjectId === note.subjectId);
@@ -50,26 +59,27 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   const persist = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    if (!dirty.current) return;
+    const pending = draft.current;
+    if (pending.title === undefined && pending.content === undefined) return;
     const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
     if (!current) return;
     const next: StudyNote = {
       ...current,
-      title: draft.current.title.trim() || "Untitled note",
-      content: draft.current.content,
+      title: pending.title !== undefined ? pending.title.trim() || "Untitled note" : current.title,
+      content: pending.content ?? current.content,
       updatedAt: new Date(),
     };
     if (!recordFits(encodeNote(next))) {
       toast("This note is too large to sync. Keep it under 650 KB.");
       return;
     }
-    dirty.current = false;
+    draft.current = {};
     updateNote(next);
-    force((n) => n + 1);
+    setSavedTitle(next.title);
+    setEditingTitle(false);
   };
 
   const schedule = () => {
-    dirty.current = true;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(persist, 500);
   };
@@ -179,6 +189,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             onChange={(e) => {
               const value = e.target.value.replace(/\n/g, " ");
               setTitle(value);
+              setEditingTitle(true);
               draft.current.title = value;
               schedule();
             }}

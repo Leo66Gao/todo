@@ -106,7 +106,7 @@ void showTaskDetails(BuildContext context, Task task) {
                                 context, currentTask.priority),
                           ),
                         ],
-                        if (currentTask.difficulty > 1) ...[
+                        if (currentTask.hasDifficulty) ...[
                           SizedBox(width: 8),
                           _InfoChip(
                             icon: Icons.signal_cellular_alt,
