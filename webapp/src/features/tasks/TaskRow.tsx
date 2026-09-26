@@ -215,22 +215,22 @@ const TaskRowView = memo(function TaskRowView({
           aria-hidden
           style={{ width: revealLeft }}
           className={cn(
-            "absolute inset-y-0 left-0 flex items-center overflow-hidden pl-4 transition-colors duration-150",
+            "absolute inset-y-0 left-0 flex items-center overflow-hidden transition-colors duration-150",
             swipe.armed === "right" ? "bg-ink text-on-ink" : "bg-fill text-ink-3",
           )}
         >
-          <Check className="size-5 shrink-0" strokeWidth={2.4} />
+          <Check className="ml-4 size-5 shrink-0" strokeWidth={2.4} />
         </motion.div>
         <motion.div
           aria-hidden
           style={{ width: revealRight }}
           className={cn(
-            "absolute inset-y-0 right-0 flex items-center justify-end overflow-hidden pr-3 text-xs font-medium whitespace-nowrap transition-colors duration-150",
+            "absolute inset-y-0 right-0 flex items-center justify-end overflow-hidden text-xs font-medium whitespace-nowrap transition-colors duration-150",
             swipe.armed === "left" ? "bg-ink text-on-ink" : "bg-fill text-ink-3",
           )}
         >
           Tomorrow
-          <ArrowRight className="ml-1 size-4 shrink-0" />
+          <ArrowRight className="mr-3 ml-1 size-4 shrink-0" />
         </motion.div>
       <ContextMenu items={() => taskMenu(task, navigate)}>
         <motion.div

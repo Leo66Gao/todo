@@ -1,0 +1,156 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { GlassEngine, ShapeTracker } from "./engine";
+import { useGlassPrefs } from "./prefs";
+
+const PRESET_CLASSES = ["harbour", "citrus", "prism", "contour", "ember", "studio", "image"].map((p) => `glass-bg-${p}`);
+
+/** Keeps <html> classes in step with the theme: `glass`, a background class, and the CSS fallback. */
+export function useGlassDocumentClasses() {
+  const enabled = useGlassPrefs((s) => s.enabled);
+  const background = useGlassPrefs((s) => s.background);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("glass", enabled);
+    root.classList.remove(...PRESET_CLASSES);
+    if (enabled) root.classList.add(`glass-bg-${background}`);
+    return () => {
+      root.classList.remove("glass", ...PRESET_CLASSES);
+    };
+  }, [enabled, background]);
+}
+
+/**
+ * The Liquid Glass canvas: fixed behind the page, it paints the background
+ * and every registered glass surface. Without WebGL2 the theme falls back to
+ * CSS (`glass-css`): a gradient background and backdrop-filter surfaces.
+ */
+export function GlassLayer() {
+  const enabled = useGlassPrefs((s) => s.enabled);
+  useGlassDocumentClasses();
+  if (!enabled) return null;
+  return <GlassCanvas />;
+}
+
+function GlassCanvas() {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // A fresh canvas per mount: a released WebGL context can't be reused.
+    const canvas = document.createElement("canvas");
+    canvas.className = "glass-canvas";
+    canvas.setAttribute("aria-hidden", "true");
+    hostRef.current!.appendChild(canvas);
+    const root = document.documentElement;
+    let engine: GlassEngine;
+    try {
+      engine = new GlassEngine(canvas);
+    } catch (error) {
+      console.warn(error);
+      canvas.remove();
+      root.classList.add("glass-css");
+      return () => root.classList.remove("glass-css");
+    }
+    root.classList.remove("glass-css");
+    const tracker = new ShapeTracker();
+    // Development aid: `?glass-bg` shows the bare background.
+    const bareBackground = process.env.NODE_ENV !== "production" && location.search.includes("glass-bg");
+    if (bareBackground) root.classList.add("glass-bare");
+    const pointer = { x: -1e4, y: -1e4, down: false, inside: false, fine: false, moved: 0 };
+    const reducedTransparency = matchMedia("(prefers-reduced-transparency: reduce)");
+    const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
+
+    const applyLook = () => {
+      const s = useGlassPrefs.getState();
+      engine.setLook({
+        background: s.background === "image" && !s.image ? "harbour" : s.background,
+        image: s.image,
+        dark: root.classList.contains("dark"),
+        finish: s.finish,
+        pointerLight: s.pointerLight,
+        solid: reducedTransparency.matches,
+      });
+    };
+    applyLook();
+    const unsubscribe = useGlassPrefs.subscribe(applyLook);
+    const darkObserver = new MutationObserver(applyLook);
+    darkObserver.observe(root, { attributes: true, attributeFilter: ["class"] });
+    reducedTransparency.addEventListener("change", applyLook);
+
+    const onMove = (e: PointerEvent) => {
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      pointer.inside = true;
+      pointer.fine = e.pointerType === "mouse" || e.pointerType === "pen";
+      pointer.moved = performance.now();
+    };
+    const onDown = (e: PointerEvent) => {
+      onMove(e);
+      pointer.down = true;
+    };
+    const onUp = (e: PointerEvent) => {
+      pointer.down = false;
+      // Touches leave no hovering pointer behind.
+      if (e.pointerType === "touch") pointer.inside = false;
+    };
+    const onLeave = () => {
+      pointer.inside = false;
+      pointer.down = false;
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerdown", onDown, { passive: true });
+    window.addEventListener("pointerup", onUp, { passive: true });
+    window.addEventListener("pointercancel", onUp, { passive: true });
+    document.documentElement.addEventListener("pointerleave", onLeave);
+
+    let influence = 0;
+    let frame = 0;
+    let visible = !document.hidden;
+    const tick = () => {
+      frame = requestAnimationFrame(tick);
+      if (!visible) return;
+      engine.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer);
+      // The highlight leans towards a mouse; it eases back when the mouse rests or leaves.
+      const wantLight = useGlassPrefs.getState().pointerLight && finePointer.matches && pointer.inside && pointer.fine ? 1 : 0;
+      influence += (wantLight - influence) * 0.12;
+      if (Math.abs(wantLight - influence) < 0.002) influence = wantLight;
+      const px = Math.round(pointer.x);
+      const py = Math.round(pointer.y);
+      engine.render(level1, level2, [px, py, Math.round(influence * 500) / 500]);
+    };
+    frame = requestAnimationFrame(tick);
+    const onVisibility = () => {
+      visible = !document.hidden;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      cancelAnimationFrame(frame);
+      root.classList.add("glass-css");
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
+    requestAnimationFrame(() => canvas.classList.add("is-ready"));
+
+    return () => {
+      cancelAnimationFrame(frame);
+      unsubscribe();
+      darkObserver.disconnect();
+      reducedTransparency.removeEventListener("change", applyLook);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      document.documentElement.removeEventListener("pointerleave", onLeave);
+      document.removeEventListener("visibilitychange", onVisibility);
+      canvas.removeEventListener("webglcontextlost", onLost);
+      engine.dispose();
+      canvas.remove();
+      root.classList.remove("glass-css");
+    };
+  }, []);
+
+  return <div ref={hostRef} className="contents" />;
+}

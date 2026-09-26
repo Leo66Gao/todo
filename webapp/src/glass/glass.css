@@ -1,0 +1,284 @@
+/*
+ * Liquid Glass theme. The WebGL layer (GlassLayer) paints the background and
+ * every registered surface ([data-glass]); this sheet makes those surfaces
+ * transparent, re-tunes the tokens for content that sits on glass, gives
+ * overlays a CSS glass of their own, and supplies the no-WebGL fallback.
+ */
+
+html.glass {
+  --canvas: transparent;
+  --sidebar: transparent;
+  --fill: rgb(24 28 36 / 0.055);
+  --fill-strong: rgb(24 28 36 / 0.095);
+  --row-hover: rgb(24 28 36 / 0.04);
+  --line: rgb(24 28 36 / 0.085);
+  --line-strong: rgb(24 28 36 / 0.14);
+  --ink: #16171a;
+  --ink-2: #4f5159;
+  --ink-3: #767882;
+  --ink-4: #a9abb3;
+  --accent-soft: rgb(47 95 208 / 0.12);
+  --scrim: rgb(12 18 28 / 0.18);
+  /* Overlays: menus, dialogs, toasts, the drawer. */
+  --raised: rgb(250 251 252 / 0.68);
+  --overlay-blur: 26px;
+  --glass-rim: inset 0 0.5px 0 rgb(255 255 255 / 0.95), inset 0 0 0 0.5px rgb(255 255 255 / 0.5),
+    inset 0 -0.5px 0 rgb(0 0 0 / 0.06);
+  --shadow-pop: 0 0 0 0.5px rgb(10 20 40 / 0.08), 0 16px 40px -12px rgb(10 20 40 / 0.3),
+    0 2px 8px -3px rgb(10 20 40 / 0.14);
+  --shadow-modal: 0 0 0 0.5px rgb(10 20 40 / 0.08), 0 30px 80px -20px rgb(10 20 40 / 0.45);
+  --shadow-lift: 0 0 0 0.5px rgb(10 20 40 / 0.08), 0 12px 28px -8px rgb(10 20 40 / 0.3);
+  --sheen: rgb(255 255 255 / 0.42);
+  background: #cfe3e6;
+}
+
+html.glass.dark {
+  --fill: rgb(255 255 255 / 0.06);
+  --fill-strong: rgb(255 255 255 / 0.1);
+  --row-hover: rgb(255 255 255 / 0.045);
+  --line: rgb(255 255 255 / 0.085);
+  --line-strong: rgb(255 255 255 / 0.14);
+  --ink: #f1f1f4;
+  --ink-2: #b4b5bd;
+  --ink-3: #8a8b95;
+  --ink-4: #5c5d66;
+  --accent-soft: rgb(112 151 242 / 0.18);
+  --scrim: rgb(0 0 0 / 0.38);
+  --raised: rgb(34 35 40 / 0.62);
+  --glass-rim: inset 0 0.5px 0 rgb(255 255 255 / 0.28), inset 0 0 0 0.5px rgb(255 255 255 / 0.12),
+    inset 0 -0.5px 0 rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 0 0 0.5px rgb(0 0 0 / 0.4), 0 18px 44px -12px rgb(0 0 0 / 0.65);
+  --shadow-modal: 0 0 0 0.5px rgb(0 0 0 / 0.4), 0 30px 80px -20px rgb(0 0 0 / 0.75);
+  --shadow-lift: 0 0 0 0.5px rgb(0 0 0 / 0.4), 0 12px 28px -8px rgb(0 0 0 / 0.6);
+  --sheen: rgb(255 255 255 / 0.1);
+  background: #0a1a22;
+}
+
+html.glass body {
+  background: transparent;
+}
+
+.glass-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+.glass-canvas.is-ready {
+  opacity: 1;
+}
+
+/* Surfaces the renderer draws are see-through in the DOM. */
+html.glass:not(.glass-css) [data-glass] {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * Layout: panels float on the background with a small gap. */
+
+html.glass [data-shell] {
+  padding: 10px;
+}
+html.glass [data-surface="sidebar"],
+html.glass [data-surface="inspector"],
+html.glass [data-surface="main-slab"] {
+  border-radius: 22px;
+}
+html.glass [data-surface="main-slab"] {
+  overflow: hidden;
+}
+@media (max-width: 767px) {
+  html.glass [data-shell] {
+    padding: max(8px, env(safe-area-inset-top)) 8px 0;
+  }
+  html.glass [data-surface="main-slab"] {
+    border-radius: 26px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Overlays (menus, popovers, dialogs, toasts, the drawer): these float over
+ * page content the renderer can't see, so they are CSS glass — a strong
+ * backdrop blur with vibrancy, a lit rim, a sheen, and an iridescent edge.
+ * Chromium also refracts the backdrop at the rim (see refraction.ts). */
+
+html.glass .glass-overlay {
+  background-color: var(--raised);
+  -webkit-backdrop-filter: blur(var(--overlay-blur)) saturate(1.8) brightness(1.04);
+  backdrop-filter: var(--glass-refraction, ) blur(var(--overlay-blur)) saturate(1.8) brightness(1.04);
+  box-shadow: var(--glass-rim), var(--overlay-shadow, var(--shadow-pop));
+  isolation: isolate;
+}
+html.glass .glass-overlay[role="dialog"],
+html.glass [data-modal].glass-overlay {
+  --overlay-shadow: var(--shadow-modal);
+}
+html.glass .glass-overlay::before,
+html.glass .glass-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+}
+/* Sheen: light pooling in the upper corner. */
+html.glass .glass-overlay::before {
+  background: radial-gradient(130% 70% at 12% -12%, var(--sheen), transparent 55%);
+  mix-blend-mode: plus-lighter;
+  opacity: 0.8;
+}
+/* Rim: bright where the light hits, with spectral colour through the corners. */
+html.glass .glass-overlay::after {
+  padding: 1px;
+  background: conic-gradient(
+    from 200deg,
+    rgb(255 255 255 / 0.95),
+    rgb(160 230 255 / 0.55) 7%,
+    rgb(255 255 255 / 0.18) 16%,
+    rgb(255 255 255 / 0.06) 30%,
+    rgb(255 200 150 / 0.4) 44%,
+    rgb(255 255 255 / 0.1) 55%,
+    rgb(255 255 255 / 0.05) 70%,
+    rgb(190 160 255 / 0.4) 82%,
+    rgb(255 255 255 / 0.85) 94%,
+    rgb(255 255 255 / 0.95)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0.9;
+}
+html.glass.dark .glass-overlay::after {
+  opacity: 0.45;
+}
+/* Ink glass: toasts and tooltips keep their dark (light, in dark mode) body. */
+html.glass .glass-ink {
+  --raised: rgb(22 23 27 / 0.74);
+  --sheen: rgb(255 255 255 / 0.16);
+  background-color: var(--raised) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+}
+html.glass.dark .glass-ink {
+  --raised: rgb(242 242 246 / 0.82);
+  --sheen: rgb(255 255 255 / 0.4);
+}
+
+html.glass [data-surface="drawer"] {
+  border-radius: 0 24px 24px 0;
+}
+
+/* Controls the renderer can't reach (inside overlays or scrolling lists). */
+html.glass .glass-css-control {
+  background: rgb(255 255 255 / 0.55) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.6);
+  backdrop-filter: blur(8px) saturate(1.6);
+  box-shadow: var(--glass-rim), 0 1px 4px -1px rgb(10 20 40 / 0.18) !important;
+}
+html.glass.dark .glass-css-control {
+  background: rgb(255 255 255 / 0.12) !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * Without WebGL2 (or after the GPU context is lost), the same surfaces use
+ * backdrop-filter glass over a gradient rendition of the chosen background. */
+
+html.glass.glass-css [data-glass] {
+  -webkit-backdrop-filter: blur(30px) saturate(1.7);
+  backdrop-filter: blur(30px) saturate(1.7);
+  box-shadow: var(--glass-rim), 0 10px 30px -12px rgb(10 20 40 / 0.3) !important;
+  border-color: transparent !important;
+}
+html.glass.glass-css [data-glass-kind="slab"] {
+  background: rgb(255 255 255 / 0.66) !important;
+}
+html.glass.glass-css [data-glass-kind="chrome"] {
+  background: rgb(255 255 255 / 0.42) !important;
+}
+html.glass.glass-css [data-glass-kind="control"] {
+  background: rgb(255 255 255 / 0.5) !important;
+}
+html.glass.glass-css.dark [data-glass-kind="slab"] {
+  background: rgb(20 20 24 / 0.6) !important;
+}
+html.glass.glass-css.dark [data-glass-kind="chrome"] {
+  background: rgb(20 20 24 / 0.42) !important;
+}
+html.glass.glass-css.dark [data-glass-kind="control"] {
+  background: rgb(255 255 255 / 0.12) !important;
+}
+
+/* Gradient renditions of each background: the fallback, and what shows for
+ * the instant before the renderer's first frame. */
+html.glass.glass-bg-harbour {
+  background: radial-gradient(60% 50% at 78% 18%, #ffe3be, transparent 70%),
+    linear-gradient(180deg, #c7e5e4, #7fbac2 70%, #4c9eaa);
+}
+html.glass.dark.glass-bg-harbour {
+  background: radial-gradient(40% 30% at 30% 60%, #1a5c68, transparent 70%), linear-gradient(180deg, #0c2834, #04121a);
+}
+html.glass.glass-bg-citrus {
+  background: radial-gradient(22% 30% at 18% 22%, #f7d64a 98%, transparent 100%),
+    radial-gradient(18% 26% at 82% 18%, #f5963a 98%, transparent 100%),
+    radial-gradient(20% 28% at 48% 70%, #a6d258 98%, transparent 100%), #eef3e6;
+}
+html.glass.dark.glass-bg-citrus {
+  background: radial-gradient(22% 30% at 18% 22%, #c9ad3c 98%, transparent 100%),
+    radial-gradient(18% 26% at 82% 18%, #c77a2f 98%, transparent 100%),
+    radial-gradient(20% 28% at 48% 70%, #86ab48 98%, transparent 100%), #111512;
+}
+html.glass.glass-bg-prism {
+  background: linear-gradient(118deg, transparent 38%, #e5532d 38% 52%, transparent 52% 58%, #f2b134 58% 63%, transparent 63%),
+    radial-gradient(circle at 78% 70%, #2f5fd0 17%, transparent 17.3%), #ecEae5;
+}
+html.glass.dark.glass-bg-prism {
+  background: linear-gradient(118deg, transparent 38%, #d6482a 38% 52%, transparent 52% 58%, #e2a02c 58% 63%, transparent 63%),
+    radial-gradient(circle at 78% 70%, #4068d6 17%, transparent 17.3%), #141415;
+}
+html.glass.glass-bg-contour {
+  background: radial-gradient(70% 60% at 60% 40%, #ece6d2, transparent 70%), #c6dbc0;
+}
+html.glass.dark.glass-bg-contour {
+  background: radial-gradient(70% 60% at 60% 40%, #16281c, transparent 70%), #0a140f;
+}
+html.glass.glass-bg-ember {
+  background: radial-gradient(50% 50% at 72% 22%, #ffd699, transparent 70%),
+    radial-gradient(60% 60% at 20% 80%, #eca0a0, transparent 70%), #fbe2d6;
+}
+html.glass.dark.glass-bg-ember {
+  background: radial-gradient(45% 45% at 28% 68%, #9a4a14, transparent 70%),
+    radial-gradient(40% 40% at 75% 35%, #7a1e16, transparent 70%), #0e0b0a;
+}
+html.glass.glass-bg-studio {
+  background: radial-gradient(80% 60% at 40% 0%, #f8f8f9, transparent 70%), #e2e3e6;
+}
+html.glass.dark.glass-bg-studio {
+  background: radial-gradient(80% 60% at 40% 0%, #2a2a2e, transparent 70%), #161618;
+}
+html.glass.glass-bg-image {
+  background: linear-gradient(180deg, #9aa3ad, #5d6670);
+}
+html.glass.dark.glass-bg-image {
+  background: linear-gradient(180deg, #2a2f35, #121518);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.glass {
+    --raised: rgb(250 251 252 / 0.96);
+  }
+  html.glass.dark {
+    --raised: rgb(34 35 40 / 0.96);
+  }
+}
+
+html.glass-bare [data-shell] {
+  opacity: 0;
+}

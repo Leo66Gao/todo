@@ -81,7 +81,7 @@ export function AssignmentsView() {
       <div className="scroll-area flex-1 pb-24">
         <div className="mx-auto w-full max-w-[820px] px-6 max-sm:px-3">
           {open.length > 0 && (
-            <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[12px] border border-line bg-line">
+            <div className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-[12px] border border-line">
               <Stat value={String(stats.dueSoon)} label="due in the next 7 days" />
               <Stat value={stats.work > 0 ? formatDuration(stats.work) : "—"} label="of work left" />
               <Stat value={stats.subsTotal > 0 ? `${stats.subsDone}/${stats.subsTotal}` : "—"} label="subtasks done" />
@@ -128,7 +128,7 @@ export function AssignmentsView() {
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="bg-canvas px-4 py-3">
+    <div className="px-4 py-3">
       <div className="text-base font-semibold tnum">{value}</div>
       <div className="text-xs text-ink-3">{label}</div>
     </div>

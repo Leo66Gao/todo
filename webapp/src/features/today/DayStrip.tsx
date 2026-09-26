@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Task } from "@/lib/model";
 import { addDays, dayKey, sameDay, startOfWeek, today } from "@/lib/time";
 import { cn } from "@/ui/cn";
+import { useGlass } from "@/glass/registry";
 import { IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { workMinutes } from "@/features/tasks/meta";
@@ -97,9 +98,7 @@ function DayCell({
         className,
       )}
     >
-      {selected && (
-        <motion.span layoutId="day-strip-selected" transition={springs.snappy} className="absolute inset-0 rounded-[10px] bg-ink" />
-      )}
+      {selected && <SelectedDay />}
       <span
         className={cn(
           "relative text-2xs font-medium",
@@ -123,5 +122,18 @@ function DayCell({
         />
       </span>
     </button>
+  );
+}
+
+/** The selected day's block; ink glass in the Liquid Glass theme. */
+function SelectedDay() {
+  const glass = useGlass<HTMLSpanElement>({ level: 2, kind: "ink" });
+  return (
+    <motion.span
+      ref={glass}
+      layoutId="day-strip-selected"
+      transition={springs.snappy}
+      className="absolute inset-0 rounded-[10px] bg-ink"
+    />
   );
 }

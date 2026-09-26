@@ -56,7 +56,7 @@ export function Modal({
               >
                 <motion.div
                   className={cn(
-                    "pointer-events-auto flex max-h-[min(86vh,760px)] w-full flex-col overflow-hidden rounded-modal bg-raised shadow-modal outline-none",
+                    "glass-overlay pointer-events-auto relative flex max-h-[min(86vh,760px)] w-full flex-col overflow-hidden rounded-modal bg-raised shadow-modal outline-none",
                     "max-sm:max-h-[92dvh] max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)]",
                     className,
                   )}
@@ -144,7 +144,7 @@ export function Popover({
           side={side}
           sideOffset={sideOffset}
           collisionPadding={12}
-          className={cn("pop z-50 rounded-pop bg-raised shadow-pop outline-none", className)}
+          className={cn("pop glass-overlay relative z-50 rounded-pop bg-raised shadow-pop outline-none", className)}
         >
           {typeof children === "function" ? children(() => setOpen(false)) : children}
         </RPopover.Content>
@@ -174,7 +174,7 @@ export function Tooltip({
         <RTooltip.Content
           side={side}
           sideOffset={6}
-          className="tip z-[70] flex items-center gap-2 rounded-[7px] bg-ink px-2 py-1 text-2xs font-medium text-on-ink shadow-pop"
+          className="tip glass-ink relative z-[70] flex items-center gap-2 rounded-[7px] bg-ink px-2 py-1 text-2xs font-medium text-on-ink shadow-pop"
         >
           {label}
           {shortcut && (
@@ -214,7 +214,7 @@ const itemClass = cn(
   "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-sm text-ink outline-none",
   "data-[highlighted]:bg-fill data-[state=open]:bg-fill data-[disabled]:opacity-40",
 );
-const menuSurface = "pop z-[60] min-w-[180px] rounded-pop bg-raised p-1 shadow-pop";
+const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] rounded-pop bg-raised p-1 shadow-pop";
 
 type Parts = typeof RDM | typeof RCM;
 

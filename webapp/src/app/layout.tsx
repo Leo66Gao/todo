@@ -3,6 +3,7 @@ import { Figtree } from "next/font/google";
 import { Suspense } from "react";
 import "quill/dist/quill.core.css";
 import "./globals.css";
+import "@/glass/glass.css";
 import { Shell } from "@/shell/Shell";
 
 // Figtree: a clean geometric grotesque — close in spirit to the Poppins the
@@ -27,8 +28,8 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// Applies the saved appearance before first paint so dark mode never flashes.
-const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||'"system"');var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}`;
+// Applies the saved appearance (and Liquid Glass) before first paint so it never flashes.
+const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||'"system"');var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);var g=JSON.parse(localStorage.getItem("todo.web.glass")||"{}");if(g.enabled){document.documentElement.classList.add("glass","glass-bg-"+(g.background||"harbour"))}}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

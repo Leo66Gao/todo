@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
+import { motion } from "motion/react";
 import { useDroppable } from "@dnd-kit/core";
 import {
   BookOpen,
@@ -23,6 +24,9 @@ import { useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { IconButton, Kbd } from "@/ui/controls";
 import { ContextMenu, Tooltip } from "@/ui/overlay";
+import { springs } from "@/ui/motion";
+import { useGlassPrefs } from "@/glass/prefs";
+import { useGlass } from "@/glass/registry";
 import { useNavigate, useRoute, type Route } from "./nav";
 import { ui } from "./ui";
 
@@ -33,6 +37,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const projects = useWorkspace((s) => s.projects);
   const user = useWorkspace((s) => s.user);
   const cloudStatus = useWorkspace((s) => s.cloudStatus);
+  const searchWell = useGlass<HTMLButtonElement>({ level: 2, kind: "well", interactive: true });
 
   const counts = useMemo(() => {
     const now = today();
@@ -73,6 +78,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="px-2.5 pb-2">
         <button
+          ref={searchWell}
           type="button"
           onClick={() => {
             ui.set({ paletteOpen: true });
@@ -213,13 +219,25 @@ function NavItem({
         dropping && "bg-accent-soft text-accent",
       )}
     >
-      {active && (
-        <span className="absolute inset-0 rounded-ctl bg-fill-strong/80 dark:bg-fill-strong" />
-      )}
+      {active && <ActivePill />}
       <span className={cn("relative flex [&>svg]:size-4", active ? "text-ink" : "text-ink-3")}>{icon}</span>
       <span className="relative flex-1 text-left">{label}</span>
       {count != null && count > 0 && <span className="relative text-xs text-ink-3 tnum">{count}</span>}
     </button>
+  );
+}
+
+/** The current page's highlight; in Liquid Glass it is a glass lens that glides between items. */
+function ActivePill() {
+  const glass = useGlassPrefs((s) => s.enabled);
+  const pill = useGlass<HTMLSpanElement>({ level: 2, kind: "control", interactive: true, inScroll: true });
+  return (
+    <motion.span
+      ref={pill}
+      layoutId={glass ? "nav-pill" : undefined}
+      transition={springs.snappy}
+      className="absolute inset-0 rounded-ctl bg-fill-strong/80 dark:bg-fill-strong"
+    />
   );
 }
 

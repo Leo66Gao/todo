@@ -42,6 +42,9 @@ import { IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { AskHost, TooltipProvider } from "@/ui/overlay";
 import { toast, ToastHost } from "@/ui/toast";
+import { GlassLayer } from "@/glass/GlassLayer";
+import { restoreGlassPrefs, useGlassPrefs } from "@/glass/prefs";
+import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
 import { MobileAddButton, MobileTabBar } from "./MobileBar";
 import { Sidebar } from "./Sidebar";
@@ -55,6 +58,7 @@ export function Shell() {
   useEffect(() => {
     startWorkspace();
     ui.restore();
+    restoreGlassPrefs();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
@@ -84,6 +88,7 @@ export function Shell() {
 
   return (
     <MotionConfig reducedMotion="user">
+      <GlassLayer />
       <TooltipProvider delayDuration={500} skipDelayDuration={200}>
         <Workspace />
         <TaskEditorHost />
@@ -109,6 +114,9 @@ function Workspace() {
   const navigate = useNavigate();
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
+  const glass = useGlassPrefs((s) => s.enabled);
+  const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
+  const slabGlass = useGlass({ level: 1, kind: "slab" });
   const [dragging, setDragging] = useState<Task | null>(null);
   // Mouse drags start after a small move; on touch screens a long press starts
   // a drag so ordinary swipes keep scrolling.
@@ -189,14 +197,16 @@ function Workspace() {
         settle();
       }}
     >
-      <div className="flex h-dvh overflow-hidden bg-canvas">
+      <div data-shell className="flex h-dvh overflow-hidden bg-canvas">
         {/* Docked sidebar on wide windows */}
         <motion.aside
+          ref={sidebarGlass}
+          data-surface="sidebar"
           initial={false}
-          animate={{ width: collapsed ? 0 : 248 }}
+          animate={{ width: collapsed ? 0 : 248, marginRight: glass && !collapsed ? GLASS_GAP : 0 }}
           transition={springs.panel}
           className="relative shrink-0 overflow-hidden border-r border-line max-lg:hidden"
-          style={{ borderRightWidth: collapsed ? 0 : 1 }}
+          style={{ borderRightWidth: collapsed || glass ? 0 : 1 }}
         >
           <div className="h-full w-[248px]">
             <Sidebar />
@@ -215,7 +225,9 @@ function Workspace() {
                 onClick={() => ui.set({ sidebarOpen: false })}
               />
               <motion.aside
-                className="fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal lg:hidden"
+                data-overlay
+                data-surface="drawer"
+                className="glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal lg:hidden"
                 initial={{ x: -290 }}
                 animate={{ x: 0 }}
                 exit={{ x: -290 }}
@@ -228,7 +240,7 @@ function Workspace() {
         </AnimatePresence>
 
         <main className="relative flex min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div ref={slabGlass} data-surface="main-slab" className="flex min-h-0 flex-1 flex-col">
             <View
               key={route.view === "subject" || route.view === "assignment" || route.view === "note" ? `${route.view}:${route.id}` : route.view}
               route={route}

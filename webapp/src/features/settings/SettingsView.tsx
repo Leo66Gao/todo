@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -27,6 +28,9 @@ import { cn } from "@/ui/cn";
 import { Button, Segmented, Spinner, Switch } from "@/ui/controls";
 import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
+import { springs } from "@/ui/motion";
+import { BackgroundPicker } from "@/glass/GlassSettings";
+import { setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
 
 const FIELD_NAMES: Record<FieldId, string> = {
   type: "Task type",
@@ -136,9 +140,23 @@ function AccountSection() {
 
 function AppearanceSection() {
   const mode = useWorkspace((s) => s.settings.themeMode);
+  const glass = useGlassPrefs((s) => s.enabled);
+  const finish = useGlassPrefs((s) => s.finish);
+  const pointerLight = useGlassPrefs((s) => s.pointerLight);
   return (
     <Group title="Appearance">
-      <Item title="Theme" detail="Match the system, or choose light or dark.">
+      <Item title="Theme" detail={glass ? "Glass panels over a background of your choice." : "The standard, quiet look."}>
+        <Segmented
+          size="sm"
+          value={glass ? "glass" : "standard"}
+          onChange={(v) => setGlassPrefs({ enabled: v === "glass" })}
+          options={[
+            { value: "standard", label: "Standard" },
+            { value: "glass", label: "Liquid Glass" },
+          ]}
+        />
+      </Item>
+      <Item title="Mode" detail="Match the system, or choose light or dark.">
         <Segmented
           size="sm"
           value={mode}
@@ -150,6 +168,37 @@ function AppearanceSection() {
           ]}
         />
       </Item>
+      <AnimatePresence initial={false}>
+        {glass && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={springs.layout}
+            className="divide-y divide-line overflow-hidden"
+          >
+            <div>
+              <Item title="Background" className="min-h-0 pb-1.5" />
+              <BackgroundPicker />
+            </div>
+            <Item title="Glass" detail="How much of the background shows through.">
+              <Segmented
+                size="sm"
+                value={finish}
+                onChange={(v) => setGlassPrefs({ finish: v })}
+                options={[
+                  { value: "clear", label: "Clear" },
+                  { value: "balanced", label: "Balanced" },
+                  { value: "frosted", label: "Frosted" },
+                ]}
+              />
+            </Item>
+            <Item title="Light follows the pointer" detail="Highlights turn towards the mouse." className="hover-only">
+              <Switch checked={pointerLight} onChange={(v) => setGlassPrefs({ pointerLight: v })} label="Light follows the pointer" />
+            </Item>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Group>
   );
 }

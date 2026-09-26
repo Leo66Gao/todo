@@ -39,6 +39,8 @@ import { taskMenu } from "./actions";
 import { DateField, SubjectField, TimeField } from "./fields";
 import { PRIORITY_LABEL, priorityColor } from "./meta";
 import { TaskCheck } from "./TaskCheck";
+import { useGlassPrefs } from "@/glass/prefs";
+import { GLASS_GAP, useGlass } from "@/glass/registry";
 
 const PANEL_WIDTH = 384;
 
@@ -48,14 +50,18 @@ export function InspectorPanel() {
   const exists = useWorkspace((s) => (id ? s.tasks.some((t) => t.id === id) : false));
   const open = id != null && exists;
   const [shown, setShown] = useState(id);
+  const glass = useGlassPrefs((s) => s.enabled);
+  const panelGlass = useGlass({ level: 1, kind: "chrome" });
   if (open && id !== shown) setShown(id);
   return (
     <motion.aside
+      ref={panelGlass}
+      data-surface="inspector"
       initial={false}
-      animate={{ width: open ? PANEL_WIDTH : 0 }}
+      animate={{ width: open ? PANEL_WIDTH : 0, marginLeft: glass && open ? GLASS_GAP : 0 }}
       transition={springs.panel}
       className="relative shrink-0 overflow-hidden border-l border-line bg-canvas max-lg:hidden"
-      style={{ borderLeftWidth: open ? 1 : 0 }}
+      style={{ borderLeftWidth: open && !glass ? 1 : 0 }}
       aria-hidden={!open}
     >
       <div className="h-full" style={{ width: PANEL_WIDTH }}>

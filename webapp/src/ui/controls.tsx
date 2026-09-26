@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { Slider as RSlider, Switch as RSwitch } from "radix-ui";
 import { cn } from "./cn";
 import { springs } from "./motion";
+import { useGlass, useMergedRefs } from "@/glass/registry";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "accent";
 type Size = "sm" | "md";
@@ -32,9 +33,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant = "secondary", size = "md", icon, className, children, type = "button", ...rest },
   ref,
 ) {
+  // Primary actions are ink-tinted glass in the Liquid Glass theme.
+  const glassRef = useGlass<HTMLButtonElement>({ level: 2, kind: "ink", interactive: true });
+  const glassy = variant === "primary" && !rest.disabled;
+  const refs = useMergedRefs(ref, glassy ? glassRef : undefined);
   return (
     <button
-      ref={ref}
+      ref={refs}
       type={type}
       className={cn(
         "inline-flex shrink-0 select-none items-center justify-center font-medium whitespace-nowrap",
@@ -110,6 +115,7 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
 }) {
   const id = useId();
+  const thumbGlass = useGlass<HTMLSpanElement>({ level: 2, kind: "control" });
   return (
     <div
       role="radiogroup"
@@ -137,6 +143,7 @@ export function Segmented<T extends string>({
           >
             {selected && (
               <motion.span
+                ref={thumbGlass}
                 layoutId={`seg-${id}`}
                 transition={springs.snappy}
                 className="absolute inset-0 rounded-[7px] bg-raised shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.1)] dark:bg-fill-strong"
