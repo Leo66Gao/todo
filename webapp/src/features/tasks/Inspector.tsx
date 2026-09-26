@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Route,
+  Timer,
   Trash2,
   X,
 } from "lucide-react";
@@ -40,6 +41,7 @@ import { taskMenu } from "./actions";
 import { DateField, SubjectField, TimeField } from "./fields";
 import { PRIORITY_LABEL, priorityColor } from "./meta";
 import { WorkBack } from "./WorkBack";
+import { startFocus } from "@/lib/focus";
 import { TaskCheck } from "./TaskCheck";
 import { useGlassPrefs } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
@@ -291,6 +293,13 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
               <Button variant="ghost" size="sm" onClick={() => navigate({ view: "assignment", id: task.id })}>
                 Open page
               </Button>
+            )}
+            {!task.isDone && (
+              <Tooltip label="Focus for 25 minutes" shortcut={["F"]}>
+                <IconButton label="Focus" onClick={() => startFocus(25, { id: task.id, title: task.title })}>
+                  <Timer className="size-[15px]" />
+                </IconButton>
+              </Tooltip>
             )}
             <Tooltip label="Edit all fields" shortcut={["⌘", "↩"]}>
               <IconButton label="Edit task" onClick={() => ui.editTask(task.id)}>

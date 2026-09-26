@@ -5,6 +5,7 @@
 // exist for the next two weeks and brings the scheduled ones in line.
 
 import { create } from "zustand";
+import { FOCUS_NOTIFICATION_ID } from "./focus";
 import { isNative } from "./native";
 import { getLocal, setLocal } from "./prefs";
 import { sameDay, startOfDay } from "./time";
@@ -124,7 +125,8 @@ async function apply(planned: PlannedReminder[]) {
       vibration: true,
     });
     const pending = await LocalNotifications.getPending();
-    scheduled = new Map(pending.notifications.map((n) => [n.id, ""]));
+    // The focus timer's notification isn't a reminder: leave it alone.
+    scheduled = new Map(pending.notifications.filter((n) => n.id !== FOCUS_NOTIFICATION_ID).map((n) => [n.id, ""]));
   }
   const wanted = new Map(planned.map((r) => [r.id, r]));
   const cancel = [...scheduled.keys()].filter((id) => wanted.get(id) == null || fingerprint(wanted.get(id)!) !== scheduled.get(id));

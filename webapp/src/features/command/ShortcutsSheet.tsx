@@ -22,6 +22,7 @@ const GROUPS: { title: string; items: [string, string[]][] }[] = [
       ["Move selection", ["↑", "↓"]],
       ["Previous or next day", ["←", "→"]],
       ["Complete selected task", ["Space"]],
+      ["Focus on selected task", ["F"]],
       ["Open selected task", ["↩"]],
       ["Edit selected task", ["⌘", "↩"]],
       ["Delete selected task", ["⌫"]],
@@ -32,7 +33,7 @@ const GROUPS: { title: string; items: [string, string[]][] }[] = [
     title: "Task form and notes",
     items: [
       ["Save the task", ["⌘", "↩"]],
-      ["Set a time from the title", ["Gym 18.30"]],
+      ["Set details from the title", ["essay due fri 3pm 2h"]],
       ["Bold, italic, underline", ["⌘", "B / I / U"]],
       ["Add a link", ["⌘", "K"]],
       ["Open a link in notes", ["⌘", "click"]],

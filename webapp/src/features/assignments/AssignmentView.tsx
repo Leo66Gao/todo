@@ -1,11 +1,12 @@
 "use client";
 
 import { format } from "date-fns";
-import { ChevronLeft, MoreHorizontal, Pencil } from "lucide-react";
+import { ChevronLeft, MoreHorizontal, Pencil, Timer } from "lucide-react";
 import { daysFromToday, dueLabel, isOverdue } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { ui } from "@/shell/ui";
+import { startFocus } from "@/lib/focus";
 import { taskMenu } from "@/features/tasks/actions";
 import { TaskDetail } from "@/features/tasks/Inspector";
 import { toggleTask, useWorkspace } from "@/store/workspace";
@@ -41,6 +42,13 @@ export function AssignmentView({ id }: { id: string }) {
             <Button variant={task.isDone ? "secondary" : "primary"} onClick={() => toggleTask(task.id)}>
               {task.isDone ? "Mark as not done" : "Mark as done"}
             </Button>
+            {!task.isDone && (
+              <Tooltip label="Focus for 25 minutes">
+                <IconButton label="Focus" onClick={() => startFocus(25, { id: task.id, title: task.title })}>
+                  <Timer className="size-[15px]" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip label="Edit all fields">
               <IconButton label="Edit assignment" onClick={() => ui.editTask(task.id)}>
                 <Pencil className="size-[15px]" />

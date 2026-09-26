@@ -4,7 +4,8 @@ import { format } from "date-fns";
 import type { Priority } from "@/lib/dart";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
-import { addDays, relativeDay, startOfWeek, today } from "@/lib/time";
+import { focusLengths, startFocus } from "@/lib/focus";
+import { addDays, formatDuration, relativeDay, startOfWeek, today } from "@/lib/time";
 import type { Route } from "@/shell/nav";
 import { ui } from "@/shell/ui";
 import {
@@ -106,8 +107,18 @@ export function taskMenu(task: Task, navigate: Navigate): MenuItem[] {
   if (task.type === "assignment" && !isMilestone) {
     items.push({ label: "Open assignment", onSelect: () => navigate({ view: "assignment", id: task.id }) });
   }
+  items.push({ label: task.isDone ? "Mark as not done" : "Mark as done", shortcut: "Space", onSelect: () => toggleTask(task.id) });
+  if (!task.isDone) {
+    items.push({
+      label: "Focus",
+      items: focusLengths(task.durationMinutes).map((m) => ({
+        label: m === task.durationMinutes && ![25, 45, 60].includes(m) ? `${formatDuration(m)} (the task’s time)` : `${m} minutes`,
+        shortcut: m === 25 ? "F" : undefined,
+        onSelect: () => startFocus(m, { id: task.id, title: task.title }),
+      })),
+    });
+  }
   items.push(
-    { label: task.isDone ? "Mark as not done" : "Mark as done", shortcut: "Space", onSelect: () => toggleTask(task.id) },
     { separator: true },
     {
       label: "Move to",

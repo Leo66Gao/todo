@@ -46,6 +46,8 @@ import { springs } from "@/ui/motion";
 import { AskHost, TooltipProvider } from "@/ui/overlay";
 import { FormulaHost } from "@/ui/FormulaDialog";
 import { SourcesHost } from "@/features/sources/SourcesSheet";
+import { FocusTimer } from "@/features/focus/FocusTimer";
+import { startFocus } from "@/lib/focus";
 import { toast, ToastHost } from "@/ui/toast";
 import { GlassLayer } from "@/glass/GlassLayer";
 import { restoreGlassPrefs, useGlassPrefs } from "@/glass/prefs";
@@ -109,6 +111,7 @@ export function Shell() {
         <AskHost />
         <FormulaHost />
         <SourcesHost />
+        <FocusTimer />
         <ToastHost />
       </TooltipProvider>
     </MotionConfig>
@@ -430,6 +433,14 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
         case "?":
           ui.set({ shortcutsOpen: true });
           return;
+        case "f":
+        case "F": {
+          const task = findSelected();
+          if (!task || task.isDone) return;
+          e.preventDefault();
+          startFocus(25, { id: task.id, title: task.title });
+          return;
+        }
         case "Escape":
           if (state.inspectorId) ui.closeInspector();
           else ui.select(null);
