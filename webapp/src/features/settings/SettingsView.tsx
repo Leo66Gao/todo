@@ -30,6 +30,7 @@ import { Button, Segmented, Slider, Spinner, Switch } from "@/ui/controls";
 import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { isNative } from "@/lib/native";
+import { AiError, chatJson, DEFAULT_MODEL, setAiKey, setAiModel, useAiKey } from "@/lib/ai";
 import { ensureMonths, modeOf, setCalendarMode, useGoogleEvents } from "@/lib/googleEvents";
 import { LEAD_OPTIONS, requestReminderPermission, setReminderPrefs, useReminderPrefs, type ReminderPrefs } from "@/lib/reminders";
 import { springs } from "@/ui/motion";
@@ -60,6 +61,7 @@ export function SettingsView() {
           <LabelsSection />
           <CalendarSection />
           <RemindersSection />
+          <AiSection />
           <Group title="Keyboard">
             <Item title="Keyboard shortcuts" detail="Press ? anywhere to see them.">
               <Button size="sm" onClick={() => ui.set({ shortcutsOpen: true })}>
@@ -559,6 +561,77 @@ function RemindersSection() {
           />
         )}
         <Switch checked={summary} label="Morning summary" onChange={(v) => void enable({ summary: v })} />
+      </Item>
+    </Group>
+  );
+}
+
+function AiSection() {
+  const key = useAiKey((s) => s.key);
+  const model = useAiKey((s) => s.model);
+  const [draft, setDraft] = useState("");
+  const [checking, setChecking] = useState(false);
+  const save = async () => {
+    const value = draft.trim();
+    if (!value) return;
+    setAiKey(value);
+    setDraft("");
+    setChecking(true);
+    try {
+      await chatJson([{ role: "user", content: 'Reply with {"ok":true}' }]);
+      toast("Key saved. DeepSeek is ready.");
+    } catch (error) {
+      toast(error instanceof AiError ? error.message : "The key was saved, but DeepSeek couldn’t be reached.");
+    } finally {
+      setChecking(false);
+    }
+  };
+  return (
+    <Group
+      title="Planning help"
+      description="Suggests the steps of an assignment, dated back from its deadline. Uses your own DeepSeek API key, kept on this device only."
+    >
+      {key ? (
+        <Item title="DeepSeek API key" detail={`Saved on this device, ending ${key.slice(-4)}`}>
+          <Button size="sm" variant="ghost" onClick={() => setAiKey("")}>
+            Remove
+          </Button>
+        </Item>
+      ) : (
+        <Item title="DeepSeek API key" detail="From platform.deepseek.com, under API keys.">
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+          >
+            <input
+              type="password"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="sk-…"
+              autoComplete="off"
+              spellCheck={false}
+              aria-label="DeepSeek API key"
+              className="h-8 w-44 rounded-ctl border border-line-strong bg-canvas px-2.5 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft max-sm:w-32"
+            />
+            <Button type="submit" size="sm" variant="primary" disabled={!draft.trim() || checking} icon={checking ? <Spinner className="size-3.5" /> : undefined}>
+              Save
+            </Button>
+          </form>
+        </Item>
+      )}
+      <Item title="Model" detail="Flash is quick; Pro thinks longer.">
+        <Segmented
+          size="sm"
+          value={model === "deepseek-v4-pro" ? "deepseek-v4-pro" : DEFAULT_MODEL}
+          onChange={setAiModel}
+          options={[
+            { value: DEFAULT_MODEL, label: "Flash" },
+            { value: "deepseek-v4-pro", label: "Pro" },
+          ]}
+        />
       </Item>
     </Group>
   );

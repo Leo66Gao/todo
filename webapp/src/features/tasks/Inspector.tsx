@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Route,
   Trash2,
   X,
 } from "lucide-react";
@@ -38,6 +39,7 @@ import { toast } from "@/ui/toast";
 import { taskMenu } from "./actions";
 import { DateField, SubjectField, TimeField } from "./fields";
 import { PRIORITY_LABEL, priorityColor } from "./meta";
+import { WorkBack } from "./WorkBack";
 import { TaskCheck } from "./TaskCheck";
 import { useGlassPrefs } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
@@ -429,6 +431,8 @@ function NotesEditor({ task }: { task: Task }) {
 
 function SubtaskSection({ task }: { task: Task }) {
   const [draft, setDraft] = useState("");
+  const [planning, setPlanning] = useState(false);
+  const canPlan = task.type === "assignment" && !task.isDone && startOfDay(task.date) >= startOfDay(new Date());
   const isAssignment = task.type === "assignment";
   const done = task.subtasks.filter((s) => s.isDone).length;
   const total = task.subtasks.length;
@@ -442,6 +446,13 @@ function SubtaskSection({ task }: { task: Task }) {
     <div className="mt-6">
       <div className="mb-1.5 flex items-center gap-2">
         <span className="text-xs font-semibold text-ink-2">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
+        {canPlan && (
+          <Tooltip label="Suggest steps, dated back from the deadline">
+            <Button size="sm" variant="ghost" className="-my-1 h-6 px-1.5 text-xs text-ink-3" icon={<Route className="size-3.5" />} onClick={() => setPlanning(true)}>
+              Work back
+            </Button>
+          </Tooltip>
+        )}
         {total > 0 && (
           <>
             <span className="relative ml-auto h-1 w-16 overflow-hidden rounded-full bg-fill-strong">
@@ -491,6 +502,7 @@ function SubtaskSection({ task }: { task: Task }) {
           />
         </form>
       </div>
+      {canPlan && <WorkBack task={task} open={planning} onOpenChange={setPlanning} />}
     </div>
   );
 }
