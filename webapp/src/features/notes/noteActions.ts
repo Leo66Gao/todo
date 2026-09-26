@@ -4,8 +4,9 @@ import { formatDistanceToNowStrict, isToday, isYesterday, format } from "date-fn
 import type { StudyNote } from "@/lib/model";
 import { contentFromDelta } from "@/lib/delta";
 import { encodeNote, recordFits, uuid } from "@/lib/model";
+import { versionsKey, withVersion, type Version } from "@/lib/versions";
 import type { Route } from "@/shell/nav";
-import { addNote, deleteNote, useWorkspace } from "@/store/workspace";
+import { addNote, deleteNote, readSide, updateNote, useWorkspace, writeSide } from "@/store/workspace";
 import { confirmDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 
@@ -62,9 +63,16 @@ export async function removeNote(note: StudyNote, after?: () => void) {
   });
   if (!ok) return;
   const index = useWorkspace.getState().notes.findIndex((n) => n.id === note.id);
+  const history = noteVersions(note.id);
   deleteNote(note.id);
   after?.();
-  toast("Note deleted", { label: "Undo", run: () => addNote(note, index) });
+  toast("Note deleted", {
+    label: "Undo",
+    run: () => {
+      addNote(note, index);
+      if (history.length) writeSide(versionsKey(note.id), { versions: history });
+    },
+  });
 }
 
 export function editedLabel(date: Date) {
@@ -83,4 +91,27 @@ export function noteGroup(date: Date) {
   if (days < 7) return "Previous 7 days";
   if (days < 30) return "Previous 30 days";
   return format(date, date.getFullYear() === new Date().getFullYear() ? "MMMM" : "MMMM yyyy");
+}
+
+// ---------------------------------------------------------------------------
+// Version history
+
+export function noteVersions(noteId: string): Version[] {
+  const record = readSide<{ versions?: Version[] }>(versionsKey(noteId), {});
+  return Array.isArray(record.versions) ? record.versions : [];
+}
+
+/** Keeps this state of the note, if it's time for another version. */
+export function recordVersion(note: StudyNote, force = false) {
+  const next = withVersion(noteVersions(note.id), note, Date.now(), force);
+  if (next) writeSide(versionsKey(note.id), { versions: next });
+}
+
+/** Brings back an earlier version; the current one is kept first. */
+export function restoreVersion(noteId: string, version: Version) {
+  const current = useWorkspace.getState().notes.find((n) => n.id === noteId);
+  if (!current) return;
+  recordVersion(current, true);
+  updateNote({ ...current, title: version.title, content: version.content, updatedAt: new Date() });
+  toast("Version restored");
 }

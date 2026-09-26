@@ -76,6 +76,8 @@ export interface WorkspaceState {
   folders: SubjectFolder[];
   tags: string[];
   settings: WorkspaceSettings;
+  /** Other synced records ("settings:…" keys): version history, sources. */
+  side: Record<string, string>;
 }
 
 export const useWorkspace = create<WorkspaceState>(() => ({
@@ -94,6 +96,7 @@ export const useWorkspace = create<WorkspaceState>(() => ({
   folders: [],
   tags: [],
   settings: defaultSettings(),
+  side: {},
 }));
 
 const get = () => useWorkspace.getState();
@@ -106,6 +109,7 @@ let cloud: CloudSync | null = null;
 let firebaseUser: User | null = null;
 let baseline: Records = {};
 let unreadable: Records = {};
+const CORE_SETTINGS = new Set(["settings:workspace", "settings:tags", "settings:order"]);
 let recordDecodeError: string | null = null;
 let authQueue: Promise<void> = Promise.resolve();
 let started = false;
@@ -153,7 +157,7 @@ function encodeRecords(state: WorkspaceState = get()): Records {
   out["settings:workspace"] = JSON.stringify(encodeSettings(state.settings));
   out["settings:tags"] = JSON.stringify(state.tags);
   out["settings:order"] = JSON.stringify(state.tasks.map((t) => t.id));
-  return { ...out, ...unreadable };
+  return { ...out, ...state.side, ...unreadable };
 }
 
 function applyRecords(records: Records) {
@@ -161,6 +165,7 @@ function applyRecords(records: Records) {
   const projects: Project[] = [];
   const notes: StudyNote[] = [];
   const folders: SubjectFolder[] = [];
+  const side: Record<string, string> = {};
   unreadable = {};
   for (const [key, payload] of Object.entries(records)) {
     try {
@@ -175,6 +180,7 @@ function applyRecords(records: Records) {
       if (key.startsWith("project:")) projects.push(decodeProject(value));
       if (key.startsWith("note:")) notes.push(decodeNote(value));
       if (key.startsWith("folder:")) folders.push(decodeFolder(value));
+      if (key.startsWith("settings:") && !CORE_SETTINGS.has(key)) side[key] = payload;
     } catch {
       // Keep the payload so a malformed record is never lost or deleted.
       unreadable[key] = payload;
@@ -198,6 +204,7 @@ function applyRecords(records: Records) {
     settings: readable("settings:workspace")
       ? decodeSettings(JSON.parse(records["settings:workspace"]))
       : defaultSettings(),
+    side,
   };
   set(next);
   baseline = encodeRecords();
@@ -398,6 +405,7 @@ async function switchAccount(user: User | null) {
     folders: [],
     tags: [],
     settings: defaultSettings(),
+    side: {},
   });
   if (!user) {
     applyRecords(readGuestRecords());
@@ -1155,8 +1163,36 @@ export function updateNote(note: StudyNote) {
   void saveData();
 }
 
+/** A synced side record, parsed (or the fallback when missing or unreadable). */
+const parsedSide = new Map<string, { payload: string; value: unknown }>();
+export function readSide<T>(key: string, fallback: T): T {
+  const payload = get().side[key];
+  if (payload === undefined) return fallback;
+  const cached = parsedSide.get(key);
+  if (cached?.payload === payload) return cached.value as T;
+  try {
+    const value = JSON.parse(payload) as T;
+    parsedSide.set(key, { payload, value });
+    return value;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeSide(key: string, value: unknown | null) {
+  if (!key.startsWith("settings:") || CORE_SETTINGS.has(key)) throw new Error(`Not a side record: ${key}`);
+  const side = { ...get().side };
+  if (value == null) delete side[key];
+  else side[key] = JSON.stringify(value);
+  set({ side });
+  void saveData();
+}
+
 export function deleteNote(id: string) {
-  set({ notes: get().notes.filter((n) => n.id !== id) });
+  // Its version history goes with it.
+  const side = { ...get().side };
+  delete side[`settings:versions:${id}`];
+  set({ notes: get().notes.filter((n) => n.id !== id), side });
   void saveData();
 }
 
@@ -1200,6 +1236,7 @@ export async function clearWorkspace() {
     folders: [],
     tags: [],
     settings: defaultSettings(),
+    side: {},
   });
   const stored = await saveData();
   // Signed in, the cloud is what counts (even if the device copy failed).

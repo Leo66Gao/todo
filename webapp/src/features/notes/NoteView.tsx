@@ -15,7 +15,8 @@ import { cn } from "@/ui/cn";
 import { Menu, Popover, promptDialog } from "@/ui/overlay";
 import { noteHref, RichText, type NoteLinks } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
-import { editedLabel, removeNote } from "./noteActions";
+import { editedLabel, recordVersion, removeNote } from "./noteActions";
+import { VersionHistory } from "./VersionHistory";
 
 export function NoteView({ id }: { id: string }) {
   const note = useWorkspace((s) => s.notes.find((n) => n.id === id));
@@ -56,6 +57,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   }
 
   const [quill, setQuill] = useState<QuillType | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const noteLinks = useMemo<NoteLinks>(
     () => ({
       search: (query) => {
@@ -112,6 +114,8 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
       return;
     }
     draft.current = {};
+    // The note as it was, at most every ten minutes.
+    recordVersion(current);
     updateNote(next);
     setSavedTitle(next.title);
     setEditingTitle(false);
@@ -229,6 +233,8 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
                 </IconButton>
               }
               items={[
+                { label: "Version history…", onSelect: () => { persist(); setHistoryOpen(true); } },
+                { separator: true },
                 { label: "Export as Word document", onSelect: () => void exportDocx() },
                 { label: "Print or save as PDF…", onSelect: () => void exportPdf() },
                 { separator: true },
@@ -285,6 +291,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
           <Backlinks note={note} />
         </article>
       </div>
+      <VersionHistory noteId={note.id} open={historyOpen} onOpenChange={setHistoryOpen} />
     </>
   );
 }
