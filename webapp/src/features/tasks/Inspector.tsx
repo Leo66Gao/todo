@@ -567,7 +567,7 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
               type="button"
               className={cn(
                 "flex h-6 shrink-0 items-center gap-1 rounded-[6px] px-1.5 text-xs transition-colors hover:bg-fill-strong",
-                sub.date ? "text-ink-2" : "text-ink-3 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100",
+                sub.date ? "text-ink-2" : "text-ink-3 hover-reveal opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100",
               )}
             >
               <CalendarDays className="size-3" />
@@ -596,7 +596,7 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
       <Menu
         align="end"
         trigger={
-          <IconButton label="Subtask options" size="sm" className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100">
+          <IconButton label="Subtask options" size="sm" className="hover-reveal opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100">
             <ChevronDown className="size-3.5" />
           </IconButton>
         }

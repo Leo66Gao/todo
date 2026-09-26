@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 export type Route =
   | { view: "today" }
@@ -54,14 +54,17 @@ export function useRoute(): Route {
   return parseRoute(pathname ?? "/", new URLSearchParams(params?.toString() ?? ""));
 }
 
+/**
+ * Every route renders the same client shell, so switching views only needs a
+ * URL change. The native history API updates `usePathname` synchronously
+ * without the router fetching the next page's payload, which otherwise stalls
+ * a navigation whenever the prefetch cache has gone stale.
+ */
 export function useNavigate() {
-  const router = useRouter();
-  return useCallback(
-    (route: Route, opts?: { replace?: boolean }) => {
-      const href = routeHref(route);
-      if (opts?.replace) router.replace(href, { scroll: false });
-      else router.push(href, { scroll: false });
-    },
-    [router],
-  );
+  return useCallback((route: Route, opts?: { replace?: boolean }) => {
+    const href = routeHref(route);
+    if (href === window.location.pathname + window.location.search) return;
+    if (opts?.replace) window.history.replaceState(null, "", href);
+    else window.history.pushState(null, "", href);
+  }, []);
 }

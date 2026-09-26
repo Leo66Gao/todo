@@ -74,7 +74,7 @@ export function WeekView() {
                 <ChevronRight className="size-4" />
               </IconButton>
             </div>
-            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: sameDay(start, startOfWeek(today())) ? today() : start })}>
+            <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: sameDay(start, startOfWeek(today())) ? today() : start })}>
               <span className="max-sm:hidden">New task</span>
             </Button>
           </>

@@ -80,7 +80,7 @@ export function SubjectView({ id }: { id: string }) {
             <Button variant="secondary" onClick={() => createNote(navigate, { subjectId: id, folderId: folderId === "all" ? null : folderId })}>
               New note
             </Button>
-            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ projectId: id })}>
+            <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ projectId: id })}>
               <span className="max-sm:hidden">New task</span>
             </Button>
             <Menu

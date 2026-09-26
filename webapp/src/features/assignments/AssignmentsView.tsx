@@ -72,7 +72,7 @@ export function AssignmentsView() {
                 { value: "all", label: "All" },
               ]}
             />
-            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ type: "assignment", durationMinutes: 120 })}>
+            <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ type: "assignment", durationMinutes: 120 })}>
               <span className="max-sm:hidden">New assignment</span>
             </Button>
           </>

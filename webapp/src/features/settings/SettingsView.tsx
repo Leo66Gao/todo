@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis } from "./restrict";
@@ -156,7 +156,10 @@ function AppearanceSection() {
 
 function TaskFormSection() {
   const settings = useWorkspace((s) => s.settings);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
   const onDragEnd = (e: DragEndEvent) => {
     if (!e.over || e.active.id === e.over.id) return;
     const from = settings.fieldOrder.indexOf(e.active.id as FieldId);
@@ -305,7 +308,7 @@ function LabelsSection() {
               type="button"
               aria-label={`Edit ${label.name}`}
               onClick={() => void edit(label)}
-              className="flex size-7 items-center justify-center rounded-[6px] text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-fill hover:text-ink focus-visible:opacity-100"
+              className="flex size-7 items-center justify-center rounded-[6px] text-ink-3 hover-reveal opacity-0 transition-opacity group-hover:opacity-100 hover:bg-fill hover:text-ink focus-visible:opacity-100"
             >
               <Pencil className="size-3.5" />
             </button>
@@ -313,7 +316,7 @@ function LabelsSection() {
               type="button"
               aria-label={`Delete ${label.name}`}
               onClick={() => void remove(label)}
-              className="flex size-7 items-center justify-center rounded-[6px] text-ink-3 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
+              className="flex size-7 items-center justify-center rounded-[6px] text-ink-3 hover-reveal opacity-0 transition-opacity group-hover:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
             >
               <Trash2 className="size-3.5" />
             </button>

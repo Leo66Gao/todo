@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { ContextMenu as RCM, Dialog, DropdownMenu as RDM, Popover as RPopover, Tooltip as RTooltip } from "radix-ui";
 import { Check, ChevronRight } from "lucide-react";
 import { create } from "zustand";
 import { cn } from "./cn";
 import { Button, Kbd } from "./controls";
 import { springs } from "./motion";
+import { PHONE, useMedia } from "./useMedia";
 
 // ---------------------------------------------------------------------------
 // Modal
@@ -30,6 +31,8 @@ export function Modal({
   /** Return false to keep Radix from focusing the first control. */
   initialFocus?: (event: Event) => void;
 }) {
+  const phone = useMedia(PHONE);
+  const sheetDrag = useDragControls();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -54,16 +57,43 @@ export function Modal({
                 <motion.div
                   className={cn(
                     "pointer-events-auto flex max-h-[min(86vh,760px)] w-full flex-col overflow-hidden rounded-modal bg-raised shadow-modal outline-none",
-                    "max-sm:max-h-[92vh] max-sm:rounded-b-none",
+                    "max-sm:max-h-[92dvh] max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)]",
                     className,
                   )}
                   style={{ maxWidth: width }}
-                  initial={{ opacity: 0, scale: 0.965, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: 4, transition: { duration: 0.13, ease: [0.4, 0, 1, 1] } }}
-                  transition={springs.modal}
+                  {...(phone
+                    ? {
+                        // A bottom sheet: slides up, and drags down to close.
+                        initial: { y: "100%" },
+                        animate: { y: 0 },
+                        exit: { y: "100%", transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } },
+                        transition: springs.panel,
+                        drag: "y" as const,
+                        dragListener: false,
+                        dragControls: sheetDrag,
+                        dragConstraints: { top: 0, bottom: 0 },
+                        dragElastic: { top: 0, bottom: 0.8 },
+                        onDragEnd: (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
+                          if (info.offset.y > 110 || info.velocity.y > 600) onOpenChange(false);
+                        },
+                      }
+                    : {
+                        initial: { opacity: 0, scale: 0.965, y: 10 },
+                        animate: { opacity: 1, scale: 1, y: 0 },
+                        exit: { opacity: 0, scale: 0.98, y: 4, transition: { duration: 0.13, ease: [0.4, 0, 1, 1] } },
+                        transition: springs.modal,
+                      })}
                 >
                   <Dialog.Title className="sr-only">{label}</Dialog.Title>
+                  {phone && (
+                    <div
+                      aria-hidden
+                      onPointerDown={(e) => sheetDrag.start(e)}
+                      className="flex h-5 shrink-0 cursor-grab touch-none items-end justify-center"
+                    >
+                      <span className="h-[5px] w-9 rounded-full bg-line-strong" />
+                    </div>
+                  )}
                   {children}
                 </motion.div>
               </Dialog.Content>

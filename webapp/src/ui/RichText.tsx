@@ -207,9 +207,9 @@ export function RichText({
     toolbar === "full" ? [INLINE, HEADINGS, LISTS, BLOCKS] : toolbar === "compact" ? [INLINE, LISTS] : [];
 
   const bar = groups.length > 0 && (
-    <div className="flex flex-wrap items-center gap-0.5">
+    <div className="flex flex-wrap items-center gap-0.5 max-sm:scrollbar-none max-sm:flex-nowrap max-sm:overflow-x-auto">
       {groups.map((group, gi) => (
-        <div key={gi} className={cn("flex items-center gap-0.5", gi > 0 && "ml-1 border-l border-line pl-1.5")}>
+        <div key={gi} className={cn("flex shrink-0 items-center gap-0.5", gi > 0 && "ml-1 border-l border-line pl-1.5")}>
           {group.map((tool) => (
             <Tooltip key={tool.key} label={tool.label} shortcut={tool.shortcut}>
               <button

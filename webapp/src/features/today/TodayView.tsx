@@ -69,7 +69,7 @@ export function TodayView() {
               </Tooltip>
             </div>
             <Tooltip label="New task" shortcut={["N"]}>
-              <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: day })}>
+              <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: day })}>
                 <span className="max-sm:hidden">New task</span>
               </Button>
             </Tooltip>
@@ -149,7 +149,7 @@ export function TodayView() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="mt-0.5 opacity-0 group-hover:opacity-100"
+                                  className="mt-0.5 hover-reveal opacity-0 group-hover:opacity-100"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     moveTask(t, today());
@@ -184,7 +184,13 @@ export function TodayView() {
                     </Section>
                   )}
                   {done.length > 0 && (
-                    <Section title="Completed" count={done.length} collapsible defaultOpen={open === 0}>
+                    <Section
+                      key={day.getTime()}
+                      title="Completed"
+                      count={done.length}
+                      collapsible
+                      defaultOpen={day.getTime() < today().getTime()}
+                    >
                       <TaskList tasks={done} />
                     </Section>
                   )}

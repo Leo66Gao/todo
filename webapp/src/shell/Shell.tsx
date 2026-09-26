@@ -2,11 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   rectIntersection,
   useSensor,
@@ -43,6 +43,7 @@ import { springs } from "@/ui/motion";
 import { AskHost, TooltipProvider } from "@/ui/overlay";
 import { toast, ToastHost } from "@/ui/toast";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
+import { MobileAddButton, MobileTabBar } from "./MobileBar";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
 
@@ -106,19 +107,23 @@ const collision: CollisionDetection = (args) => {
 function Workspace() {
   const route = useRoute();
   const navigate = useNavigate();
-  const router = useRouter();
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
   const [dragging, setDragging] = useState<Task | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  // Mouse drags start after a small move; on touch screens a long press starts
+  // a drag so ordinary swipes keep scrolling.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
+  );
 
   useKeyboard(route, navigate);
 
+  // A new screen starts without a selected task (the open panel keeps its own).
+  const routeKey = routeHref(route);
   useEffect(() => {
-    for (const view of ["today", "week", "calendar", "assignments", "subjects", "notes", "settings"] as const) {
-      router.prefetch(routeHref({ view }));
-    }
-  }, [router]);
+    ui.set({ selectedId: ui.get().inspectorId });
+  }, [routeKey]);
 
   const onDragStart = (e: DragStartEvent) => {
     const data = e.active.data.current as TaskDragData | undefined;
@@ -229,6 +234,8 @@ function Workspace() {
               route={route}
             />
           </div>
+          <MobileAddButton route={route} navigate={navigate} />
+          <MobileTabBar route={route} navigate={navigate} />
         </main>
 
         <InspectorPanel />
@@ -283,7 +290,7 @@ export function PageHeader({
   const collapsed = useUI((s) => s.sidebarCollapsed);
   return (
     <header className={cn("flex h-[60px] shrink-0 items-center gap-3 px-6 max-sm:px-4", className)}>
-      <IconButton label="Show sidebar" className={cn("-ml-1.5 lg:hidden")} onClick={() => ui.set({ sidebarOpen: true })}>
+      <IconButton label="Show sidebar" className="-ml-1.5 max-md:hidden lg:hidden" onClick={() => ui.set({ sidebarOpen: true })}>
         <MenuIcon className="size-[17px]" />
       </IconButton>
       {collapsed && (
@@ -330,7 +337,11 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
 
       const state = ui.get();
       const all = useWorkspace.getState().tasks;
-      const selected = state.selectedId;
+      // Keys only act on a selected task that is on screen right now.
+      const selected =
+        state.selectedId && (state.visibleOrder.includes(state.selectedId) || state.inspectorId === state.selectedId)
+          ? state.selectedId
+          : null;
       const findSelected = (): Task | undefined =>
         selected ? [...all, ...milestonesOf(all)].find((t) => t.id === selected) : undefined;
 

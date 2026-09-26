@@ -1,14 +1,14 @@
 "use client";
 
 import { memo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useTransform } from "motion/react";
 import { useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
-import { dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
+import { addDays, dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
 import { isEmptyContent } from "@/lib/delta";
 import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
@@ -16,9 +16,10 @@ import { toggleSubtask, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
-import { editTask, openTask, taskMenu } from "./actions";
+import { editTask, moveTask, openTask, taskMenu } from "./actions";
 import { priorityColor, useLabelMap, useProjectMap } from "./meta";
 import { TaskCheck } from "./TaskCheck";
+import { useSwipe } from "./useSwipe";
 
 export interface TaskDragData {
   type: "task";
@@ -119,7 +120,12 @@ const TaskRowView = memo(function TaskRowView({
     }, 420);
   };
 
+  const swipe = useSwipe(toggle, () => moveTask(task, addDays(task.date, 1)));
+  const revealLeft = useTransform(swipe.x, (v) => Math.max(0, v));
+  const revealRight = useTransform(swipe.x, (v) => Math.max(0, -v));
+
   const onClick = (e: React.MouseEvent) => {
+    if (swipe.consumeSwipe()) return;
     if (e.defaultPrevented) return;
     const now = performance.now();
     if (now - lastClick.current < 320) {
@@ -199,19 +205,55 @@ const TaskRowView = memo(function TaskRowView({
     meta.push(<FileText key="notes" className="size-3 text-ink-3" aria-label="Has notes" />);
   }
 
+  const dragTouchStart = dragProps?.onTouchStart as ((e: React.TouchEvent) => void) | undefined;
+
   return (
     <div ref={dragRef} style={dragStyle} className={cn("relative", dragging && "z-10 opacity-40")}>
+      <div className="relative overflow-hidden rounded-[9px]">
+        {/* Revealed behind the row while it is swiped (touch screens). */}
+        <motion.div
+          aria-hidden
+          style={{ width: revealLeft }}
+          className={cn(
+            "absolute inset-y-0 left-0 flex items-center overflow-hidden pl-4 transition-colors duration-150",
+            swipe.armed === "right" ? "bg-ink text-on-ink" : "bg-fill text-ink-3",
+          )}
+        >
+          <Check className="size-5 shrink-0" strokeWidth={2.4} />
+        </motion.div>
+        <motion.div
+          aria-hidden
+          style={{ width: revealRight }}
+          className={cn(
+            "absolute inset-y-0 right-0 flex items-center justify-end overflow-hidden pr-3 text-xs font-medium whitespace-nowrap transition-colors duration-150",
+            swipe.armed === "left" ? "bg-ink text-on-ink" : "bg-fill text-ink-3",
+          )}
+        >
+          Tomorrow
+          <ArrowRight className="ml-1 size-4 shrink-0" />
+        </motion.div>
       <ContextMenu items={() => taskMenu(task, navigate)}>
-        <div
+        <motion.div
           {...dragProps}
+          {...swipe.handlers}
+          onTouchStart={(e: React.TouchEvent) => {
+            dragTouchStart?.(e);
+            swipe.handlers.onTouchStart(e);
+          }}
+          style={{ x: swipe.x }}
           role="button"
           tabIndex={-1}
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
-            "group relative flex items-start gap-1.5 rounded-[9px] pr-2.5 pl-1 outline-none transition-colors duration-100",
+            "group relative flex touch-pan-y items-start gap-1.5 rounded-[9px] pr-2.5 pl-1 outline-none transition-colors duration-100",
             compact ? "py-1" : "py-[7px]",
-            inspected ? "bg-accent-soft" : selected ? "bg-fill" : "hover:bg-fill/70",
+            // Opaque fills, so the swipe panels underneath stay hidden.
+            inspected
+              ? "bg-canvas bg-[image:linear-gradient(var(--accent-soft),var(--accent-soft))]"
+              : selected
+                ? "bg-fill"
+                : "bg-canvas hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
           )}
         >
           <TaskCheck checked={done} color={check} onToggle={toggle} className="-my-0.5" />
@@ -250,8 +292,9 @@ const TaskRowView = memo(function TaskRowView({
             </span>
           )}
           {trailing}
-        </div>
+        </motion.div>
       </ContextMenu>
+      </div>
       <AnimatePresence initial={false}>
         {expanded && task.subtasks.length > 0 && (
           <motion.div

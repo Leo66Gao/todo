@@ -28,7 +28,7 @@ export function ToastHost() {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-5 z-[80] flex flex-col items-center gap-2 max-sm:bottom-[88px]"
+      className="pointer-events-none fixed inset-x-0 bottom-5 z-[80] flex flex-col items-center gap-2 max-md:bottom-[calc(54px+env(safe-area-inset-bottom)+84px)]"
     >
       <AnimatePresence initial={false}>
         {toasts.map((t) => (

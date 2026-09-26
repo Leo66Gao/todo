@@ -12,6 +12,7 @@
   --sidebar: #f7f7f8;
   --raised: #ffffff;
   --fill: #f2f2f4;
+  --row-hover: color-mix(in srgb, var(--fill) 70%, transparent);
   --fill-strong: #e9e9ec;
   --line: #ececef;
   --line-strong: #dedee2;
@@ -92,6 +93,10 @@
   --radius-ctl: 8px;
   --radius-pop: 12px;
   --radius-modal: 16px;
+}
+
+/* Not inlined, so the phone media query below can re-scale them. */
+@theme {
   /* Type scale (px): 11.5 / 12.5 / 13.5 / 15 / 18 / 22 */
   --text-2xs: 11.5px;
   --text-2xs--line-height: 16px;
@@ -107,18 +112,66 @@
   --text-xl--line-height: 28px;
 }
 
+/* Phones: a step up in type so it reads comfortably at arm's length. */
+@media (max-width: 767px) {
+  :root {
+    --text-2xs: 12px;
+    --text-2xs--line-height: 16px;
+    --text-xs: 13px;
+    --text-xs--line-height: 18px;
+    --text-sm: 15px;
+    --text-sm--line-height: 21px;
+    --text-base: 16px;
+    --text-base--line-height: 22px;
+  }
+}
+
 @layer base {
 html,
 body {
   height: 100%;
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior: none;
+}
+
+/* Taps respond at once (no double-tap-zoom wait). */
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Controls that appear on hover are always shown where there is no hover. */
+@media (hover: none) {
+  .hover-reveal {
+    opacity: 1 !important;
+  }
+  .hover-only {
+    display: none !important;
+  }
+}
+
+/* iOS zooms into any field under 16px; keep them at least that on touch screens. */
+@media (pointer: coarse) {
+  :is(input, textarea, select):not([class*="text-lg"], [class*="text-xl"]),
+  .ql-editor {
+    font-size: 16px !important;
+  }
+}
+
 body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 13.5px;
-  line-height: 19px;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -346,4 +399,11 @@ textarea {
 }
 .tip[data-state="closed"] {
   animation: fade-out 80ms var(--ease-in) forwards;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

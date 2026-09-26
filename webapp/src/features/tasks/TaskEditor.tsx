@@ -335,7 +335,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       </div>
       <div className="scroll-area min-h-0 flex-1 space-y-3.5 border-t border-line px-5 py-4">{rows}</div>
       <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
-        <span className="flex items-center gap-1 text-2xs text-ink-3 max-sm:hidden">
+        <span className="hover-only flex items-center gap-1 text-2xs text-ink-3 max-sm:hidden">
           <Kbd>⌘</Kbd>
           <Kbd>↩</Kbd>
           <span className="ml-1">to save</span>

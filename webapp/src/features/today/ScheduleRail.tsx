@@ -105,7 +105,13 @@ export function ScheduleRail({ day, tasks }: { day: Date; tasks: Task[] }) {
         <div className="relative my-3" style={{ height: hours.length * HOUR }}>
           {hours.map((h) => (
             <div key={h} className="absolute inset-x-0 flex items-start" style={{ top: (h - first) * HOUR }}>
-              <span className="w-12 -translate-y-1/2 pr-2 text-right text-2xs text-ink-3 tnum">
+              <span
+                className={cn(
+                  "w-12 -translate-y-1/2 pr-2 text-right text-2xs text-ink-3 tnum",
+                  // Make room for the current-time label.
+                  isToday && Math.abs(h * 60 - minutesOf(now)) < 15 && "opacity-0",
+                )}
+              >
                 {h === 24 ? "" : `${String(h).padStart(2, "0")}.00`}
               </span>
               <span className="mr-3 h-px flex-1 bg-line" />

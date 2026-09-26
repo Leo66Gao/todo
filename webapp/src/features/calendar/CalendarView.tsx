@@ -6,7 +6,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { format } from "date-fns";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
-import type { Task } from "@/lib/model";
+import type { Project, Task } from "@/lib/model";
 import { addDays, dayKey, formatClock, relativeDay, sameDay, startOfWeek, today } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
@@ -73,14 +73,14 @@ export function CalendarView() {
                 <ChevronRight className="size-4" />
               </IconButton>
             </div>
-            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: selected })}>
+            <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: selected })}>
               <span className="max-sm:hidden">New task</span>
             </Button>
           </>
         }
       />
       <div className="flex min-h-0 flex-1 border-t border-line max-xl:flex-col">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col max-xl:min-h-[520px]">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col max-xl:min-h-[520px] max-md:min-h-0 max-md:flex-none">
           <div className="grid shrink-0 grid-cols-7 border-b border-line">
             {WEEKDAYS.map((d) => (
               <span key={d} className="px-2.5 py-2 text-2xs font-medium text-ink-3">
@@ -88,7 +88,7 @@ export function CalendarView() {
               </span>
             ))}
           </div>
-          <div className="relative min-h-0 flex-1 overflow-hidden">
+          <div className="relative min-h-0 flex-1 overflow-hidden max-md:h-[300px] max-md:flex-none">
             <AnimatePresence initial={false} custom={direction} mode="popLayout">
               <motion.div
                 key={month.getTime()}
@@ -132,7 +132,7 @@ function MonthPicker({ month, onPick }: { month: Date; onPick: (d: Date) => void
       trigger={
         <button type="button" className="-mx-1.5 flex items-center gap-1.5 rounded-ctl px-1.5 transition-colors hover:bg-fill">
           {format(month, "MMMM")}
-          <span className="font-normal text-ink-3">{month.getFullYear()}</span>
+          <span className="font-normal text-ink-3 max-sm:hidden">{month.getFullYear()}</span>
           <ChevronDown className="size-4 text-ink-3" />
         </button>
       }
@@ -190,6 +190,7 @@ function MonthCell({
   onPick: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `cal-${date.getTime()}`, data: { type: "day", date } });
+  const projects = useProjectMap();
   const lastClick = useRef(0);
   const isToday = sameDay(date, today());
   const visible = tasks.slice(0, 3);
@@ -204,27 +205,46 @@ function MonthCell({
         onPick();
       }}
       className={cn(
-        "relative flex min-h-0 flex-col gap-px overflow-hidden border-r border-b border-line px-1 pt-1 pb-1 transition-colors duration-100 [&:nth-child(7n)]:border-r-0",
+        "relative flex min-h-0 flex-col gap-px overflow-hidden border-r border-b border-line px-1 pt-1 pb-1 transition-colors duration-100 [&:nth-child(7n)]:border-r-0 max-md:gap-0.5 max-md:border-r-0 max-md:border-b-0 max-md:pt-0.5",
         !inMonth && "bg-fill/35",
         isOver ? "bg-accent-soft" : selected ? "bg-fill/70" : "hover:bg-fill/40",
       )}
     >
-      <div className="flex h-6 shrink-0 items-center px-1">
+      <div className="flex h-6 shrink-0 items-center px-1 max-md:h-8 max-md:justify-center max-md:px-0">
         <span
           className={cn(
-            "flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 text-xs font-medium tnum",
+            "flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 text-xs font-medium tnum max-md:size-7 max-md:px-0 max-md:text-sm",
             isToday ? "bg-accent text-white" : selected ? "bg-ink text-on-ink" : inMonth ? "text-ink-2" : "text-ink-4",
           )}
         >
-          {date.getDate() === 1 ? format(date, "d MMM") : date.getDate()}
+          <span className="max-md:hidden">{date.getDate() === 1 ? format(date, "d MMM") : date.getDate()}</span>
+          <span className="md:hidden">{date.getDate()}</span>
         </span>
       </div>
-      {visible.map((t) => (
-        <CalendarChip key={t.id} task={t} />
-      ))}
-      {more > 0 && <span className="px-1.5 text-2xs text-ink-3">{more} more</span>}
+      {/* Phones: a dot per task (up to three); the agenda below lists them. */}
+      <div className="flex h-1.5 justify-center gap-[3px] md:hidden">
+        {tasks.slice(0, 3).map((t) => (
+          <span
+            key={t.id}
+            className={cn("size-[5px] rounded-full", t.isDone ? "bg-ink-4" : "bg-ink-2")}
+            style={t.isDone ? undefined : { background: dotColor(t, projects) }}
+          />
+        ))}
+      </div>
+      <div className="contents max-md:hidden">
+        {visible.map((t) => (
+          <CalendarChip key={t.id} task={t} />
+        ))}
+        {more > 0 && <span className="px-1.5 text-2xs text-ink-3">{more} more</span>}
+      </div>
     </div>
   );
+}
+
+function dotColor(task: Task, projects: Map<string, Project>) {
+  if (task.type === "assignment") return "var(--accent)";
+  const project = task.projectId ? projects.get(task.projectId) : undefined;
+  return project ? argbToCss(project.colorValue) : "var(--ink-3)";
 }
 
 function CalendarChip({ task }: { task: Task }) {
@@ -293,7 +313,13 @@ function Agenda({ day, all }: { day: Date; all: Task[] }) {
             </Section>
           )}
           {done.length > 0 && (
-            <Section title="Completed" count={done.length} collapsible defaultOpen={false}>
+            <Section
+              key={day.getTime()}
+              title="Completed"
+              count={done.length}
+              collapsible
+              defaultOpen={day.getTime() < today().getTime()}
+            >
               <TaskList tasks={done} />
             </Section>
           )}

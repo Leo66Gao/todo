@@ -47,7 +47,7 @@ export const FieldButton = forwardRef<
           type="button"
           aria-label="Clear"
           onClick={onClear}
-          className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-[6px] text-ink-3 opacity-0 transition-opacity group-hover/field:opacity-100 hover:bg-line-strong/60 hover:text-ink focus-visible:opacity-100"
+          className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-[6px] text-ink-3 hover-reveal opacity-0 transition-opacity group-hover/field:opacity-100 hover:bg-line-strong/60 hover:text-ink focus-visible:opacity-100"
         >
           <X className="size-3.5" />
         </button>

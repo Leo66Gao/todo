@@ -47,6 +47,7 @@ export function NotesView() {
         actions={
           <Button
             variant="primary"
+            className="max-md:hidden"
             icon={<Plus className="size-4" />}
             onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}
           >

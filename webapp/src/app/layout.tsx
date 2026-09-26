@@ -12,14 +12,19 @@ const ui = Figtree({ subsets: ["latin"], variable: "--font-ui", display: "swap" 
 export const metadata: Metadata = {
   title: "Todo",
   description: "Tasks, assignments, subjects and notes — synced with the Todo phone app.",
-  icons: { icon: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
+  manifest: "/manifest.webmanifest",
+  // Added to the home screen, it opens full screen like an app.
+  appleWebApp: { capable: true, title: "Todo", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f7f8" },
-    { media: "(prefers-color-scheme: dark)", color: "#1b1b1e" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#161618" },
   ],
+  // Content runs under the notch and home indicator; safe-area insets pad it.
+  viewportFit: "cover",
 };
 
 // Applies the saved appearance before first paint so dark mode never flashes.

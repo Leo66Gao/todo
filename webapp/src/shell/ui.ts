@@ -66,7 +66,9 @@ export const ui = {
     useUI.setState({ inspectorId: taskId, selectedId: taskId });
   },
   closeInspector() {
-    useUI.setState({ inspectorId: null });
+    // Closing the panel also lets go of the task, so keys like Space
+    // can't act on something that is no longer in view.
+    useUI.setState({ inspectorId: null, selectedId: null });
   },
   select(taskId: string | null) {
     useUI.setState({ selectedId: taskId });
@@ -80,3 +82,13 @@ export const ui = {
     useUI.setState({ sidebarCollapsed: getLocal("sidebarCollapsed", false) });
   },
 };
+
+// Moving to another day, week or month drops the selection.
+useUI.subscribe((state, prev) => {
+  if (
+    state.selectedId &&
+    (state.day !== prev.day || state.weekOf !== prev.weekOf || state.calendarDay !== prev.calendarDay)
+  ) {
+    useUI.setState({ selectedId: null });
+  }
+});
