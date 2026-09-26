@@ -8,6 +8,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis } from "./restrict";
 import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
+import { setThemeMode, useAppearance } from "@/lib/appearance";
 import { firebaseConfigured, googleWebClientId } from "@/lib/firebase";
 import { DEFAULT_FIELD_ORDER, FIELD_VISIBILITY_KEY, uuid, type FieldId, type TaskLabel } from "@/lib/model";
 import { PageHeader } from "@/shell/Shell";
@@ -18,7 +19,6 @@ import {
   connectCalendar,
   disconnectCalendar,
   importLocalData,
-  setThemeMode,
   signInWithGoogle,
   signOut,
   updateSettings,
@@ -139,14 +139,14 @@ function AccountSection() {
 }
 
 function AppearanceSection() {
-  const mode = useWorkspace((s) => s.settings.themeMode);
+  const mode = useAppearance((s) => s.themeMode);
   const glass = useGlassPrefs((s) => s.enabled);
   const blur = useGlassPrefs((s) => s.blur);
   const frost = useGlassPrefs((s) => s.frost);
   const radius = useGlassPrefs((s) => s.radius);
   const pointerLight = useGlassPrefs((s) => s.pointerLight);
   return (
-    <Group title="Appearance">
+    <Group title="Appearance" description="Saved on this device only.">
       <Item title="Theme" detail={glass ? "Glass panels over a background of your choice." : "The standard, quiet look."}>
         <Segmented
           size="sm"

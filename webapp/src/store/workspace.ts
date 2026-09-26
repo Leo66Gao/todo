@@ -44,7 +44,6 @@ import {
   type SubjectFolder,
   type Subtask,
   type Task,
-  type ThemeMode,
   type WorkspaceSettings,
 } from "@/lib/model";
 import * as prefs from "@/lib/prefs";
@@ -1142,11 +1141,6 @@ export function deleteFolder(id: string) {
 export function updateSettings(settings: WorkspaceSettings) {
   set({ settings });
   void saveData();
-}
-
-export function setThemeMode(mode: ThemeMode) {
-  if (get().settings.themeMode === mode) return;
-  updateSettings({ ...get().settings, themeMode: mode });
 }
 
 export async function clearWorkspace() {

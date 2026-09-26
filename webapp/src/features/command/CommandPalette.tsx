@@ -17,6 +17,7 @@ import {
   SquareCheck,
 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
+import { setThemeMode, useAppearance } from "@/lib/appearance";
 import { plainText } from "@/lib/delta";
 import { relativeDay } from "@/lib/time";
 import { useNavigate, type Route } from "@/shell/nav";
@@ -25,7 +26,7 @@ import { openTask } from "@/features/tasks/actions";
 import { useAllTasks } from "@/features/tasks/meta";
 import { createNote } from "@/features/notes/noteActions";
 import { createSubject } from "@/features/subjects/subjectActions";
-import { setThemeMode, useWorkspace } from "@/store/workspace";
+import { useWorkspace } from "@/store/workspace";
 import { Kbd } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Modal } from "@/ui/overlay";
@@ -66,7 +67,7 @@ function Palette() {
   const all = useAllTasks();
   const projects = useWorkspace((s) => s.projects);
   const notes = useWorkspace((s) => s.notes);
-  const themeMode = useWorkspace((s) => s.settings.themeMode);
+  const themeMode = useAppearance((s) => s.themeMode);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);

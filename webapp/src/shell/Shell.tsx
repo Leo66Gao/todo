@@ -17,7 +17,7 @@ import {
 } from "@dnd-kit/core";
 import { Menu as MenuIcon } from "lucide-react";
 import type { Task } from "@/lib/model";
-import { setLocal } from "@/lib/prefs";
+import { restoreAppearance, useAppearance } from "@/lib/appearance";
 import { addDays, relativeDay, sameDay, today } from "@/lib/time";
 import { moveTask, openTask, removeTask } from "@/features/tasks/actions";
 import { TaskDragPreview, type TaskDragData } from "@/features/tasks/TaskRow";
@@ -52,21 +52,21 @@ import { ui, useUI } from "./ui";
 
 export function Shell() {
   const isLoading = useWorkspace((s) => s.isLoading);
-  const themeMode = useWorkspace((s) => s.settings.themeMode);
+  const themeMode = useAppearance((s) => s.themeMode);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     startWorkspace();
     ui.restore();
+    restoreAppearance();
     restoreGlassPrefs();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
-  // Appearance follows the synced workspace setting.
+  // Appearance follows this device's preference, including system changes.
   useEffect(() => {
     if (!mounted) return;
-    setLocal("theme", themeMode);
     const media = matchMedia("(prefers-color-scheme: dark)");
     const apply = () =>
       document.documentElement.classList.toggle(
