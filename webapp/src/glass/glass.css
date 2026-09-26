@@ -139,14 +139,15 @@ html.glass [data-surface="main-slab"] {
 html.glass [data-surface="main-slab"] {
   overflow: hidden;
 }
-/* The notes page is paper: solid, with a soft lift off the background. */
+/* Notes keep a readable paper surface while letting the background show through. */
 html.glass [data-paper] {
-  background: #ffffff;
+  background: rgb(255 255 255 / 0.78);
+  color: var(--ink);
   box-shadow: 0 0 0 0.5px rgb(10 20 40 / 0.06), 0 18px 44px -18px rgb(10 20 40 / 0.35);
   transition: border-radius 0.45s cubic-bezier(0.32, 0.72, 0, 1), background-color 0.2s;
 }
 html.glass.dark [data-paper] {
-  background: #1c1c1f;
+  background: rgb(28 28 31 / 0.78);
   box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 18px 44px -18px rgb(0 0 0 / 0.7);
 }
 /* Light text is for glass over dark backgrounds; paper keeps dark ink. */
