@@ -10,7 +10,7 @@ const W = 132;
 const H = 88;
 
 function shape(partial: Partial<Shape> & Pick<Shape, "x" | "y" | "w" | "h" | "radius" | "kind">): Shape {
-  return { hover: 0, press: 0, opacity: 1, light: [-0.55, 0.835], glow: 1, clip: null, ...partial };
+  return { hover: 0, press: 0, opacity: 1, light: [-0.55, 0.835], clip: null, ...partial };
 }
 
 /**

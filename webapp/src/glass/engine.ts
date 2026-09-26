@@ -33,8 +33,6 @@ export interface Shape {
   opacity: number;
   /** Direction towards the light for this shape (GL space, y up), eased over time. */
   light: [number, number];
-  /** Highlight strength: 1 at rest, brighter with the pointer near, fainter with it far. */
-  glow: number;
   clip: { x: number; y: number; w: number; h: number } | null;
 }
 
@@ -330,7 +328,7 @@ export class GlassEngine {
       const m = this.material(s.kind, Math.min(hw, hh), radius, look);
       shape.set([radius, m.bezel, m.height, m.shadowBlur * (1 + s.hover * 0.25)], i * 4);
       tint.set(m.tint, i * 4);
-      extra.set([m.legible, s.light[0], s.light[1], s.glow], i * 4);
+      extra.set([m.legible, s.light[0], s.light[1], 0], i * 4);
       optic.set([m.frost, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
       state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
@@ -450,10 +448,9 @@ export class GlassEngine {
    */
   render(level1: Shape[], level2: Shape[], pointer: [number, number, number]) {
     if (!this.look || this.width === 0) return false;
-    // The pointer only reaches the pixels through a press (the light direction
-    // travels with each shape), so it only counts while something is pressed.
+    // The pointer lights the rims near it, and a press lights the glass under it.
     const pressed = level1.some((s) => s.press > 0) || level2.some((s) => s.press > 0);
-    const at = pressed ? pointer.join(",") : "";
+    const at = pressed || pointer[2] > 0 ? pointer.join(",") : "";
     const key1 = JSON.stringify(level1) + at;
     const key2 = JSON.stringify(level2) + at;
     let bgChanged = this.bgDirty;
@@ -556,7 +553,7 @@ interface Motion {
   /** Eased light direction (GL space). */
   lx: number;
   ly: number;
-  /** Eased pointer proximity, 0 far … 1 over the shape. */
+  /** Eased pull of the pointer on the light, 0 far … 1 over the shape. */
   near: number;
 }
 
@@ -660,15 +657,21 @@ export class ShapeTracker {
     const opacity = moving ? 0 : el.dataset.taskCard === "done" ? 0.5 : 1;
     m.opacity = approach(m.opacity, opacity, moving ? 0.5 : 0.2);
     if (m.opacity !== opacity || (m.hover !== 0 && m.hover !== 1) || (m.press !== 0 && m.press !== 1)) this.animating = true;
-    // The highlight leans towards a nearby pointer. It glides round the rim
-    // rather than jumping when the pointer crosses to the other side.
+    // The highlight leans towards a nearby pointer: fully over the shape, less
+    // as the pointer moves away. It glides round the rim rather than jumping
+    // when the pointer crosses to the other side.
     {
+      const gapX = Math.max(r.left - pointer.x, pointer.x - r.right, 0);
+      const gapY = Math.max(r.top - pointer.y, pointer.y - r.bottom, 0);
+      const near = pointer.influence * Math.exp(-Math.hypot(gapX, gapY) / 200);
+      m.near = Math.abs(near - m.near) < 0.004 ? near : m.near + (near - m.near) * 0.08;
+      if (m.near !== near) this.animating = true;
       const cx = r.x + r.width / 2;
       const cy = r.y + r.height / 2;
       const dx = pointer.x - cx;
       const dy = cy - pointer.y;
       const len = Math.hypot(dx, dy) || 1;
-      const pull = Math.min(0.5, pointer.influence * Math.exp(-Math.max(len - Math.max(r.width, r.height) / 2, 0) / 320));
+      const pull = 0.85 * m.near;
       let tx = KEY_LIGHT[0] * (1 - pull) + (dx / len) * pull;
       let ty = KEY_LIGHT[1] * (1 - pull) + (dy / len) * pull;
       const tl = Math.hypot(tx, ty) || 1;
@@ -682,12 +685,6 @@ export class ShapeTracker {
       m.lx = Math.cos(angle);
       m.ly = Math.sin(angle);
       if (Math.abs(turn) >= 0.002) this.animating = true;
-      // Proximity to the pointer, from its distance to the shape's edge.
-      const gapX = Math.max(r.left - pointer.x, pointer.x - r.right, 0);
-      const gapY = Math.max(r.top - pointer.y, pointer.y - r.bottom, 0);
-      const near = Math.exp(-Math.hypot(gapX, gapY) / 140);
-      m.near = Math.abs(near - m.near) < 0.004 ? near : m.near + (near - m.near) * 0.08;
-      if (m.near !== near) this.animating = true;
     }
     if (m.opacity === 0) return null;
     const round = (v: number) => Math.round(v * 4) / 4;
@@ -702,8 +699,6 @@ export class ShapeTracker {
       press: Math.round(m.press * 1000) / 1000,
       opacity: Math.round(m.opacity * 1000) / 1000,
       light: [Math.round(m.lx * 1000) / 1000, Math.round(m.ly * 1000) / 1000],
-      // Without a mouse the highlights keep their resting strength.
-      glow: Math.round((1 + pointer.influence * (1.9 * m.near - 0.6)) * 1000) / 1000,
       clip,
     };
   }

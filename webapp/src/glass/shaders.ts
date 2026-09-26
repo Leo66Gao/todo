@@ -269,7 +269,7 @@ uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
 uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
 uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, recessed
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
-uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy, highlight gain
+uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy
 uniform vec2 uLight;                // towards the light, GL space
 uniform vec3 uPointer;              // xy, influence
 uniform float uDark;
@@ -313,11 +313,7 @@ vec3 blurAt(float R, vec2 a, vec2 b, vec2 c) {
   float s1 = 6.0 * uDpr;
   float s2 = 16.0 * uDpr;
   float s3 = 40.0 * uDpr;
-  if (R <= s1) {
-    float f = R / s1;
-    vec3 v = ring(uSrc, a, b, c, R * 0.8);
-    return f < 0.7 ? v : mix(v, fetch3(uSoft, a, b, c), (f - 0.7) / 0.3);
-  }
+  if (R <= s1) return mix(fetch3(uSrc, a, b, c), fetch3(uSoft, a, b, c), R / s1);
   if (R <= s2) {
     float f = (R - s1) / (s2 - s1);
     vec3 v = ring(uSoft, a, b, c, sqrt(R * R - s1 * s1) * 0.8);
@@ -405,15 +401,12 @@ void main() {
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
-    // Blur: a true radius that grows smoothly with the setting. It fades in
-    // from the rim, so the refraction there stays crisp and the blur has no
-    // edge where it starts. Frosted (milky) glass diffuses a little too,
-    // however low the blur. A hair of softening where the lens squeezes the
-    // image keeps fine detail from aliasing.
+    // Blur: a true radius that grows smoothly with the setting and fills the
+    // whole shape. Where the lens squeezes the image near the rim it softens
+    // a little more, so fine detail can't alias into stripes.
+    // Frosted (milky) glass diffuses a little too, however low the blur.
     float milk = dot(T.rgb, vec3(0.333)) > 0.3 ? T.a : 0.0;
-    float fadeIn = smoothstep(0.0, max(S.y * 1.6, 12.0 * uDpr), depth);
-    float full = max(pow(O.x, 1.4) * 32.0, milk * 10.0) * uDpr;
-    float radius = full * mix(0.12, 1.0, fadeIn) + 1.2 * uDpr * u * u;
+    float radius = max(pow(O.x, 1.4) * 44.0, milk * 14.0) * uDpr + 9.0 * uDpr * u * u;
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
     // Vibrancy.
@@ -465,8 +458,10 @@ void main() {
     float edge = 1.0 - smoothstep(0.0, rimW, depth);
     float glowBand = (1.0 - smoothstep(rimW, rimW * 3.5, depth)) * (1.0 - edge);
     float lit = 0.35 + 0.65 * max(facing, 0.0) + 0.35 * max(-facing, 0.0);
-    // (The gain rises as the pointer nears the shape and falls away as it leaves.)
-    float gain = uExtra[i].w;
+    // With a mouse about, the rims brighten near it and fade away from it.
+    vec2 toPointer = p - uPointer.xy;
+    float reach = 240.0 * uDpr;
+    float gain = mix(1.0, 0.35 + 1.9 * exp(-dot(toPointer, toPointer) / (reach * reach)), uPointer.z);
     float rimK = O.z * (1.0 + 0.6 * st.x) * (uDark > 0.5 ? 0.55 : 0.85) * 0.2 * gain;
     base += (edge * lit * 0.5 + glowBand * 0.28 * max(facing, 0.0)) * rimK;
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
