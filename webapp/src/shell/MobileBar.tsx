@@ -77,15 +77,21 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
   );
 }
 
-/** Liquid Glass: a floating capsule of tabs, with the add button as its own glass drop beside it. */
+/**
+ * Liquid Glass: a floating capsule of tabs with the add button as a matching
+ * drop of the same glass beside it. The geometry is concentric: the capsule
+ * is 62 px tall with a 5 px inset, so the selection inside it (52 px) shares
+ * its centre of curvature, and the add button is a 62 px circle. Gaps match
+ * the phone's 8 px panel margins.
+ */
 function GlassTabBar({ route, navigate, children }: { route: Route; navigate: (r: Route) => void; children: ReactNode }) {
   const capsule = useGlass<HTMLDivElement>({ level: 1, kind: "chrome", radius: "pill" });
-  const add = useGlass<HTMLButtonElement>({ level: 1, kind: "ink", radius: "pill", interactive: true });
+  const add = useGlass<HTMLButtonElement>({ level: 1, kind: "chrome", radius: "pill", interactive: true });
   const hidden = useUI((s) => s.editor != null);
   const canAdd = HAS_ADD.includes(route.view) && !hidden;
   return (
-    <nav className="relative z-20 flex shrink-0 items-center gap-2.5 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] md:hidden">
-      <div ref={capsule} className="grid h-[62px] min-w-0 flex-1 grid-cols-5 px-1">
+    <nav className="relative z-20 flex shrink-0 items-center pt-2 pb-[max(8px,env(safe-area-inset-bottom))] md:hidden">
+      <div ref={capsule} className="grid h-[62px] min-w-0 flex-1 grid-cols-5 p-[5px]">
         {children}
       </div>
       <AnimatePresence initial={false}>
@@ -94,14 +100,14 @@ function GlassTabBar({ route, navigate, children }: { route: Route; navigate: (r
             ref={add}
             type="button"
             aria-label={route.view === "notes" ? "New note" : "New task"}
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 62, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
+            initial={{ width: 0, marginLeft: 0, opacity: 0 }}
+            animate={{ width: 62, marginLeft: 8, opacity: 1 }}
+            exit={{ width: 0, marginLeft: 0, opacity: 0 }}
             transition={springs.panel}
             onClick={() => createForRoute(route, navigate)}
-            className="flex h-[62px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink text-on-ink"
+            className="flex h-[62px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink transition-transform active:scale-[0.94]"
           >
-            <Plus className="size-[26px] shrink-0" strokeWidth={2.1} />
+            <Plus className="size-6 shrink-0" strokeWidth={2} />
           </motion.button>
         )}
       </AnimatePresence>
@@ -147,7 +153,7 @@ function TabPill() {
       ref={pill}
       layoutId="tab-pill"
       transition={springs.snappy}
-      className="absolute inset-x-0 inset-y-[5px] rounded-full bg-fill-strong"
+      className="absolute inset-0 rounded-full bg-fill-strong"
     />
   );
 }

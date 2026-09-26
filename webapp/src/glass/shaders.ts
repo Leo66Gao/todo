@@ -360,9 +360,10 @@ void main() {
     // Never let the offset grow faster than the surface moves: past that the
     // image folds over itself and the rim breaks into streaks.
     float offLen = length(off);
-    float fold = 0.85 * S.y * u + 0.5 * uDpr;
+    // (At most 2.5x compression at the rim: enough to read as a lens.)
+    float fold = 0.6 * S.y * u + 0.5 * uDpr;
     if (offLen > fold) off *= fold / offLen;
-    float disp = O.y * 1.45 * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
+    float disp = O.y * 1.45 * mix(0.55, 1.0, clamp(O.x * 2.0, 0.0, 1.0)) * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;

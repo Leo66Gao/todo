@@ -328,7 +328,7 @@ export class GlassEngine {
       tint.set(m.tint, i * 4);
       legible[i] = m.legible;
       optic.set([m.frost, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
-      state.set([s.hover, s.press, s.opacity, 0], i * 4);
+      state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
     }
@@ -425,17 +425,17 @@ export class GlassEngine {
           shadowBlur: 8 * dpr,
         };
       case "well":
-        // The search field: a lens of heavily frosted glass.
+        // The search field: a shallow recessed well.
         return {
           bezel: Math.min(radius, halfShort),
-          height: Math.min(halfShort, 14 * dpr),
-          tint: [...haze, dark ? 0.2 : 0.42],
-          legible: dark ? -1 : 1,
-          frost: 1,
-          dispersion: 0.14,
-          rim: 0.6,
-          shadow: dark ? 0.18 : 0.08,
-          shadowBlur: 8 * dpr,
+          height: Math.min(halfShort, 10 * dpr),
+          tint: dark ? [0, 0, 0, 0.12] : [0.2, 0.22, 0.26, 0.06],
+          legible: 0,
+          frost: 0.85,
+          dispersion: 0.1,
+          rim: 0.55,
+          shadow: 0,
+          shadowBlur: 4 * dpr,
         };
     }
   }
