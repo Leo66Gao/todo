@@ -2,18 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type QuillType from "quill";
-import { ChevronDown, ChevronLeft, FileText, Folder, MoreHorizontal } from "lucide-react";
+import { BookMarked, ChevronDown, ChevronLeft, FileText, Folder, MoreHorizontal } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { isEmptyContent } from "@/lib/delta";
 import { encodeNote, recordFits, uuid, type StudyNote } from "@/lib/model";
+import { bibliography, bibliographyHeading, inText, reference } from "@/lib/sources";
 import { countWords, formatCount } from "@/lib/words";
+import { openSources, type CiteTarget } from "@/features/sources/library";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
-import { addFolder, addNote, deleteNote, updateNote, useWorkspace } from "@/store/workspace";
+import { addFolder, addNote, deleteNote, readSide, updateNote, useWorkspace } from "@/store/workspace";
 import { Button, IconButton } from "@/ui/controls";
 import { cn } from "@/ui/cn";
 import { Menu, Popover, promptDialog } from "@/ui/overlay";
-import { noteHref, RichText, type NoteLinks } from "@/ui/RichText";
+import { noteHref, RichText, type EditorAction, type NoteLinks } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
 import { editedLabel, recordVersion, removeNote } from "./noteActions";
 import { VersionHistory } from "./VersionHistory";
@@ -91,6 +93,61 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
     }),
     [note.id],
   );
+
+  const actions = useMemo<EditorAction[]>(() => {
+    const citedIds = () => {
+      const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+      return Array.isArray(current?.extra?.cited) ? (current.extra.cited as string[]) : [];
+    };
+    const target: CiteTarget = {
+      cited: citedIds,
+      cite: (source, style, page) => {
+        if (!quill) return;
+        const range = quill.getSelection(true);
+        const before = range.index > 0 ? quill.getText(range.index - 1, 1) : "\n";
+        const text = `${/\s|\(/.test(before) ? "" : " "}${inText(source, style, page)}`;
+        quill.deleteText(range.index, range.length, "user");
+        quill.insertText(range.index, text, "user");
+        quill.setSelection(range.index + text.length, 0, "silent");
+        const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+        if (current && !citedIds().includes(source.id)) {
+          updateNote({ ...current, extra: { ...current.extra, cited: [...citedIds(), source.id] } });
+        }
+      },
+      bibliography: (style) => {
+        if (!quill) return;
+        const all = readSide<{ sources?: { id: string }[] }>("settings:sources", {}).sources ?? [];
+        const ids = new Set(citedIds());
+        const sources = bibliography(all.filter((s) => ids.has(s.id)) as Parameters<typeof bibliography>[0], style);
+        const heading = bibliographyHeading(style);
+        // Replace the list if the note already has one (either style).
+        let start = -1;
+        let end = quill.getLength() - 1;
+        for (const line of quill.getLines()) {
+          const header = (line.formats() as { header?: number }).header;
+          const text = line.domNode.textContent?.trim();
+          if (start < 0 && header && (text === "Works Cited" || text === "References")) start = quill.getIndex(line);
+          else if (start >= 0 && header && quill.getIndex(line) > start) {
+            end = quill.getIndex(line);
+            break;
+          }
+        }
+        if (start >= 0) quill.deleteText(start, end - start, "user");
+        const at = start >= 0 ? start : quill.getLength() - 1;
+        const ops: { insert: string; attributes?: Record<string, unknown> }[] = [];
+        if (start < 0 && at > 0) ops.push({ insert: "\n" });
+        ops.push({ insert: heading }, { insert: "\n", attributes: { header: 2 } });
+        for (const source of sources) {
+          for (const run of reference(source, style)) ops.push(run.italic ? { insert: run.text, attributes: { italic: true } } : { insert: run.text });
+          ops.push({ insert: "\n" });
+        }
+        quill.updateContents([{ retain: at }, ...ops] as never, "user");
+      },
+    };
+    return [
+      { key: "cite", label: "Cite a source", icon: <BookMarked />, words: "cite citation source reference bibliography", run: () => openSources(target) },
+    ];
+  }, [quill, note.id]);
 
   const subject = projects.find((p) => p.id === note.subjectId);
   const subjectFolders = folders.filter((f) => f.subjectId === note.subjectId);
@@ -283,6 +340,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             placeholder="Start writing, or type / for blocks and [[ to link a note"
             onReady={setQuill}
             noteLinks={noteLinks}
+            actions={actions}
             onChange={(content) => {
               draft.current.content = content;
               schedule();

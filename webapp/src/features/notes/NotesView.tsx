@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, FileUp, Plus, Search } from "lucide-react";
+import { BookMarked, ChevronDown, FileUp, Plus, Search } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { plainText } from "@/lib/delta";
 import { useNavigate } from "@/shell/nav";
@@ -11,6 +11,7 @@ import { useWorkspace } from "@/store/workspace";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Menu, Tooltip } from "@/ui/overlay";
+import { openSources } from "@/features/sources/library";
 import { createNote, importNote, noteGroup } from "./noteActions";
 import { NoteRow } from "./NoteRow";
 
@@ -58,6 +59,11 @@ export function NotesView() {
                 if (file) void importNote(file, navigate, subject?.id ?? null);
               }}
             />
+            <Tooltip label="Sources">
+              <IconButton label="Sources" onClick={() => openSources()}>
+                <BookMarked className="size-4" />
+              </IconButton>
+            </Tooltip>
             <Tooltip label="Import a Word document">
               <IconButton label="Import a Word document" onClick={() => fileInput.current?.click()}>
                 <FileUp className="size-4" />

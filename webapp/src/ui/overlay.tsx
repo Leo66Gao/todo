@@ -21,6 +21,7 @@ export function Modal({
   label,
   className,
   initialFocus,
+  returnFocus = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,6 +31,8 @@ export function Modal({
   className?: string;
   /** Return false to keep Radix from focusing the first control. */
   initialFocus?: (event: Event) => void;
+  /** Whether closing puts focus back where it was (off when the caller moves it). */
+  returnFocus?: boolean;
 }) {
   const phone = useMedia(PHONE);
   const sheetDrag = useDragControls();
@@ -53,6 +56,7 @@ export function Modal({
                 asChild
                 aria-describedby={undefined}
                 onOpenAutoFocus={initialFocus}
+                onCloseAutoFocus={returnFocus ? undefined : (e) => e.preventDefault()}
               >
                 <motion.div
                   className={cn(

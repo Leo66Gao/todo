@@ -73,6 +73,17 @@ export interface RichTextProps {
   onReady?: (quill: QuillType) => void;
   /** Enables "[[" links to other notes. */
   noteLinks?: NoteLinks;
+  /** More commands, in the toolbar and the "/" menu. */
+  actions?: EditorAction[];
+}
+
+export interface EditorAction {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  /** Words the "/" menu matches. */
+  words: string;
+  run: () => void;
 }
 
 export interface NoteLinks {
@@ -96,6 +107,7 @@ export function RichText({
   toolbarClassName,
   onReady,
   noteLinks,
+  actions,
 }: RichTextProps) {
   const host = useRef<HTMLDivElement>(null);
   const quillRef = useRef<QuillType | null>(null);
@@ -110,10 +122,12 @@ export function RichText({
     setSlashState(next);
   };
   const linksRef = useRef(noteLinks);
+  const actionsRef = useRef(actions);
   useEffect(() => {
     linksRef.current = noteLinks;
-  }, [noteLinks]);
-  const entries = (menu: Slash | null) => (menu ? menuEntries(menu, linksRef.current) : []);
+    actionsRef.current = actions;
+  }, [noteLinks, actions]);
+  const entries = (menu: Slash | null) => (menu ? menuEntries(menu, linksRef.current, actionsRef.current) : []);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -261,6 +275,10 @@ export function RichText({
       quill.setSelection(menu.index + title.length + 1, 0, "silent");
       return;
     }
+    if (entry.action) {
+      entry.action.run();
+      return;
+    }
     const item = entry.block!;
     if (item.key === "formula") {
       void editFormula(quill, "", null);
@@ -275,7 +293,7 @@ export function RichText({
     setFormats(quill.getFormat() as Record<string, unknown>);
   };
 
-  const shownEntries = slash ? menuEntries(slash, noteLinks) : [];
+  const shownEntries = slash ? menuEntries(slash, noteLinks, actions) : [];
 
   const isActive = (tool: Tool) => {
     const v = formats[tool.format];
@@ -285,6 +303,23 @@ export function RichText({
 
   const groups =
     toolbar === "full" ? [INLINE, HEADINGS, LISTS, BLOCKS] : toolbar === "compact" ? [INLINE, LISTS] : [];
+  const extra = toolbar === "full" && actions?.length ? (
+    <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-line pl-1.5">
+      {actions.map((action) => (
+        <Tooltip key={action.key} label={action.label}>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={action.run}
+            aria-label={action.label}
+            className="flex size-7 items-center justify-center rounded-[6px] text-ink-3 transition-colors hover:bg-fill hover:text-ink [&>svg]:size-[15px]"
+          >
+            {action.icon}
+          </button>
+        </Tooltip>
+      ))}
+    </div>
+  ) : null;
 
   const bar = groups.length > 0 && (
     <div className="flex flex-wrap items-center gap-0.5 max-sm:scrollbar-none max-sm:flex-nowrap max-sm:overflow-x-auto">
@@ -338,6 +373,7 @@ export function RichText({
           )}
         </div>
       ))}
+      {extra}
     </div>
   );
 
@@ -598,20 +634,25 @@ interface Entry {
   hint?: string;
   icon: React.ReactNode;
   block?: SlashItem;
+  action?: EditorAction;
   note?: { id: string; title: string };
   create?: string;
 }
 
-function menuEntries(menu: Slash, links?: NoteLinks): Entry[] {
+function menuEntries(menu: Slash, links?: NoteLinks, actions: EditorAction[] = []): Entry[] {
   if (menu.kind === "slash") {
     const q = menu.query.toLowerCase();
-    return SLASH_ITEMS.filter((i) => !q || i.words.split(" ").some((w) => w.startsWith(q))).map((block) => ({
-      key: block.key,
-      label: block.label,
-      hint: block.hint,
-      icon: block.icon,
-      block,
-    }));
+    const matches = (words: string) => !q || words.split(" ").some((w) => w.startsWith(q));
+    return [
+      ...SLASH_ITEMS.filter((i) => matches(i.words)).map((block) => ({
+        key: block.key,
+        label: block.label,
+        hint: block.hint,
+        icon: block.icon,
+        block,
+      })),
+      ...actions.filter((a) => matches(a.words)).map((action) => ({ key: action.key, label: action.label, icon: action.icon, action })),
+    ];
   }
   if (!links) return [];
   const query = menu.query.trim();
