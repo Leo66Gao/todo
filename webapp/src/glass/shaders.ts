@@ -269,7 +269,7 @@ uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
 uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
 uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, recessed
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
-uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy
+uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy, frost
 uniform vec2 uLight;                // towards the light, GL space
 uniform vec3 uPointer;              // xy, influence
 uniform float uDark;
@@ -401,27 +401,32 @@ void main() {
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
+    // Frost: a sandblasted surface sends each ray off in a slightly random
+    // direction, so what shows through breaks into a fine, soft grain.
+    float fr = uExtra[i].w;
+    if (fr > 0.0) {
+      float a = grainAt(p) * 6.2831853;
+      vec2 j = vec2(cos(a), sin(a)) * fr * (2.0 + 7.0 * grainAt(p.yx + 31.7)) * uDpr / uRes;
+      uvR += j;
+      uvG += j;
+      uvB += j;
+    }
     // Blur: a true radius that grows smoothly with the setting and fills the
     // whole shape. Where the lens squeezes the image near the rim it softens
     // a little more, so fine detail can't alias into stripes.
-    // Frosted (milky) glass diffuses a little too, however low the blur.
-    float milk = dot(T.rgb, vec3(0.333)) > 0.3 ? T.a : 0.0;
-    float radius = max(pow(O.x, 1.4) * 44.0, milk * 14.0) * uDpr + 9.0 * uDpr * u * u;
+    float radius = (pow(O.x, 1.4) * 44.0 + fr * 4.0) * uDpr + 9.0 * uDpr * u * u;
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
     // Vibrancy.
     float lum = dot(base, vec3(0.299, 0.587, 0.114));
     base = clamp(mix(vec3(lum), base, 1.22) * (uDark > 0.5 ? 1.0 : 1.03), 0.0, 1.0);
-    // Frost: frosted glass scatters light, so colours wash out into a milky
-    // haze with a fine grain. (A dark tint, as on the search well, deepens.)
-    float fa = T.a * (1.0 - st.y * 0.25);
-    if (dot(T.rgb, vec3(0.333)) > 0.3) {
-      base = mix(base, vec3(dot(base, vec3(0.299, 0.587, 0.114))), 0.45 * fa);
-      base = 1.0 - (1.0 - base) * (1.0 - T.rgb * fa);
-      base += (grainAt(p) - 0.5) * 0.035 * fa;
-    } else {
-      base = mix(base, T.rgb, fa);
+    // Frosted glass also spreads light sideways, flattening contrast a little.
+    if (fr > 0.0) {
+      base = mix(base, fetch3(uHeavy, uvR, uvG, uvB), 0.3 * fr);
+      base += 0.025 * fr * (uDark > 0.5 ? 0.5 : 1.0);
     }
+    // A tint (solid surfaces, the search well, primary actions).
+    base = mix(base, T.rgb, T.a * (1.0 - st.y * 0.25));
     // Fresnel: grazing angles near the rim reflect the blurred surroundings.
     float fres = pow(1.0 - n.z, 2.2) * (0.55 + 0.45 * u);
     vec3 env = texture(uHeavy, (p + g * S.y * 2.5) / uRes).rgb;
