@@ -225,24 +225,6 @@ html.glass.glass-bg-harbour {
 html.glass.dark.glass-bg-harbour {
   background: radial-gradient(40% 30% at 30% 60%, #1a5c68, transparent 70%), linear-gradient(180deg, #0c2834, #04121a);
 }
-html.glass.glass-bg-citrus {
-  background: radial-gradient(22% 30% at 18% 22%, #f7d64a 98%, transparent 100%),
-    radial-gradient(18% 26% at 82% 18%, #f5963a 98%, transparent 100%),
-    radial-gradient(20% 28% at 48% 70%, #a6d258 98%, transparent 100%), #eef3e6;
-}
-html.glass.dark.glass-bg-citrus {
-  background: radial-gradient(22% 30% at 18% 22%, #c9ad3c 98%, transparent 100%),
-    radial-gradient(18% 26% at 82% 18%, #c77a2f 98%, transparent 100%),
-    radial-gradient(20% 28% at 48% 70%, #86ab48 98%, transparent 100%), #111512;
-}
-html.glass.glass-bg-prism {
-  background: linear-gradient(118deg, transparent 38%, #e5532d 38% 52%, transparent 52% 58%, #f2b134 58% 63%, transparent 63%),
-    radial-gradient(circle at 78% 70%, #2f5fd0 17%, transparent 17.3%), #ecEae5;
-}
-html.glass.dark.glass-bg-prism {
-  background: linear-gradient(118deg, transparent 38%, #d6482a 38% 52%, transparent 52% 58%, #e2a02c 58% 63%, transparent 63%),
-    radial-gradient(circle at 78% 70%, #4068d6 17%, transparent 17.3%), #141415;
-}
 html.glass.glass-bg-contour {
   background: radial-gradient(70% 60% at 60% 40%, #ece6d2, transparent 70%), #c6dbc0;
 }
@@ -263,6 +245,25 @@ html.glass.glass-bg-studio {
 html.glass.dark.glass-bg-studio {
   background: radial-gradient(80% 60% at 40% 0%, #2a2a2e, transparent 70%), #161618;
 }
+html.glass.glass-bg-alpine {
+  background: #6f7a74 url("/backgrounds/alpine.jpg") center / cover no-repeat;
+}
+html.glass.glass-bg-lake {
+  background: #3c8fa6 url("/backgrounds/lake.jpg") center / cover no-repeat;
+}
+html.glass.glass-bg-forest {
+  background: #3f5e48 url("/backgrounds/forest.jpg") center / cover no-repeat;
+}
+html.glass.glass-bg-coast {
+  background: #4d8d9a url("/backgrounds/coast.jpg") center / cover no-repeat;
+}
+html.glass.glass-bg-dunes {
+  background: #c98f55 url("/backgrounds/dunes.jpg") center / cover no-repeat;
+}
+html.glass.dark:is(.glass-bg-alpine, .glass-bg-lake, .glass-bg-forest, .glass-bg-coast, .glass-bg-dunes) {
+  background-blend-mode: multiply;
+  background-color: rgb(0 0 0 / 0.4);
+}
 html.glass.glass-bg-image {
   background: linear-gradient(180deg, #9aa3ad, #5d6670);
 }
@@ -281,4 +282,41 @@ html.glass.dark.glass-bg-image {
 
 html.glass-bare [data-shell] {
   opacity: 0;
+}
+
+/* Primary actions and the selected day are clear lenses in rendered glass:
+   their text takes the page's ink instead of sitting on a solid block. */
+html.glass:not(.glass-css) [data-glass-kind="ink"],
+html.glass:not(.glass-css) :has(> [data-glass-kind="ink"]) {
+  --on-ink: var(--ink);
+}
+
+/* Tasks sit on their own quiet pane of glass, so a row reads as an object
+   even when the panel behind it is mostly clear. CSS rather than the
+   renderer: lists are long and scroll, and over frosted glass the result
+   looks the same. */
+html.glass [data-task-card] {
+  border-radius: 10px;
+  margin-block: 3px;
+  background: rgb(255 255 255 / 0.4);
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.75),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.4),
+    0 1px 3px -1px rgb(10 30 50 / 0.1);
+}
+html.glass [data-task-card="done"] {
+  background: rgb(255 255 255 / 0.22);
+}
+html.glass.dark [data-task-card] {
+  background: rgb(255 255 255 / 0.05);
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.12),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.06),
+    0 1px 3px -1px rgb(0 0 0 / 0.3);
+}
+html.glass.dark [data-task-card="done"] {
+  background: rgb(255 255 255 / 0.025);
+}
+html.glass [data-task-card] > [data-task-id] {
+  margin: 0;
 }

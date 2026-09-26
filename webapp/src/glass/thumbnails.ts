@@ -1,7 +1,8 @@
 "use client";
 
 import { GlassEngine, type Shape } from "./engine";
-import type { GlassFinish, PresetId } from "./prefs";
+import { isPhoto, type BackgroundId, type GlassFinish, type PhotoId, type PresetId } from "./prefs";
+import { loadPhoto } from "./photos";
 
 const cache = new Map<string, string>();
 
@@ -16,14 +17,27 @@ function shape(partial: Partial<Shape> & Pick<Shape, "x" | "y" | "w" | "h" | "ra
  * Previews of each background with a little glass on it, rendered by the same
  * engine as the app (one short-lived WebGL context for the whole set).
  */
-export function renderThumbnails(presets: PresetId[], dark: boolean, finish: GlassFinish): Record<string, string> {
+export async function renderThumbnails(
+  ids: Exclude<BackgroundId, "image">[],
+  dark: boolean,
+  finish: GlassFinish,
+): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  const missing = presets.filter((p) => {
-    const hit = cache.get(`${p}:${dark}:${finish}`);
-    if (hit) out[p] = hit;
+  const missing = ids.filter((id) => {
+    const hit = cache.get(`${id}:${dark}:${finish}`);
+    if (hit) out[id] = hit;
     return !hit;
   });
   if (missing.length === 0) return out;
+  // Photographs render from their small copies.
+  const photos = new Map<PhotoId, ImageBitmap>();
+  await Promise.all(
+    missing.filter(isPhoto).map((id) =>
+      loadPhoto(id, "small")
+        .then((bitmap) => void photos.set(id, bitmap))
+        .catch(() => {}),
+    ),
+  );
   const canvas = document.createElement("canvas");
   let engine: GlassEngine;
   try {
@@ -37,12 +51,21 @@ export function renderThumbnails(presets: PresetId[], dark: boolean, finish: Gla
     shape({ x: 15, y: 17, w: 36, h: 13, radius: 6.5, kind: "control" }),
     shape({ x: 72, y: 54, w: 46, h: 22, radius: 11, kind: "ink" }),
   ];
-  for (const preset of missing) {
-    engine.setLook({ background: preset, image: null, dark, finish, pointerLight: false, solid: false });
+  for (const id of missing) {
+    const photo = isPhoto(id) ? photos.get(id) : undefined;
+    if (isPhoto(id) && !photo) continue;
+    engine.setLook({
+      background: photo ? "image" : (id as PresetId),
+      image: photo ?? null,
+      dark,
+      finish,
+      pointerLight: false,
+      solid: false,
+    });
     engine.render(level1, level2, [0, 0, 0]);
     const url = canvas.toDataURL("image/jpeg", 0.88);
-    cache.set(`${preset}:${dark}:${finish}`, url);
-    out[preset] = url;
+    cache.set(`${id}:${dark}:${finish}`, url);
+    out[id] = url;
   }
   engine.dispose();
   return out;

@@ -188,6 +188,7 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
     <div
       ref={setNodeRef}
       style={{ transform: sortable ? CSS.Translate.toString(transform) : undefined, transition }}
+      data-task-card={task.isDone ? "done" : ""}
       className={cn(isDragging && "opacity-40")}
     >
       <ContextMenu items={() => taskMenu(task, navigate)}>

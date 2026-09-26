@@ -4,7 +4,7 @@ import { glassEntries, registryGeneration, type GlassEntry, type GlassKind } fro
 import type { GlassFinish } from "./prefs";
 import { BACKGROUND_FS, BLIT_FS, BLUR_FS, FULLSCREEN_VS, GLASS_FS, MAX_SHAPES } from "./shaders";
 
-export const PRESET_INDEX = { harbour: 0, citrus: 1, prism: 2, contour: 3, ember: 4, studio: 5, image: 6 } as const;
+export const PRESET_INDEX = { harbour: 0, contour: 1, ember: 2, studio: 3, image: 4 } as const;
 
 export interface EngineLook {
   background: keyof typeof PRESET_INDEX;
@@ -231,7 +231,7 @@ export class GlassEngine {
     gl.uniform1i(p.loc("uImage"), 0);
     gl.uniform2f(p.loc("uImageSize"), look.image?.width ?? 1, look.image?.height ?? 1);
     gl.uniform2f(p.loc("uRes"), this.width, this.height);
-    gl.uniform1i(p.loc("uPreset"), useImage ? 6 : PRESET_INDEX[look.background === "image" ? "harbour" : look.background]);
+    gl.uniform1i(p.loc("uPreset"), useImage ? PRESET_INDEX.image : PRESET_INDEX[look.background === "image" ? "harbour" : look.background]);
     gl.uniform1f(p.loc("uDark"), look.dark ? 1 : 0);
     this.draw();
     // Frost levels: ~6 px and ~40 px (CSS) Gaussian.
@@ -322,12 +322,13 @@ export class GlassEngine {
         };
       case "chrome":
         return {
-          bezel: Math.min(radius, 26 * dpr),
-          height: 42 * dpr,
+          // Small chrome (the phone tab bar) gets a proportionally gentler lens.
+          bezel: Math.min(radius, 26 * dpr, halfShort * 0.55),
+          height: Math.min(42 * dpr, halfShort * 0.9),
           tint: [...(dark ? night : white), solid ? 0.88 : dark ? 0.36 : 0.26],
           legible: dark ? -1 : 1,
           frost: f.chrome,
-          dispersion: 0.16,
+          dispersion: 0.12,
           rim: 1,
           shadow: dark ? 0.34 : 0.16,
           shadowBlur: 30 * dpr,
@@ -336,24 +337,25 @@ export class GlassEngine {
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.1, 22 * dpr),
-          tint: [...white, dark ? 0.1 : 0.34],
+          tint: [...white, dark ? 0.08 : 0.26],
           legible: dark ? -1 : 1,
           frost: f.control,
           dispersion: 0.22,
           rim: 1.1,
-          shadow: dark ? 0.26 : 0.1,
+          shadow: dark ? 0.2 : 0.08,
           shadowBlur: 10 * dpr,
         };
       case "ink":
+        // A clear lens: the strongest optics, almost no tint.
         return {
           bezel: Math.min(radius, halfShort),
-          height: Math.min(halfShort * 1.1, 20 * dpr),
-          tint: dark ? [0.93, 0.93, 0.95, 0.86] : [0.1, 0.1, 0.12, 0.8],
-          legible: dark ? 1 : -1,
-          frost: 0.55,
-          dispersion: 0.18,
-          rim: 0.9,
-          shadow: dark ? 0.3 : 0.16,
+          height: Math.min(halfShort * 1.3, 26 * dpr),
+          tint: [...white, dark ? 0.07 : 0.22],
+          legible: dark ? -1 : 1,
+          frost: f.control * 0.7,
+          dispersion: 0.17,
+          rim: 1.2,
+          shadow: dark ? 0.24 : 0.12,
           shadowBlur: 12 * dpr,
         };
       case "well":

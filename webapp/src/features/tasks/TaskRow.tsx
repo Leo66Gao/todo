@@ -208,7 +208,7 @@ const TaskRowView = memo(function TaskRowView({
   const dragTouchStart = dragProps?.onTouchStart as ((e: React.TouchEvent) => void) | undefined;
 
   return (
-    <div ref={dragRef} style={dragStyle} className={cn("relative", dragging && "z-10 opacity-40")}>
+    <div ref={dragRef} style={dragStyle} data-task-card={done ? "done" : ""} className={cn("relative", dragging && "z-10 opacity-40")}>
       <div className="relative overflow-hidden rounded-[9px]">
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div

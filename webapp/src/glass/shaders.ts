@@ -116,76 +116,6 @@ vec3 harbour(vec2 st, vec2 A) {
   return col;
 }
 
-// --- Citrus: sliced fruit, segment membranes bend beautifully --------------
-vec4 slice(vec2 st, vec2 c, float r, vec3 flesh, vec3 rind, float rot) {
-  vec2 d = st - c;
-  float l = length(d);
-  float aa = fwidth(l);
-  float disc = 1.0 - smoothstep(r - aa, r + aa, l);
-  if (disc <= 0.0) return vec4(0.0);
-  float a = atan(d.y, d.x) + rot;
-  const float SEG = 11.0;
-  float m = abs(fract(a / 6.2831853 * SEG + 0.5) - 0.5) * (6.2831853 / SEG) * l;
-  float w = r * (0.012 + 0.018 * (l / r));
-  float membrane = 1.0 - smoothstep(w - aa, w + aa, m);
-  float core = 1.0 - smoothstep(r * 0.1 - aa, r * 0.1 + aa, l);
-  float pith = smoothstep(r * 0.83 - aa, r * 0.83 + aa, l);
-  float rindM = smoothstep(r * 0.9 - aa, r * 0.9 + aa, l);
-  float cells = snoise(vec2(a * 9.0, l * 60.0 / r)) * 0.5 + 0.5;
-  vec3 f = flesh * (0.9 + 0.14 * cells) * (0.92 + 0.12 * (l / r));
-  vec3 pale = mix(vec3(1.0, 0.97, 0.86), flesh, 0.18);
-  vec3 col = mix(f, pale, max(max(membrane, core), pith));
-  col = mix(col, rind, rindM);
-  return vec4(col, disc);
-}
-vec3 citrus(vec2 st, vec2 A) {
-  vec3 col = uDark < 0.5 ? mix(hex(236., 243., 229.), hex(246., 247., 238.), st.y / A.y * 0.5 + 0.5)
-                         : mix(hex(14., 18., 15.), hex(22., 27., 22.), st.y / A.y * 0.5 + 0.5);
-  col += (fbm(st * 3.0) * 0.02);
-  float k = uDark < 0.5 ? 1.0 : 0.82;
-  vec2 C[6] = vec2[6](vec2(-0.72, 0.55), vec2(0.62, 0.62), vec2(-0.1, -0.35), vec2(0.8, -0.55), vec2(-0.85, -0.7), vec2(0.18, 0.95));
-  float R[6] = float[6](0.34, 0.28, 0.3, 0.24, 0.2, 0.18);
-  vec3 F[6] = vec3[6](hex(248., 214., 72.), hex(246., 150., 58.), hex(166., 210., 88.), hex(242., 110., 98.), hex(246., 150., 58.), hex(248., 214., 72.));
-  vec3 Rn[6] = vec3[6](hex(232., 176., 14.), hex(226., 108., 24.), hex(90., 152., 44.), hex(222., 76., 66.), hex(226., 108., 24.), hex(232., 176., 14.));
-  for (int i = 0; i < 6; i++) {
-    vec2 c = C[i] * A;
-    // soft contact shadow, then the slice
-    float sh = glow(st, c + vec2(0.012, -0.02), R[i] * 1.02);
-    col *= 1.0 - sh * (uDark < 0.5 ? 0.12 : 0.3);
-    vec4 s = slice(st, c, R[i], F[i] * k, Rn[i] * k, float(i) * 0.7);
-    col = mix(col, s.rgb, s.a);
-  }
-  return col;
-}
-
-// --- Prism: bold printed bands and hairlines --------------------------------
-vec3 prism(vec2 st, vec2 A) {
-  bool dark = uDark > 0.5;
-  vec3 paper = dark ? hex(20., 20., 21.) : hex(236., 234., 229.);
-  vec3 ink = dark ? hex(214., 212., 206.) : hex(28., 28., 30.);
-  vec3 col = paper + (hash12(floor(st * 900.0)) - 0.5) * 0.018;
-  float ang = radians(-28.0);
-  vec2 u = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * st;
-  vec3 red = dark ? hex(214., 72., 40.) : hex(229., 83., 45.);
-  vec3 ochre = dark ? hex(226., 160., 44.) : hex(242., 177., 52.);
-  vec3 blue = dark ? hex(64., 104., 214.) : hex(47., 95., 208.);
-  col = mix(col, red, 1.0 - aaStep(0.13, abs(u.y + 0.18)));
-  col = mix(col, ochre, 1.0 - aaStep(0.06, abs(u.y - 0.14)));
-  // hairlines
-  float lines = abs(fract((u.y - 0.34) * 34.0) - 0.5) / 34.0;
-  float band = (1.0 - aaStep(0.2, abs(u.y - 0.52)));
-  col = mix(col, ink, (1.0 - aaStep(0.0011, lines)) * band);
-  // disc and ring
-  vec2 dc = st - vec2(A.x * 0.55, -A.y * 0.35);
-  col = mix(col, blue, 1.0 - aaStep(0.24, length(dc)));
-  col = mix(col, ink, 1.0 - aaStep(0.004, abs(length(st - vec2(-A.x * 0.55, A.y * 0.45)) - 0.2)));
-  col = mix(col, ink, 1.0 - aaStep(0.0035, abs(length(st - vec2(-A.x * 0.55, A.y * 0.45)) - 0.14)));
-  // a black quarter disc low left
-  vec2 q = st - vec2(-A.x, -A.y);
-  col = mix(col, ink, (1.0 - aaStep(0.38, length(q))) * 0.92);
-  return col;
-}
-
 // --- Contour: a topographic survey ------------------------------------------
 float terrain(vec2 p) {
   float s = 0.0, a = 0.55;
@@ -268,7 +198,8 @@ vec3 image(vec2 frag) {
   vec2 size = uImageSize * s;
   vec2 uv = (frag - (uRes - size) * 0.5) / size;
   vec3 col = texture(uImage, vec2(uv.x, 1.0 - uv.y)).rgb;
-  if (uDark > 0.5) col *= 0.72;
+  // Dark mode dims photographs and cools their highlights a touch.
+  if (uDark > 0.5) col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, 0.9) * 0.62;
   return col;
 }
 
@@ -279,11 +210,9 @@ void main() {
   vec2 A = 0.5 * uRes / m;
   vec3 col;
   if (uPreset == 0) col = harbour(st, A);
-  else if (uPreset == 1) col = citrus(st, A);
-  else if (uPreset == 2) col = prism(st, A);
-  else if (uPreset == 3) col = contour(st, A);
-  else if (uPreset == 4) col = ember(st, A);
-  else if (uPreset == 5) col = studio(st, A);
+  else if (uPreset == 1) col = contour(st, A);
+  else if (uPreset == 2) col = ember(st, A);
+  else if (uPreset == 3) col = studio(st, A);
   else col = image(frag2);
   col += (hash12(frag2) - 0.5) / 255.0;
   frag = vec4(clamp(col, 0.0, 1.0), 1.0);
@@ -413,7 +342,7 @@ void main() {
     // Light: a fixed key light, drawn towards the pointer when it is near.
     vec2 toP = uPointer.xy - R.xy;
     float pw = uPointer.z * exp(-max(length(toP) - max(R.z, R.w), 0.0) / (320.0 * uDpr));
-    vec2 L2 = normalize(mix(uLight, normalize(toP + 1e-3), clamp(pw, 0.0, 0.85)));
+    vec2 L2 = normalize(mix(uLight, normalize(toP + 1e-3), clamp(pw, 0.0, 0.5)));
     vec3 L = normalize(vec3(L2 * 0.8, 0.6));
 
     // Refraction through the glass.
@@ -426,7 +355,9 @@ void main() {
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
     // The rim is clear glass; frost and tint gather towards the middle.
     float inner = smoothstep(0.08, 0.95, t);
-    float frost = O.x * mix(0.06, 1.0, inner);
+    // A touch of softness even at the rim keeps fine detail (photos, foliage)
+    // from breaking into colour noise once it is refracted and split.
+    float frost = max(O.x * mix(0.06, 1.0, inner), 0.3);
     vec3 sharp, soft, heavy;
     if (slope < 0.002) {
       sharp = texture(uSrc, uvG).rgb; soft = texture(uSoft, uvG).rgb; heavy = texture(uHeavy, uvG).rgb;
@@ -443,7 +374,7 @@ void main() {
     float fres = pow(1.0 - n.z, 2.2) * (0.55 + 0.45 * u);
     vec3 env = texture(uHeavy, (p + g * S.y * 2.5) / uRes).rgb;
     env = mix(vec3(dot(env, vec3(0.333))), env, 1.5) * (uDark > 0.5 ? 1.25 : 1.1) + 0.06;
-    base = mix(base, env, clamp(fres * 0.9, 0.0, 0.8));
+    base = mix(base, env, clamp(fres * 0.6, 0.0, 0.55));
 
     // Shading across the bevel: lit side brighter, far side slightly deeper.
     float facing = dot(g, L2);
@@ -475,12 +406,14 @@ void main() {
     vec3 spectral = 0.55 + 0.45 * cos(6.2831853 * (ang / 6.2831853 * 1.5 + vec3(0.0, 0.33, 0.67)));
     vec3 rimCol = mix(vec3(1.0), spectral, corner * 0.7);
     float lit = 0.35 + 0.65 * max(facing, 0.0) + 0.35 * max(-facing, 0.0);
-    float rimK = O.z * (1.0 + 0.6 * st.x) * (uDark > 0.5 ? 0.55 : 0.85);
+    // Highlights gather where the rim turns a corner; straight sides only whisper.
+    float cornerK = mix(0.14, 1.0, smoothstep(0.1, 0.85, corner));
+    float rimK = O.z * (1.0 + 0.15 * st.x) * (uDark > 0.5 ? 0.55 : 0.85) * cornerK;
     base += rimCol * (edge * lit + edge2 * 0.28 * max(facing, 0.0)) * rimK;
 
     // Specular glint on the bevel.
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-    float spec = pow(max(dot(n, H), 0.0), 70.0) * u * O.z * (0.9 + 0.8 * st.x);
+    float spec = pow(max(dot(n, H), 0.0), 70.0) * u * O.z * (0.9 + 0.15 * st.x) * cornerK;
     base += spec * mix(vec3(1.0), spectral, 0.25);
 
     // Pressing lights the glass where it is touched.

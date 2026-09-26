@@ -12,17 +12,18 @@ import {
   setGlassPrefs,
   useGlassPrefs,
   type BackgroundId,
+  type PhotoId,
   type PresetId,
 } from "./prefs";
+import { PHOTOS } from "./photos";
 import { imageThumbnail, renderThumbnails } from "./thumbnails";
 
-const PRESETS: { id: PresetId; name: string; dark?: string }[] = [
+const PRESETS: { id: PresetId | PhotoId; name: string; dark?: string }[] = [
   { id: "harbour", name: "Harbour" },
-  { id: "citrus", name: "Citrus" },
-  { id: "prism", name: "Prism" },
   { id: "contour", name: "Contour" },
   { id: "ember", name: "Afterglow", dark: "Ember" },
   { id: "studio", name: "Studio" },
+  ...PHOTOS,
 ];
 
 function useDarkClass() {
@@ -50,10 +51,14 @@ export function BackgroundPicker() {
 
   useEffect(() => {
     // Rendering the previews takes a moment; let the page paint first.
-    const id = requestAnimationFrame(() =>
-      setThumbs(renderThumbnails(PRESETS.map((p) => p.id), dark, finish)),
-    );
-    return () => cancelAnimationFrame(id);
+    let live = true;
+    const id = requestAnimationFrame(() => {
+      void renderThumbnails(PRESETS.map((p) => p.id), dark, finish).then((next) => live && setThumbs(next));
+    });
+    return () => {
+      live = false;
+      cancelAnimationFrame(id);
+    };
   }, [dark, finish]);
 
   const imageThumb = useMemo(() => (image ? imageThumbnail(image) : null), [image]);
@@ -74,7 +79,7 @@ export function BackgroundPicker() {
 
   return (
     <div className="px-4 pt-1 pb-4">
-    <div className="grid grid-cols-4 gap-2.5 max-sm:grid-cols-3">
+    <div className="grid grid-cols-5 gap-2.5 max-sm:grid-cols-3">
       {PRESETS.map((p) => (
         <Tile
           key={p.id}

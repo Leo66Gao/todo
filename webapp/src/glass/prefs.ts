@@ -7,8 +7,17 @@ import { getLocal, setLocal } from "@/lib/prefs";
 // live in this browser only and never touch the synced workspace.
 
 export type GlassFinish = "clear" | "balanced" | "frosted";
-export type PresetId = "harbour" | "citrus" | "prism" | "contour" | "ember" | "studio";
-export type BackgroundId = PresetId | "image";
+/** Backgrounds drawn by the renderer. */
+export type PresetId = "harbour" | "contour" | "ember" | "studio";
+/** Photographs shipped with the app (public/backgrounds). */
+export type PhotoId = "alpine" | "lake" | "forest" | "coast" | "dunes";
+export type BackgroundId = PresetId | PhotoId | "image";
+
+export const PRESET_IDS: readonly PresetId[] = ["harbour", "contour", "ember", "studio"];
+export const PHOTO_IDS: readonly PhotoId[] = ["alpine", "lake", "forest", "coast", "dunes"];
+export const isPhoto = (id: string): id is PhotoId => (PHOTO_IDS as readonly string[]).includes(id);
+const isBackground = (id: unknown): id is BackgroundId =>
+  typeof id === "string" && (id === "image" || isPhoto(id) || (PRESET_IDS as readonly string[]).includes(id));
 
 export interface GlassPrefs {
   enabled: boolean;
@@ -37,10 +46,12 @@ function persist() {
 export function restoreGlassPrefs() {
   const saved = getLocal<Partial<GlassPrefs>>(KEY, {});
   useGlassPrefs.setState({ ...DEFAULTS, ...saved });
+  // Backgrounds retired since they were chosen fall back to the default.
+  if (!isBackground(useGlassPrefs.getState().background)) setGlassPrefs({ background: DEFAULTS.background });
   // Development aid: `?glass=<preset>` turns the theme on with that background.
   if (process.env.NODE_ENV !== "production") {
     const preset = new URLSearchParams(location.search).get("glass");
-    if (preset) useGlassPrefs.setState({ enabled: true, background: preset as BackgroundId });
+    if (isBackground(preset)) useGlassPrefs.setState({ enabled: true, background: preset });
   }
   void loadImage().then((image) => {
     if (image) useGlassPrefs.setState({ image, hasImage: true });

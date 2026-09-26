@@ -2,9 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
-import { useGlassPrefs } from "./prefs";
+import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassPrefs } from "./prefs";
+import { loadedPhoto, loadPhoto } from "./photos";
 
-const PRESET_CLASSES = ["harbour", "citrus", "prism", "contour", "ember", "studio", "image"].map((p) => `glass-bg-${p}`);
+const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
 
 /** Keeps <html> classes in step with the theme: `glass`, a background class, and the CSS fallback. */
 export function useGlassDocumentClasses() {
@@ -61,15 +62,36 @@ function GlassCanvas() {
     const reducedTransparency = matchMedia("(prefers-reduced-transparency: reduce)");
     const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
 
+    let photoRequest = 0;
     const applyLook = () => {
       const s = useGlassPrefs.getState();
-      engine.setLook({
-        background: s.background === "image" && !s.image ? "harbour" : s.background,
-        image: s.image,
+      const common = {
         dark: root.classList.contains("dark"),
         finish: s.finish,
         pointerLight: s.pointerLight,
         solid: reducedTransparency.matches,
+      };
+      const request = ++photoRequest;
+      if (isPhoto(s.background)) {
+        const id = s.background;
+        const show = (image: ImageBitmap) => {
+          if (request === photoRequest) engine.setLook({ ...common, background: "image", image });
+        };
+        const full = loadedPhoto(id);
+        if (full) return show(full);
+        // The small copy arrives almost at once and reads the same behind
+        // frosted glass; the full photograph replaces it when it lands.
+        void loadPhoto(id, "small")
+          .then(show)
+          .then(() => loadPhoto(id))
+          .then(show)
+          .catch((error) => console.warn(error));
+        return;
+      }
+      engine.setLook({
+        ...common,
+        background: s.background === "image" ? (s.image ? "image" : "harbour") : s.background,
+        image: s.image,
       });
     };
     applyLook();
