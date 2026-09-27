@@ -6,7 +6,7 @@ import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSens
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis } from "./restrict";
-import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { setThemeMode, useAppearance } from "@/lib/appearance";
 import { firebaseConfigured, googleWebClientId } from "@/lib/firebase";
@@ -31,7 +31,7 @@ import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { isNative } from "@/lib/native";
 import { AiError, chatJson, DEFAULT_MODEL, setAiKey, setAiModel, useAiKey } from "@/lib/ai";
-import { ensureMonths, modeOf, setCalendarMode, useGoogleEvents } from "@/lib/googleEvents";
+import { ensureMonths, modeOf, setCalendarMode, useGoogleEvents, type CalendarMode, type GCalendar } from "@/lib/googleEvents";
 import { LEAD_OPTIONS, requestReminderPermission, setReminderPrefs, useReminderPrefs, type ReminderPrefs } from "@/lib/reminders";
 import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
@@ -455,6 +455,8 @@ function CalendarList() {
   const calendars = useGoogleEvents((s) => s.calendars);
   const modes = useGoogleEvents((s) => s.modes);
   const listMissing = useGoogleEvents((s) => s.listMissing);
+  const mine = calendars.filter((c) => !isOtherCalendar(c));
+  const other = calendars.filter(isOtherCalendar);
   useEffect(() => {
     // Loading this month also loads the list of calendars.
     const now = new Date();
@@ -469,29 +471,36 @@ function CalendarList() {
           </Button>
         </Item>
       )}
-      {calendars.map((c) => (
-        <Item
-          key={c.id}
-          title={
-            <span className="flex items-center gap-2">
-              <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
-              <span className="truncate">{c.name}</span>
-            </span>
-          }
-          detail={modeOf(c, modes) === "assignments" ? "Each event becomes an assignment, matched to a subject." : undefined}
-        >
-          <Segmented
-            size="sm"
-            value={modeOf(c, modes)}
-            onChange={(v) => setCalendarMode(c.id, v)}
-            options={[
-              { value: "show", label: "Show" },
-              { value: "hide", label: "Hide" },
-              ...(c.primary ? [] : [{ value: "assignments" as const, label: "Assignments" }]),
-            ]}
-          />
-        </Item>
+      {mine.map((c) => (
+        <CalendarRow key={c.id} calendar={c} mode={modeOf(c, modes)} />
       ))}
+      {other.length > 0 && (
+        <details className="group/other">
+          <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 transition-colors hover:bg-fill">
+            <ChevronRight className="size-4 shrink-0 text-ink-3 transition-transform duration-200 group-open/other:rotate-90" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm">Other calendars</span>
+              <span className="block truncate text-xs text-ink-3">{other.map((c) => c.name).join(", ")}</span>
+            </span>
+            <span onClick={(e) => e.preventDefault()}>
+              <Segmented
+                size="sm"
+                value={other.every((c) => modeOf(c, modes) === "hide") ? "hide" : "show"}
+                onChange={(v) => other.forEach((c) => setCalendarMode(c.id, v))}
+                options={[
+                  { value: "show", label: "Show" },
+                  { value: "hide", label: "Hide" },
+                ]}
+              />
+            </span>
+          </summary>
+          <div className="pl-7">
+            {other.map((c) => (
+              <CalendarRow key={c.id} calendar={c} mode={modeOf(c, modes)} />
+            ))}
+          </div>
+        </details>
+      )}
       <details className="group px-4 py-3 text-xs text-ink-3">
         <summary className="cursor-pointer list-none text-ink-2 transition-colors hover:text-ink">How to add ManageBac deadlines</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
@@ -501,6 +510,39 @@ function CalendarList() {
         </ol>
       </details>
     </>
+  );
+}
+
+/**
+ * Calendars Google adds for you (public holidays, birthdays, week numbers and
+ * the like) share one row, so the calendars you keep stay easy to find.
+ */
+function isOtherCalendar(c: GCalendar) {
+  return !c.primary && (c.id.endsWith("@group.v.calendar.google.com") || c.id.includes("#contacts@") || c.id.includes("#holiday@"));
+}
+
+function CalendarRow({ calendar: c, mode }: { calendar: GCalendar; mode: CalendarMode }) {
+  return (
+    <Item
+      title={
+        <span className="flex items-center gap-2">
+          <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
+          <span className="truncate">{c.name}</span>
+        </span>
+      }
+      detail={mode === "assignments" ? "Each event becomes an assignment, matched to a subject." : undefined}
+    >
+      <Segmented
+        size="sm"
+        value={mode}
+        onChange={(v) => setCalendarMode(c.id, v)}
+        options={[
+          { value: "show", label: "Show" },
+          { value: "hide", label: "Hide" },
+          ...(c.primary ? [] : [{ value: "assignments" as const, label: "Assignments" }]),
+        ]}
+      />
+    </Item>
   );
 }
 

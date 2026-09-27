@@ -1,15 +1,43 @@
 {
-  "name": "Todo — Study Workspace",
+  "id": "/",
+  "name": "Todo",
   "short_name": "Todo",
+  "description": "Tasks, assignments, subjects and notes, synced across your devices.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone"
+  ],
+  "orientation": "portrait",
   "background_color": "#f8f8f7",
   "theme_color": "#f8f8f7",
-  "description": "Tasks, assignments, subjects and notes, synced across your devices.",
+  "categories": [
+    "productivity",
+    "education"
+  ],
   "icons": [
-    { "src": "/icons/Todo-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/Todo-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/Todo-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icons/Todo-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icons/Todo-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/Todo-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/Todo-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/Todo-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

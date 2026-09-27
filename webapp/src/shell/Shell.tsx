@@ -60,6 +60,8 @@ import { startReminders } from "@/features/reminders/startReminders";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileTabBar } from "./MobileBar";
 import { startOffline } from "@/lib/offline";
+import { startPressFeedback } from "@/ui/press";
+import { InstallHint } from "./InstallHint";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
 
@@ -77,6 +79,7 @@ export function Shell() {
     startReminders();
     startAssignmentImport();
     startOffline();
+    startPressFeedback();
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
@@ -118,6 +121,7 @@ export function Shell() {
         <SourcesHost />
         <FocusTimer />
         <ToastHost />
+        <InstallHint />
       </TooltipProvider>
     </MotionConfig>
   );
@@ -313,10 +317,14 @@ function Workspace() {
             data-paper={paper || undefined}
             className="flex min-h-0 flex-1 flex-col"
           >
-            <View
+            {/* Each screen arrives with a short settle (phones only); pages
+                opened from a list slide in from the side. */}
+            <div
               key={route.view === "subject" || route.view === "assignment" || route.view === "note" ? `${route.view}:${route.id}` : route.view}
-              route={route}
-            />
+              className={cn("flex min-h-0 flex-1 flex-col", route.view === "assignment" || route.view === "note" || route.view === "subject" ? "view-push" : "view-in")}
+            >
+              <View route={route} />
+            </div>
           </div>
           <MobileTabBar route={route} navigate={navigate} />
         </main>
@@ -375,12 +383,16 @@ export function PageHeader({
   className?: string;
 }) {
   const collapsed = useUI((s) => s.sidebarCollapsed);
+  const sub = eyebrow ?? detail;
   return (
     // Phones: a small mono line over a large serif title, with round buttons
     // aligned to the title's baseline.
     <header
       className={cn(
-        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:items-center max-md:px-5 max-md:pt-[calc(max(env(safe-area-inset-top),12px)+6px)] max-md:pb-4",
+        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:items-center max-md:px-5 max-md:pb-4",
+        // Without the small line, the title drops to where the buttons sit on
+        // pages that have one, so titles don't jump between pages.
+        sub ? "max-md:pt-[calc(max(env(safe-area-inset-top),12px)+6px)]" : "max-md:pt-[calc(max(env(safe-area-inset-top),12px)+15px)]",
         className,
       )}
     >
@@ -395,11 +407,11 @@ export function PageHeader({
       {leading}
       <div className="flex min-w-0 items-baseline gap-2.5 max-md:flex-col-reverse max-md:gap-0">
         {title !== "" && (
-          <h1 className="max-w-full truncate font-display text-xl font-semibold tracking-[-0.015em] max-md:text-[32px] max-md:leading-[1.2] max-md:font-bold max-md:tracking-[-0.025em]">
+          <h1 className="max-w-full truncate font-display max-md:relative max-md:-left-px text-xl font-semibold tracking-[-0.015em] max-md:text-[32px] max-md:leading-[1.2] max-md:font-bold max-md:tracking-[-0.025em]">
             {title}
           </h1>
         )}
-        {(eyebrow ?? detail) && (
+        {sub && (
           <span className="max-w-full truncate text-sm text-ink-3 max-md:font-mono max-md:text-[12px] max-md:tracking-[0.08em] max-md:uppercase">
             <span className="md:hidden">{eyebrow ?? detail}</span>
             <span className="max-md:hidden">{detail}</span>

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarDays, FileText, GraduationCap, Menu as MenuIcon, Plus, Sun } from "lucide-react";
 import { createNote } from "@/features/notes/noteActions";
+import { haptic } from "@/lib/native";
 import { cn } from "@/ui/cn";
 import { springs } from "@/ui/motion";
 import { GlassLens } from "@/ui/lens";
@@ -69,12 +70,16 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
             icon={tab.icon}
             active={!drawer && current === tab}
             onClick={() => {
+              if (current !== tab || drawer) haptic();
               ui.set({ sidebarOpen: false });
               navigate({ view: tab.view } as Route);
             }}
           />
         ))}
-        <TabButton label="More" icon={<MenuIcon />} active={drawer || !current} onClick={() => ui.set({ sidebarOpen: !drawer })} />
+        <TabButton label="More" icon={<MenuIcon />} active={drawer || !current} onClick={() => {
+            haptic();
+            ui.set({ sidebarOpen: !drawer });
+          }} />
       </div>
       <AnimatePresence initial={false}>
         {canAdd && (
@@ -84,9 +89,13 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
             initial={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
             animate={{ width: 58, marginLeft: 10, opacity: 1, scale: 1 }}
             exit={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: 0.88, transition: springs.press }}
             transition={springs.panel}
-            onClick={() => createForRoute(route, navigate)}
+            data-no-press
+            onClick={() => {
+              haptic("medium");
+              createForRoute(route, navigate);
+            }}
             className="lens-round pointer-events-auto flex h-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink"
           >
             <Plus className="size-[25px] shrink-0" strokeWidth={2.1} />
@@ -105,16 +114,24 @@ function TabButton({ label, icon, active, onClick }: { label: string; icon: Reac
       aria-current={active ? "page" : undefined}
       aria-label={label}
       className={cn(
-        "relative flex min-w-0 items-center justify-center rounded-full transition-[color,transform] duration-150 active:scale-[0.9]",
+        "relative flex min-w-0 items-center justify-center rounded-full transition-colors duration-200",
         active ? "text-ink" : "text-ink-3",
       )}
     >
       {active && (
-        <motion.span layoutId="tab-pill" transition={springs.snappy} className="absolute inset-0 rounded-full">
+        <motion.span layoutId="tab-pill" transition={springs.pill} className="absolute inset-0 rounded-full">
           <GlassLens radius={24} bezel={14} className="lens-pill" />
         </motion.span>
       )}
-      <span className={cn("relative flex [&>svg]:size-[23px]", active ? "[&>svg]:stroke-[2.1]" : "[&>svg]:stroke-[1.75]")}>{icon}</span>
+      {/* The icon lifts a little as it becomes the current tab. */}
+      <motion.span
+        className={cn("relative flex [&>svg]:size-[23px] [&>svg]:transition-[stroke-width] [&>svg]:duration-200", active ? "[&>svg]:stroke-[2.1]" : "[&>svg]:stroke-[1.75]")}
+        initial={false}
+        animate={{ scale: active ? [0.82, 1.08, 1] : 1 }}
+        transition={{ duration: 0.42, ease: [0.2, 0.9, 0.3, 1], times: [0, 0.55, 1] }}
+      >
+        {icon}
+      </motion.span>
     </button>
   );
 }

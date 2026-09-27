@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
   manifest: "/manifest.webmanifest",
   // Added to the home screen, it opens full screen like an app.
-  appleWebApp: { capable: true, title: "Todo", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Todo", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

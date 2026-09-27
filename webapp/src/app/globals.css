@@ -594,10 +594,10 @@ html.dark:not(.glass) .float-glass {
 }
 .dark {
   --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0.05) 50%, rgb(255 255 255 / 0.08) 100%);
-  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.5), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.3),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.1), inset 0 0 10px rgb(255 255 255 / 0.03), 0 12px 30px -10px rgb(0 0 0 / 0.75);
-  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 0.7) 0%, rgb(255 255 255 / 0.12) 12%, rgb(255 255 255 / 0) 28%,
-    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.12) 90%, rgb(255 255 255 / 0.45) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.28), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.07), inset 0 0 10px rgb(255 255 255 / 0.03), 0 12px 30px -10px rgb(0 0 0 / 0.75);
+  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 0.38) 0%, rgb(255 255 255 / 0.07) 12%, rgb(255 255 255 / 0) 28%,
+    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.07) 90%, rgb(255 255 255 / 0.24) 100%);
 }
 /* The selected tab's bubble: a brighter lens of its own. */
 .lens-pill {
@@ -607,7 +607,7 @@ html.dark:not(.glass) .float-glass {
 }
 .dark .lens-pill {
   --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.12));
-  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.55), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.3),
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.32), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
     0 4px 12px -4px rgb(0 0 0 / 0.5);
 }
 /* The caught light: a thin ring, brightest at the top and bottom. */
@@ -769,5 +769,28 @@ html.dark:not(.glass) .float-glass {
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* Screen changes on phones: a short settle, or a slide for pages opened from
+   a list. Only opacity and transform, so they stay on the compositor. */
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .view-in {
+    animation: view-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+  .view-push {
+    animation: view-push 340ms cubic-bezier(0.2, 0.85, 0.2, 1) backwards;
+  }
+}
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes view-push {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
   }
 }
