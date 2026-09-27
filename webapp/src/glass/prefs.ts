@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { getLocal, setLocal } from "@/lib/prefs";
+import { isNative } from "@/lib/native";
 
 // Liquid Glass is a per-device look (like the window size), so its settings
 // live in this browser only and never touch the synced workspace.
@@ -38,9 +39,34 @@ interface GlassState extends GlassPrefs {
   /** The personal background, decoded; null until loaded or when there is none. */
   image: ImageBitmap | null;
   hasImage: boolean;
+  /**
+   * The Android app and phone-width windows. Liquid Glass is a desktop theme:
+   * phones keep the standard look, with a fixed, subtle glass on the floating
+   * chrome only (tab bar, add button, focus timer).
+   */
+  phone: boolean;
 }
 
-export const useGlassPrefs = create<GlassState>(() => ({ ...DEFAULTS, image: null, hasImage: false }));
+export const useGlassPrefs = create<GlassState>(() => ({ ...DEFAULTS, image: null, hasImage: false, phone: false }));
+
+/** Must match the phone width in the boot script (app/layout.tsx). */
+export const PHONE_WIDTH = "(max-width: 767px)";
+
+/** Whether the Liquid Glass theme is on here (chosen, and not on a phone). */
+export const useGlassOn = () => useGlassPrefs((s) => s.enabled && !s.phone);
+export const glassOn = () => {
+  const s = useGlassPrefs.getState();
+  return s.enabled && !s.phone;
+};
+
+let phoneQuery: MediaQueryList | null = null;
+function watchPhone() {
+  if (phoneQuery) return;
+  phoneQuery = matchMedia(PHONE_WIDTH);
+  const read = () => useGlassPrefs.setState({ phone: isNative() || phoneQuery!.matches });
+  read();
+  phoneQuery.addEventListener("change", read);
+}
 
 function persist() {
   const { enabled, background, blur, frost, lightText, pointerLight } = useGlassPrefs.getState();
@@ -48,6 +74,7 @@ function persist() {
 }
 
 export function restoreGlassPrefs() {
+  watchPhone();
   // A saved `radius` (once a setting) is ignored: panels share one fixed radius.
   const { finish, ...saved } = getLocal<Partial<GlassPrefs> & { finish?: string }>(KEY, {});
   // The earlier three-step setting maps onto the blur slider.

@@ -78,7 +78,7 @@ export function AssignmentsView() {
           </>
         }
       />
-      <div className="scroll-area flex-1 pb-24">
+      <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[820px] px-6 max-sm:px-3">
           {open.length > 0 && (
             <div className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
-import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassPrefs } from "./prefs";
+import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
 import { noteScroll } from "./registry";
 import { reportGlassTop } from "@/lib/native";
@@ -11,7 +11,7 @@ const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-
 
 /** Keeps <html> classes in step with the theme: `glass`, a background class, and the CSS fallback. */
 export function useGlassDocumentClasses() {
-  const enabled = useGlassPrefs((s) => s.enabled);
+  const enabled = useGlassOn();
   const background = useGlassPrefs((s) => s.background);
   useEffect(() => {
     const root = document.documentElement;
@@ -43,7 +43,7 @@ export function useGlassDocumentClasses() {
  * CSS (`glass-css`): a gradient background and backdrop-filter surfaces.
  */
 export function GlassLayer() {
-  const enabled = useGlassPrefs((s) => s.enabled);
+  const enabled = useGlassOn();
   useGlassDocumentClasses();
   if (!enabled) return null;
   return <GlassCanvas />;

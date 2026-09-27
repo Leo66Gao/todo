@@ -25,7 +25,7 @@ import { cn } from "@/ui/cn";
 import { IconButton, Kbd } from "@/ui/controls";
 import { ContextMenu, Tooltip } from "@/ui/overlay";
 import { springs } from "@/ui/motion";
-import { useGlassPrefs } from "@/glass/prefs";
+import { useGlassOn } from "@/glass/prefs";
 import { useGlass } from "@/glass/registry";
 import { useNavigate, useRoute, type Route } from "./nav";
 import { ui } from "./ui";
@@ -229,7 +229,7 @@ function NavItem({
 
 /** The current page's highlight; in Liquid Glass it is a glass lens that glides between items. */
 function ActivePill() {
-  const glass = useGlassPrefs((s) => s.enabled);
+  const glass = useGlassOn();
   const pill = useGlass<HTMLSpanElement>({ level: 2, kind: "control", interactive: true, inScroll: true });
   return (
     <motion.span

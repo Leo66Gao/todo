@@ -53,7 +53,7 @@ export function SettingsView() {
   return (
     <>
       <PageHeader title="Settings" />
-      <div className="scroll-area flex-1 pb-24">
+      <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[680px] space-y-9 px-6 pt-2 max-sm:px-4">
           <AccountSection />
           <AppearanceSection />
@@ -148,24 +148,28 @@ function AccountSection() {
 
 function AppearanceSection() {
   const mode = useAppearance((s) => s.themeMode);
-  const glass = useGlassPrefs((s) => s.enabled);
+  // Liquid Glass is a desktop theme; phones only have the standard look.
+  const phone = useGlassPrefs((s) => s.phone);
+  const glass = useGlassPrefs((s) => s.enabled) && !phone;
   const blur = useGlassPrefs((s) => s.blur);
   const frost = useGlassPrefs((s) => s.frost);
   const lightText = useGlassPrefs((s) => s.lightText);
   const pointerLight = useGlassPrefs((s) => s.pointerLight);
   return (
     <Group title="Appearance" description="Saved on this device only.">
-      <Item title="Theme" detail={glass ? "Glass panels over a background of your choice." : "The standard, quiet look."}>
-        <Segmented
-          size="sm"
-          value={glass ? "glass" : "standard"}
-          onChange={(v) => setGlassPrefs({ enabled: v === "glass" })}
-          options={[
-            { value: "standard", label: "Standard" },
-            { value: "glass", label: "Liquid Glass" },
-          ]}
-        />
-      </Item>
+      {!phone && (
+        <Item title="Theme" detail={glass ? "Glass panels over a background of your choice." : "The standard, quiet look."}>
+          <Segmented
+            size="sm"
+            value={glass ? "glass" : "standard"}
+            onChange={(v) => setGlassPrefs({ enabled: v === "glass" })}
+            options={[
+              { value: "standard", label: "Standard" },
+              { value: "glass", label: "Liquid Glass" },
+            ]}
+          />
+        </Item>
+      )}
       <Item title="Mode" detail="Match the system, or choose light or dark.">
         <Segmented
           size="sm"

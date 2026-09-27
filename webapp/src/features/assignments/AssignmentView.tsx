@@ -75,7 +75,7 @@ export function AssignmentView({ id }: { id: string }) {
           </>
         }
       />
-      <div className="scroll-area flex-1 pb-24">
+      <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[720px] px-6 pt-2 max-sm:px-4">
           <p className={cn("px-0 pb-1 text-sm", task.isDone ? "text-ink-3" : overdue ? "text-danger" : days <= 2 ? "text-ink" : "text-ink-2")}>
             {task.isDone ? "Completed" : `Due ${format(task.date, "EEEE d MMMM")}`}

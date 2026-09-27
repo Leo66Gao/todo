@@ -80,7 +80,7 @@ export function NotesView() {
           </>
         }
       />
-      <div className="scroll-area flex-1 pb-24">
+      <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[760px] px-6 max-sm:px-3">
           <div className="flex items-center gap-2">
             <label className="flex h-8 flex-1 items-center gap-2 rounded-ctl bg-fill px-2.5 text-sm transition-colors focus-within:bg-fill-strong/70">

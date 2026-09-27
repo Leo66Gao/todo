@@ -49,7 +49,7 @@ export function SubjectsView() {
           </Button>
         }
       />
-      <div className="scroll-area flex-1 pb-24">
+      <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[900px] px-6 max-sm:px-3">
           {projects.length === 0 ? (
             <div className="flex flex-col items-center py-20 text-center">

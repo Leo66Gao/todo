@@ -43,7 +43,7 @@ import { PRIORITY_LABEL, priorityColor } from "./meta";
 import { WorkBack } from "./WorkBack";
 import { startFocus } from "@/lib/focus";
 import { TaskCheck } from "./TaskCheck";
-import { useGlassPrefs } from "@/glass/prefs";
+import { useGlassOn } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
 
 const PANEL_WIDTH = 384;
@@ -54,7 +54,7 @@ export function InspectorPanel() {
   const exists = useWorkspace((s) => (id ? s.tasks.some((t) => t.id === id) : false));
   const open = id != null && exists;
   const [shown, setShown] = useState(id);
-  const glass = useGlassPrefs((s) => s.enabled);
+  const glass = useGlassOn();
   const panelGlass = useGlass({ level: 1, kind: "chrome" });
   if (open && id !== shown) setShown(id);
   return (

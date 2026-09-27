@@ -165,14 +165,6 @@ html.glass.glass-light-text:not(.dark) [data-paper] {
   --on-ink: #ffffff;
   --accent-soft: rgb(47 95 208 / 0.12);
 }
-@media (max-width: 767px) {
-  html.glass [data-shell] {
-    padding: max(8px, env(safe-area-inset-top)) 8px 0;
-  }
-  html.glass [data-surface="main-slab"] {
-    border-radius: calc(var(--glass-radius, 22px) + 4px);
-  }
-}
 
 /* ---------------------------------------------------------------------------
  * Overlays (menus, popovers, dialogs, toasts, the drawer): these float over

@@ -84,7 +84,7 @@ export function TodayView() {
           <DayStrip day={day} onPick={setDay} tasks={all} />
         </div>
         <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
-          <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-24">
+          <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-bar">
             <div className="mt-4 flex items-center gap-5 px-2 text-xs whitespace-nowrap text-ink-3 max-sm:gap-4">
               <span>
                 <span className="font-semibold text-ink tnum">{open}</span> open

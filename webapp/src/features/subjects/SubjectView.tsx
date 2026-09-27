@@ -98,7 +98,7 @@ export function SubjectView({ id }: { id: string }) {
           </>
         }
       />
-      <div className="scroll-area flex-1 pb-24">
+      <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto grid w-full max-w-[1100px] grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-10 px-6 max-lg:grid-cols-1 max-sm:px-3">
           <div>
             {tasks.length === 0 && (

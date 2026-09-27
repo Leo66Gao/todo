@@ -50,13 +50,13 @@ import { FocusTimer } from "@/features/focus/FocusTimer";
 import { startFocus } from "@/lib/focus";
 import { toast, ToastHost } from "@/ui/toast";
 import { GlassLayer } from "@/glass/GlassLayer";
-import { restoreGlassPrefs, useGlassPrefs } from "@/glass/prefs";
+import { restoreGlassPrefs, useGlassOn } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
 import { haptic, startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
-import { MobileAddButton, MobileTabBar } from "./MobileBar";
+import { MobileTabBar } from "./MobileBar";
 import { startOffline } from "@/lib/offline";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
@@ -132,7 +132,7 @@ function Workspace() {
   const navigate = useNavigate();
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
-  const glass = useGlassPrefs((s) => s.enabled);
+  const glass = useGlassOn();
   const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
   const slabGlass = useGlass({ level: 1, kind: "slab" });
   const paper = route.view === "notes" || route.view === "note";
@@ -310,7 +310,6 @@ function Workspace() {
               route={route}
             />
           </div>
-          <MobileAddButton route={route} navigate={navigate} />
           <MobileTabBar route={route} navigate={navigate} />
         </main>
 
