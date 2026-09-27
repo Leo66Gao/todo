@@ -81,7 +81,7 @@ function Group({ title, description, children }: { title: string; description?: 
     <section>
       <h2 className="text-sm font-semibold">{title}</h2>
       {description && <p className="mt-0.5 text-xs text-ink-3">{description}</p>}
-      <div className="mt-3 divide-y divide-line rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">{children}</div>
+      <div className="card mt-3 divide-y divide-line">{children}</div>
     </section>
   );
 }
@@ -295,7 +295,7 @@ function TaskFormSection() {
           Reset
         </Button>
       </div>
-      <div className="mt-3 rounded-[calc(var(--radius-ctl)_+_4px)] border border-line p-1">
+      <div className="card mt-3 p-1">
         <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={onDragEnd}>
           <SortableContext items={settings.fieldOrder} strategy={verticalListSortingStrategy}>
             {settings.fieldOrder.map((id) => (
@@ -320,7 +320,7 @@ function FieldRow({ id, visible, onToggle }: { id: FieldId; visible: boolean; on
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
-        "relative flex h-11 items-center gap-2 rounded-[9px] bg-canvas px-2",
+        "relative flex h-11 items-center gap-2 rounded-[9px] bg-card px-2",
         isDragging && "z-10 shadow-lift",
       )}
     >
@@ -394,7 +394,7 @@ function LabelsSection() {
           New label
         </Button>
       </div>
-      <div className="mt-3 divide-y divide-line rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">
+      <div className="card mt-3 divide-y divide-line">
         {settings.labels.length === 0 && <p className="px-4 py-3.5 text-sm text-ink-3">No labels yet.</p>}
         {settings.labels.map((label) => (
           <div key={label.id} className="group flex h-11 items-center gap-3 px-4">
@@ -606,7 +606,7 @@ function AiSection() {
               autoComplete="off"
               spellCheck={false}
               aria-label="DeepSeek API key"
-              className="h-8 w-44 rounded-ctl border border-line-strong bg-canvas px-2.5 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft max-sm:w-32"
+              className="h-8 w-44 rounded-ctl border border-line-strong bg-card px-2.5 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft max-sm:w-32"
             />
             <Button type="submit" size="sm" variant="primary" disabled={!draft.trim() || checking} icon={checking ? <Spinner className="size-3.5" /> : undefined}>
               Save

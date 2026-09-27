@@ -416,7 +416,7 @@ export function AskHost() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={ask.placeholder}
-              className="mt-3.5 h-9 w-full rounded-ctl border border-line-strong bg-canvas px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
+              className="mt-3.5 h-9 w-full rounded-ctl border border-line-strong bg-card px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
             />
           )}
           <div className="mt-5 flex justify-end gap-2">

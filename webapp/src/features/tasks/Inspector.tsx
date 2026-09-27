@@ -64,7 +64,7 @@ export function InspectorPanel() {
       initial={false}
       animate={{ width: open ? PANEL_WIDTH : 0, marginLeft: glass && open ? GLASS_GAP : 0 }}
       transition={springs.panel}
-      className="relative shrink-0 overflow-hidden border-l border-line bg-canvas max-lg:hidden"
+      className="relative shrink-0 overflow-hidden border-l border-line bg-card max-lg:hidden"
       style={{ borderLeftWidth: open && !glass ? 1 : 0 }}
       aria-hidden={!open}
     >
@@ -325,14 +325,16 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       )}
       <div className={cn(variant === "panel" && "scroll-area flex-1 px-5 pb-10")}>
         <TitleEditor task={task} large={variant === "page"} />
-        {properties.length > 0 && <div className="mt-3 space-y-0.5">{properties}</div>}
+        {properties.length > 0 && (
+          <div className={cn("mt-3 space-y-0.5", variant === "page" && "card mt-4 px-2 py-2")}>{properties}</div>
+        )}
 
-        <SubtaskSection task={task} />
+        <SubtaskSection task={task} page={variant === "page"} />
 
         {settings.showNotes && (
           <div className="mt-6">
             <div className="mb-2 text-xs font-semibold text-ink-2">Notes</div>
-            <NotesEditor task={task} />
+            <NotesEditor task={task} page={variant === "page"} />
           </div>
         )}
       </div>
@@ -402,7 +404,7 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
   );
 }
 
-function NotesEditor({ task }: { task: Task }) {
+function NotesEditor({ task, page }: { task: Task; page?: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<string | null>(null);
   const flush = () => {
@@ -419,7 +421,12 @@ function NotesEditor({ task }: { task: Task }) {
   };
   useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className="rounded-[calc(var(--radius-ctl)_+_2px)] border border-line px-3.5 pt-3 pb-2 transition-colors focus-within:border-line-strong">
+    <div
+      className={cn(
+        "px-3.5 pt-3 pb-2 transition-colors",
+        page ? "card" : "rounded-[calc(var(--radius-ctl)_+_2px)] border border-line focus-within:border-line-strong",
+      )}
+    >
       <RichText
         value={task.notes}
         placeholder="Write notes, links or a checklist…"
@@ -438,7 +445,7 @@ function NotesEditor({ task }: { task: Task }) {
 // ---------------------------------------------------------------------------
 // Subtasks and milestones
 
-function SubtaskSection({ task }: { task: Task }) {
+function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
   const [draft, setDraft] = useState("");
   const [planning, setPlanning] = useState(false);
   const canPlan = task.type === "assignment" && !task.isDone && startOfDay(task.date) >= startOfDay(new Date());
@@ -453,8 +460,8 @@ function SubtaskSection({ task }: { task: Task }) {
   };
   return (
     <div className="mt-6">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-xs font-semibold text-ink-2">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
+      <div className="mb-1.5 flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate text-xs font-semibold text-ink-2">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
         {canPlan && (
           <Tooltip label="Suggest steps, dated back from the deadline">
             <Button size="sm" variant="ghost" className="-my-1 h-6 px-1.5 text-xs text-ink-3" icon={<Route className="size-3.5" />} onClick={() => setPlanning(true)}>
@@ -464,7 +471,7 @@ function SubtaskSection({ task }: { task: Task }) {
         )}
         {total > 0 && (
           <>
-            <span className="relative ml-auto h-1 w-16 overflow-hidden rounded-full bg-fill-strong">
+            <span className="relative ml-auto h-1 w-16 shrink-0 overflow-hidden rounded-full bg-fill-strong max-sm:w-10">
               <motion.span
                 className="absolute inset-y-0 left-0 rounded-full bg-ink"
                 initial={false}
@@ -478,7 +485,7 @@ function SubtaskSection({ task }: { task: Task }) {
           </>
         )}
       </div>
-      <div>
+      <div className={cn(page && "card px-2 py-1.5")}>
         <AnimatePresence initial={false}>
           {task.subtasks.map((sub) => (
             <motion.div

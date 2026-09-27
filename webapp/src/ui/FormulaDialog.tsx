@@ -136,7 +136,7 @@ export function FormulaHost() {
             autoCapitalize="off"
             autoCorrect="off"
             placeholder="Type it as you'd write it: 1/2 m v^2, sqrt(x), theta >= pi"
-            className="mt-3 w-full resize-none rounded-ctl border border-line-strong bg-canvas px-3 py-2 font-mono text-[13px] leading-5 outline-none transition-[border-color,box-shadow] placeholder:font-sans placeholder:text-ink-4 focus:border-accent focus:ring-3 focus:ring-accent-soft"
+            className="mt-3 w-full resize-none rounded-ctl border border-line-strong bg-card px-3 py-2 font-mono text-[13px] leading-5 outline-none transition-[border-color,box-shadow] placeholder:font-sans placeholder:text-ink-4 focus:border-accent focus:ring-3 focus:ring-accent-soft"
           />
           <div className="mt-2.5 flex flex-wrap gap-1">
             {SYMBOLS.map((s) => (

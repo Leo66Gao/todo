@@ -430,7 +430,7 @@ function WordCount({ quill, note }: { quill: QuillType | null; note: StudyNote }
               autoFocus
               defaultValue={limit ?? ""}
               placeholder="e.g. 1500"
-              className="tnum h-8 min-w-0 flex-1 rounded-ctl border border-line-strong bg-canvas px-2.5 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
+              className="tnum h-8 min-w-0 flex-1 rounded-ctl border border-line-strong bg-card px-2.5 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
             />
             <Button type="submit" size="sm" variant="primary">
               Set

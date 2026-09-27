@@ -8,6 +8,8 @@
 html.glass {
   --canvas: transparent;
   --sidebar: transparent;
+  --card: transparent;
+  --shadow-card: none;
   --fill: rgb(24 28 36 / 0.055);
   --fill-strong: rgb(24 28 36 / 0.095);
   --row-hover: rgb(24 28 36 / 0.04);
@@ -131,6 +133,7 @@ html.glass {
   --radius-ctl: max(6px, calc(var(--glass-radius, 22px) * 0.38));
   --radius-pop: calc(var(--glass-radius, 22px) * 0.56);
   --radius-modal: calc(var(--glass-radius, 22px) * 0.78);
+  --radius-card: calc(var(--glass-radius, 22px) * 0.5);
 }
 html.glass [data-surface="sidebar"],
 html.glass [data-surface="inspector"],

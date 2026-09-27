@@ -84,7 +84,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             ui.set({ paletteOpen: true });
             onNavigate?.();
           }}
-          className="flex h-[30px] w-full items-center gap-2 rounded-ctl bg-canvas/70 px-2.5 text-sm text-ink-3 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas hover:text-ink-2 dark:bg-fill/50"
+          className="flex h-[30px] w-full items-center gap-2 rounded-ctl bg-card/80 px-2.5 text-sm text-ink-3 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas hover:text-ink-2 dark:bg-fill/50"
         >
           <Search className="size-3.5" />
           <span className="flex-1 text-left">Search</span>
@@ -212,17 +212,18 @@ function NavItem({
     <button
       type="button"
       onClick={onClick}
+      title={label.length > 24 ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex h-[30px] w-full items-center gap-2.5 rounded-ctl px-2.5 text-sm transition-colors duration-100",
+        "relative flex h-[30px] w-full min-w-0 items-center gap-2.5 rounded-ctl px-2.5 text-sm transition-colors duration-100",
         active ? "font-medium text-ink" : "text-ink-2 hover:bg-fill hover:text-ink",
         dropping && "bg-accent-soft text-accent",
       )}
     >
       {active && <ActivePill />}
-      <span className={cn("relative flex [&>svg]:size-4", active ? "text-ink" : "text-ink-3")}>{icon}</span>
-      <span className="relative flex-1 text-left">{label}</span>
-      {count != null && count > 0 && <span className="relative text-xs text-ink-3 tnum">{count}</span>}
+      <span className={cn("relative flex shrink-0 [&>svg]:size-4", active ? "text-ink" : "text-ink-3")}>{icon}</span>
+      <span className="relative min-w-0 flex-1 truncate text-left">{label}</span>
+      {count != null && count > 0 && <span className="relative shrink-0 text-xs text-ink-3 tnum">{count}</span>}
     </button>
   );
 }
@@ -236,7 +237,7 @@ function ActivePill() {
       ref={pill}
       layoutId={glass ? "nav-pill" : undefined}
       transition={springs.snappy}
-      className="absolute inset-0 rounded-ctl bg-fill-strong/80 dark:bg-fill-strong"
+      className="absolute inset-0 rounded-ctl bg-card shadow-card"
     />
   );
 }

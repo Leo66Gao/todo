@@ -83,23 +83,23 @@ export function NotesView() {
       <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[760px] px-6 max-sm:px-3">
           <div className="flex items-center gap-2">
-            <label className="flex h-8 flex-1 items-center gap-2 rounded-ctl bg-fill px-2.5 text-sm transition-colors focus-within:bg-fill-strong/70">
+            <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm shadow-card transition-colors">
               <Search className="size-3.5 text-ink-3" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search notes"
-                className="flex-1 bg-transparent outline-none placeholder:text-ink-3"
+                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-3"
               />
             </label>
             {projects.length > 0 && (
               <Menu
                 align="end"
                 trigger={
-                  <button type="button" className="flex h-8 items-center gap-2 rounded-ctl bg-fill px-2.5 text-sm transition-colors hover:bg-fill-strong data-[state=open]:bg-fill-strong">
-                    {subject && <span className="size-2 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />}
-                    {subject?.title ?? "All subjects"}
-                    <ChevronDown className="size-3.5 text-ink-3" />
+                  <button type="button" className="flex h-8 max-w-[45%] min-w-0 shrink-0 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm whitespace-nowrap shadow-card transition-colors hover:bg-fill data-[state=open]:bg-fill">
+                    {subject && <span className="size-2 shrink-0 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />}
+                    <span className="truncate">{subject?.title ?? "All subjects"}</span>
+                    <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
                   </button>
                 }
                 items={[

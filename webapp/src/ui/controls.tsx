@@ -86,7 +86,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
     <kbd
       className={cn(
         "hover-only inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] px-1",
-        "border border-line-strong/70 bg-canvas font-sans text-[10.5px] font-medium text-ink-3",
+        "border border-line-strong/70 bg-card font-sans text-[10.5px] font-medium text-ink-3",
         className,
       )}
     >

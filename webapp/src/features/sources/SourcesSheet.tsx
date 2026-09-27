@@ -169,7 +169,7 @@ export function SourcesHost() {
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="h-9 min-w-0 flex-1 rounded-ctl border border-line-strong bg-canvas px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
+                className="h-9 min-w-0 flex-1 rounded-ctl border border-line-strong bg-card px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
               />
               <Button type="submit" variant="primary" disabled={busy} icon={busy ? <Spinner className="size-3.5" /> : <Plus className="size-4" />}>
                 {input.trim() ? "Look up" : "Add"}
@@ -241,7 +241,7 @@ export function SourcesHost() {
                   placeholder="Page"
                   inputMode="numeric"
                   aria-label="Page for the citation"
-                  className="h-8 w-20 rounded-ctl border border-line-strong bg-canvas px-2.5 text-sm outline-none focus:border-accent"
+                  className="h-8 w-20 rounded-ctl border border-line-strong bg-card px-2.5 text-sm outline-none focus:border-accent"
                 />
                 <span className="flex-1 text-xs text-ink-3">Choose a source to cite it where your cursor was.</span>
                 <Button
@@ -367,7 +367,7 @@ function SourceForm({ draft, style, onCancel, onSave }: { draft: Draft; style: C
 }
 
 const inputClass =
-  "h-9 w-full rounded-ctl border border-line-strong bg-canvas px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft";
+  "h-9 w-full rounded-ctl border border-line-strong bg-card px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft";
 
 function Field({ label, hint, className, children }: { label: string; hint?: string; className?: string; children: React.ReactNode }) {
   return (

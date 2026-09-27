@@ -40,7 +40,8 @@ export function AssignmentView({ id }: { id: string }) {
         actions={
           <>
             <Button variant={task.isDone ? "secondary" : "primary"} onClick={() => toggleTask(task.id)}>
-              {task.isDone ? "Mark as not done" : "Mark as done"}
+              <span className="max-sm:hidden">{task.isDone ? "Mark as not done" : "Mark as done"}</span>
+              <span className="sm:hidden">{task.isDone ? "Reopen" : "Done"}</span>
             </Button>
             {!task.isDone && (
               <Tooltip label="Focus for 25 minutes">

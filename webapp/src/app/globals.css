@@ -3,23 +3,26 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Tokens. A neutral, slightly cool greyscale does almost all of the work;
- * ink (near-black) is the primary action colour, as in the original app, and
- * a single calm cobalt marks "now", selection and assignments.
+ * Tokens. A calm grey-white page (like iOS grouped lists) with content in
+ * white, well-rounded cards; black cards on a darker page in dark mode. A
+ * neutral, slightly cool greyscale does almost all of the work; ink
+ * (near-black) is the primary action colour, as in the original app, and a
+ * single calm cobalt marks "now", selection and assignments.
  */
 :root {
-  --canvas: #ffffff;
-  --sidebar: #f7f7f8;
+  --canvas: #f2f2f7;
+  --sidebar: #f2f2f7;
+  --card: #ffffff;
   --raised: #ffffff;
-  --fill: #f2f2f4;
-  --row-hover: color-mix(in srgb, var(--fill) 70%, transparent);
-  --fill-strong: #e9e9ec;
-  --line: #ececef;
-  --line-strong: #dedee2;
+  --fill: #eeeef2;
+  --row-hover: color-mix(in srgb, var(--fill) 60%, transparent);
+  --fill-strong: #e4e4ea;
+  --line: #e7e7ec;
+  --line-strong: #d9d9df;
   --ink: #1d1d20;
-  --ink-2: #616169;
-  --ink-3: #9a9aa2;
-  --ink-4: #c5c5cb;
+  --ink-2: #5f5f67;
+  --ink-3: #8e8e96;
+  --ink-4: #c3c3c9;
   --on-ink: #ffffff;
   --accent: #2f5fd0;
   --accent-soft: rgb(47 95 208 / 0.09);
@@ -31,6 +34,7 @@
   --p-high: #e0701f;
   --p-critical: #cf3a2f;
   --scrim: rgb(20 20 24 / 0.22);
+  --shadow-card: 0 0 0 0.5px rgb(0 0 0 / 0.045), 0 1px 2px rgb(0 0 0 / 0.03), 0 4px 14px -6px rgb(0 0 0 / 0.06);
   --shadow-pop: 0 0 0 1px rgb(0 0 0 / 0.06), 0 10px 28px -6px rgb(0 0 0 / 0.16),
     0 2px 6px -2px rgb(0 0 0 / 0.06);
   --shadow-modal: 0 0 0 1px rgb(0 0 0 / 0.05), 0 24px 64px -12px rgb(0 0 0 / 0.25);
@@ -39,28 +43,30 @@
 }
 
 .dark {
-  --canvas: #161618;
-  --sidebar: #1b1b1e;
-  --raised: #1f1f22;
-  --fill: #242428;
-  --fill-strong: #2d2d32;
-  --line: #28282c;
-  --line-strong: #36363b;
+  --canvas: #0b0b0d;
+  --sidebar: #0b0b0d;
+  --card: #1a1a1d;
+  --raised: #222226;
+  --fill: #29292e;
+  --fill-strong: #323238;
+  --line: #29292e;
+  --line-strong: #37373d;
   --ink: #ececef;
   --ink-2: #a3a3ab;
-  --ink-3: #6f6f78;
+  --ink-3: #75757e;
   --ink-4: #4a4a51;
   --on-ink: #161618;
   --accent: #7097f2;
   --accent-soft: rgb(112 151 242 / 0.13);
-  --accent-line: rgb(112 151 242 / 0.35);
+  --accent-line: rgb(112 151 242 / 0.38);
   --danger: #ec6a5f;
   --danger-soft: rgb(236 106 95 / 0.12);
   --p-low: #58b77b;
   --p-medium: #e2b23a;
   --p-high: #ee8a42;
   --p-critical: #ec6a5f;
-  --scrim: rgb(0 0 0 / 0.45);
+  --scrim: rgb(0 0 0 / 0.5);
+  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06);
   --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.07), 0 12px 32px -6px rgb(0 0 0 / 0.55);
   --shadow-modal: 0 0 0 1px rgb(255 255 255 / 0.07), 0 28px 70px -12px rgb(0 0 0 / 0.7);
   --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 10px 24px -6px rgb(0 0 0 / 0.6);
@@ -70,6 +76,7 @@
 @theme inline {
   --color-canvas: var(--canvas);
   --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
   --color-raised: var(--raised);
   --color-fill: var(--fill);
   --color-fill-strong: var(--fill-strong);
@@ -88,12 +95,14 @@
   --color-scrim: var(--scrim);
   --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-title), var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
   --shadow-modal: var(--shadow-modal);
   --shadow-lift: var(--shadow-lift);
-  --radius-ctl: 8px;
-  --radius-pop: 12px;
-  --radius-modal: 16px;
+  --radius-ctl: 10px;
+  --radius-pop: 14px;
+  --radius-modal: 22px;
+  --radius-card: 18px;
 }
 
 /* Not inlined, so the phone media query below can re-scale them. */
@@ -524,6 +533,15 @@ html.dark:not(.glass) .float-glass {
   }
 }
 
+/* A strike-through that draws across a (possibly wrapped) title. */
+.strike {
+  background: linear-gradient(var(--ink-3), var(--ink-3)) no-repeat 0 58% / 0% 1px;
+  transition: background-size 0.22s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+.strike[data-done] {
+  background-size: 100% 1px;
+}
+
 /* Room at the end of a scrolling page for what floats over it. */
 .pb-bar {
   padding-bottom: 6rem;
@@ -532,6 +550,13 @@ html.dark:not(.glass) .float-glass {
   .pb-bar {
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
+}
+
+/* A white (black, in dark mode) rounded box on the grey page. */
+@utility card {
+  background-color: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 @utility scrollbar-none {

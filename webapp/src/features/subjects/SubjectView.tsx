@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, Folder, FolderPlus, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronLeft, Folder, FolderPlus, MoreHorizontal, Plus, FilePlus2 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { uuid } from "@/lib/model";
 import { isOverdue } from "@/lib/time";
@@ -70,15 +70,21 @@ export function SubjectView({ id }: { id: string }) {
       <PageHeader
         leading={back}
         title={
-          <span className="flex items-center gap-2.5">
-            <span className="size-2.5 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
-            {project.title}
+          <span className="flex min-w-0 items-center gap-2.5">
+            <span className="size-2.5 shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
+            <span className="truncate">{project.title}</span>
           </span>
         }
         actions={
           <>
-            <Button variant="secondary" onClick={() => createNote(navigate, { subjectId: id, folderId: folderId === "all" ? null : folderId })}>
-              New note
+            <Button
+              variant="secondary"
+              aria-label="New note"
+              icon={<FilePlus2 className="size-4 sm:hidden" />}
+              className="max-sm:w-[30px] max-sm:px-0"
+              onClick={() => createNote(navigate, { subjectId: id, folderId: folderId === "all" ? null : folderId })}
+            >
+              <span className="max-sm:hidden">New note</span>
             </Button>
             <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ projectId: id })}>
               <span className="max-sm:hidden">New task</span>

@@ -138,7 +138,7 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
       <div className="flex h-7 items-center px-2">
         <span className="text-xs font-semibold text-ink-2">Schedule</span>
       </div>
-      <div ref={scroller} className="scroll-area relative mt-1 min-h-0 flex-1 rounded-[calc(var(--radius-ctl)_+_4px)] border border-line">
+      <div ref={scroller} className="card scroll-area relative mt-1 min-h-0 flex-1">
         <div
           ref={(el) => {
             timeline.current = el;

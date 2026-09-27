@@ -81,7 +81,9 @@ export function TodayView() {
       />
       <div className="@container flex min-h-0 flex-1 flex-col">
         <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
-          <DayStrip day={day} onPick={setDay} tasks={all} />
+          <div className="card p-1.5">
+            <DayStrip day={day} onPick={setDay} tasks={all} />
+          </div>
         </div>
         <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
           <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-bar">
@@ -120,10 +122,10 @@ export function TodayView() {
                   transition={springs.layout}
                   className="overflow-hidden"
                 >
-                  <div className="mt-4 rounded-[calc(var(--radius-ctl)_+_4px)] bg-fill/70 px-2 py-1.5">
+                  <div className="card mt-4 px-2 py-2">
                     <div className="flex items-center gap-2 pl-2">
                       <span className="size-1.5 rounded-full bg-danger" />
-                      <span className="flex-1 text-sm text-ink-2">
+                      <span className="min-w-0 flex-1 truncate text-sm text-ink-2">
                         <span className="font-medium text-ink tnum">{overdue.length}</span> overdue{" "}
                         {overdue.length === 1 ? "task" : "tasks"}
                         <span className="max-sm:hidden"> from earlier days</span>
@@ -144,9 +146,10 @@ export function TodayView() {
                           transition={springs.layout}
                           className="overflow-hidden"
                         >
-                          <div className="mt-1.5 rounded-[9px] bg-canvas p-1">
+                          <div className="mt-1.5 border-t border-line pt-1.5">
                             <TaskList
                               tasks={overdue}
+                              plain
                               showDate
                               trailing={(t) => (
                                 <Button
@@ -209,7 +212,7 @@ export function TodayView() {
                   <button
                     type="button"
                     onClick={() => ui.newTask({ date: day })}
-                    className="mt-2 flex h-9 w-full items-center gap-2.5 rounded-[9px] px-2.5 text-sm text-ink-3 transition-colors hover:bg-fill/70 hover:text-ink-2"
+                    className="mt-1 flex h-11 w-full items-center gap-2.5 rounded-card px-3.5 text-sm text-ink-3 transition-colors hover:bg-card hover:text-ink-2"
                   >
                     <Plus className="size-4" />
                     Add a task

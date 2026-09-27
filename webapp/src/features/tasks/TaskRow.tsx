@@ -36,6 +36,8 @@ export interface TaskRowProps {
   draggable?: boolean;
   trailing?: ReactNode;
   compact?: boolean;
+  /** A plain row, for lists that already sit inside a card. */
+  plain?: boolean;
 }
 
 export function TaskRow(props: TaskRowProps) {
@@ -80,6 +82,7 @@ const TaskRowView = memo(function TaskRowView({
   showDate,
   trailing,
   compact,
+  plain,
   dragRef,
   dragProps,
   dragStyle,
@@ -213,8 +216,29 @@ const TaskRowView = memo(function TaskRowView({
   const dragTouchStart = dragProps?.onTouchStart as ((e: React.TouchEvent) => void) | undefined;
 
   return (
-    <div ref={cardRef} style={dragStyle} data-task-card={done ? "done" : ""} className={cn("relative", dragging && "z-10 opacity-40")}>
-      <div className="relative overflow-hidden rounded-[calc(var(--radius-ctl)_+_1px)]">
+    <div
+      ref={cardRef}
+      style={dragStyle}
+      data-task-card={done ? "done" : ""}
+      className={cn(
+        // Each task is its own rounded card on the page.
+        "relative transition-opacity duration-200",
+        plain ? "rounded-ctl" : cn("card", compact ? "mb-1.5 rounded-[14px]" : "mb-2"),
+        done && !completing && "opacity-70",
+        dragging && "z-10 opacity-40",
+      )}
+    >
+      {/* Assignments carry a blue edge; their milestones a fainter one. */}
+      {!plain && (isAssignment || isMilestone) && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0 z-[1] rounded-[inherit]",
+            isAssignment ? "shadow-[inset_0_0_0_1.25px_var(--accent-line)]" : "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-line)_55%,transparent)]",
+          )}
+        />
+      )}
+      <div className="relative overflow-hidden rounded-[inherit]">
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div
           aria-hidden
@@ -251,33 +275,28 @@ const TaskRowView = memo(function TaskRowView({
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
-            "group relative flex touch-pan-y items-start gap-1.5 rounded-[calc(var(--radius-ctl)_+_1px)] pr-2.5 pl-1 outline-none transition-colors duration-100",
-            compact ? "py-1" : "py-[7px]",
+            "group relative flex touch-pan-y items-start gap-2 rounded-[inherit] pr-3 pl-2 outline-none transition-colors duration-100",
+            compact ? "py-1.5" : "py-2.5",
             // Opaque fills, so the swipe panels underneath stay hidden.
             inspected
-              ? "bg-canvas bg-[image:linear-gradient(var(--accent-soft),var(--accent-soft))]"
+              ? "bg-card bg-[image:linear-gradient(var(--accent-soft),var(--accent-soft))]"
               : selected
-                ? "bg-fill"
-                : "bg-canvas hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
+                ? "bg-card bg-[image:linear-gradient(var(--fill),var(--fill))]"
+                : "bg-card hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
           )}
         >
           <TaskCheck checked={done} color={check} onToggle={toggle} className="-my-0.5" />
           <div className="min-w-0 flex-1 pt-[3px]">
-            <div className="flex items-baseline gap-2">
-              <span
-                className={cn(
-                  "relative min-w-0 truncate text-sm font-medium transition-colors duration-200",
-                  done ? "text-ink-3" : "text-ink",
-                )}
-              >
+            {/* Long titles wrap onto a second line rather than being cut short. */}
+            <div
+              className={cn(
+                "text-sm font-medium break-words transition-colors duration-200 [overflow-wrap:anywhere]",
+                compact ? "line-clamp-1" : "line-clamp-2",
+                done ? "text-ink-3" : "text-ink",
+              )}
+            >
+              <span className="strike" data-done={done || undefined}>
                 {task.title}
-                <motion.span
-                  aria-hidden
-                  className="absolute top-1/2 left-0 h-px bg-ink-3"
-                  initial={false}
-                  animate={{ width: done ? "100%" : "0%" }}
-                  transition={{ duration: 0.22, ease: [0.3, 0.8, 0.3, 1] }}
-                />
               </span>
             </div>
             {meta.length > 0 && !compact && (
@@ -309,7 +328,7 @@ const TaskRowView = memo(function TaskRowView({
             transition={springs.layout}
             className="overflow-hidden"
           >
-            <div className="pb-1.5 pl-[34px]">
+            <div className="pr-1 pb-2 pl-[38px]">
               {task.subtasks.map((sub) => (
                 <div key={sub.id} className="flex items-center gap-1 rounded-[calc(var(--radius-ctl)_-_1px)] py-0.5 pr-2 hover:bg-fill/70">
                   <TaskCheck

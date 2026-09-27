@@ -109,7 +109,7 @@ export function WeekView() {
           </span>
         )}
       </div>
-      <div className="scroll-area flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto">
+      <div className="scroll-area flex min-h-0 flex-1 gap-2 px-4 pt-1 pb-4 max-md:flex-col max-md:gap-2.5 max-md:overflow-y-auto max-md:px-3 max-md:pb-bar">
         {columns.map((col) => (
           <DayColumn key={col.date.getTime()} date={col.date} tasks={col.tasks} events={events} />
         ))}
@@ -132,12 +132,13 @@ function DayColumn({ date, tasks, events }: { date: Date; tasks: Task[]; events:
     <section
       ref={setNodeRef}
       className={cn(
-        "group/col flex min-w-[132px] flex-1 flex-col border-r border-line last:border-r-0 transition-colors duration-150 max-md:flex-none max-md:border-r-0 max-md:border-b",
-        isOver && "bg-accent-soft/60",
-        isToday && !isOver && "bg-fill/40",
+        "card group/col flex min-w-[124px] flex-1 flex-col transition-[outline-color] duration-150 max-md:flex-none",
+        // Today, and a day a task is dragged over, get a blue edge.
+        (isOver || isToday) && "outline -outline-offset-[1.25px] outline-[1.25px]",
+        isOver ? "outline-accent" : isToday && "outline-accent-line",
       )}
     >
-      <header className="flex h-11 shrink-0 items-center gap-1.5 px-3">
+      <header className="flex h-11 shrink-0 items-center gap-1.5 px-3 pt-0.5">
         <span className={cn("text-xs font-medium", isToday ? "text-accent" : past ? "text-ink-3" : "text-ink-2")}>
           {format(date, "EEE")}
         </span>

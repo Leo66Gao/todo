@@ -25,25 +25,25 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
       <button
         type="button"
         onClick={() => navigate({ view: "note", id: note.id })}
-        className="block w-full rounded-[calc(var(--radius-ctl)_+_2px)] px-3 py-2.5 text-left transition-colors hover:bg-fill/70"
+        className="card mb-2 block w-full px-4 py-3 text-left transition-colors hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]"
       >
         <div className="flex items-baseline gap-3">
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{note.title || "Untitled note"}</span>
           <span className="shrink-0 text-2xs text-ink-3">{editedLabel(note.updatedAt).replace("Edited ", "")}</span>
         </div>
-        <p className="mt-0.5 line-clamp-2 text-xs leading-[18px] text-ink-3">{preview || "No additional text"}</p>
+        <p className="mt-0.5 line-clamp-2 text-xs leading-[18px] break-words text-ink-3">{preview || "No additional text"}</p>
         {((showSubject && subject) || folder) && (
-          <div className="mt-1.5 flex items-center gap-3 text-2xs text-ink-3">
+          <div className="mt-1.5 flex min-w-0 items-center gap-3 text-2xs text-ink-3">
             {showSubject && subject && (
-              <span className="flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />
-                {subject.title}
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="size-1.5 shrink-0 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />
+                <span className="truncate">{subject.title}</span>
               </span>
             )}
             {folder && (
-              <span className="flex items-center gap-1">
-                <Folder className="size-3" />
-                {folder.name}
+              <span className="flex min-w-0 items-center gap-1">
+                <Folder className="size-3 shrink-0" />
+                <span className="truncate">{folder.name}</span>
               </span>
             )}
           </div>

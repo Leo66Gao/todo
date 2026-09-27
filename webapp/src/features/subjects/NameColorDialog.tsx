@@ -81,7 +81,7 @@ function Form({ request }: { request: Request }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={request.placeholder}
-          className="h-9 flex-1 rounded-ctl border border-line-strong bg-canvas px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
+          className="h-9 flex-1 rounded-ctl border border-line-strong bg-card px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
         />
       </div>
       <div className="mt-4 flex flex-wrap gap-2 pl-6">
