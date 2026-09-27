@@ -31,6 +31,7 @@ import {
   useWorkspace,
 } from "@/store/workspace";
 import { cn } from "@/ui/cn";
+import { PHONE, useMedia } from "@/ui/useMedia";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Menu, Modal, Popover, Tooltip, type MenuItem } from "@/ui/overlay";
@@ -103,7 +104,13 @@ export function InspectorSheet() {
   const [shown, setShown] = useState(id);
   if (id && id !== shown) setShown(id);
   return (
-    <Modal open={narrow && id != null && exists} onOpenChange={(o) => !o && ui.closeInspector()} width={520} label="Task details">
+    <Modal
+      open={narrow && id != null && exists}
+      onOpenChange={(o) => !o && ui.closeInspector()}
+      width={520}
+      label="Task details"
+      className="max-sm:bg-canvas"
+    >
       {shown && (
         <div className="scroll-area max-h-[86vh]">
           <TaskDetail taskId={shown} variant="panel" />
@@ -118,7 +125,10 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
   const settings = useWorkspace((s) => s.settings);
   const projects = useWorkspace((s) => s.projects);
   const navigate = useNavigate();
+  // In the phone sheet, the details sit in grouped cards like the full page.
+  const phone = useMedia(PHONE);
   if (!task) return null;
+  const grouped = variant === "page" || phone;
 
   const isAssignment = task.type === "assignment";
   const setStart = (time: { hour: number; minute: number } | null) =>
@@ -329,17 +339,19 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
         </div>
       )}
       <div className={cn(variant === "panel" && "scroll-area flex-1 px-5 pb-10")}>
-        <TitleEditor task={task} large={variant === "page"} />
+        <TitleEditor task={task} large={grouped} />
         {properties.length > 0 && (
-          <div className={cn("mt-3 space-y-0.5", variant === "page" && "card mt-4 px-2 py-2")}>{properties}</div>
+          <div className={cn("mt-3 space-y-0.5", grouped && "card mt-4 px-2 py-2 max-sm:space-y-0 max-sm:divide-y max-sm:divide-line max-sm:py-0")}>
+            {properties}
+          </div>
         )}
 
-        <SubtaskSection task={task} page={variant === "page"} />
+        <SubtaskSection task={task} page={grouped} />
 
         {settings.showNotes && (
           <div className="mt-6">
-            <div className="mb-2 text-xs font-semibold text-ink-2">Notes</div>
-            <NotesEditor task={task} page={variant === "page"} />
+            <div className="mb-2 text-xs font-semibold text-ink-2 max-sm:px-2 max-sm:text-[13.5px]">Notes</div>
+            <NotesEditor task={task} page={grouped} />
           </div>
         )}
       </div>
@@ -349,8 +361,8 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
 
 function Property({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[104px_1fr] items-center">
-      <span className="text-xs text-ink-3">{label}</span>
+    <div className="grid grid-cols-[104px_1fr] items-center max-sm:min-h-11 max-sm:grid-cols-[112px_1fr]">
+      <span className="text-xs text-ink-3 max-sm:pl-2 max-sm:text-[14px]">{label}</span>
       <div className="min-w-0">{children}</div>
     </div>
   );
@@ -362,7 +374,7 @@ function ValueButton({ children, muted, ...rest }: React.ButtonHTMLAttributes<HT
       type="button"
       {...rest}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-ctl px-2 text-left text-sm transition-[background-color,transform] duration-150 hover:bg-fill active:scale-[0.98] data-[state=open]:bg-fill",
+        "flex h-8 w-full items-center gap-2 rounded-ctl px-2 text-left text-sm transition-[background-color,transform] duration-150 hover:bg-fill active:scale-[0.98] data-[state=open]:bg-fill max-sm:h-10",
         muted ? "text-ink-3" : "text-ink",
       )}
     >
@@ -402,7 +414,7 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
       aria-label="Title"
       className={cn(
         "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 font-semibold tracking-[-0.01em] outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
-        large ? "text-xl" : "text-lg",
+        large ? "text-xl max-sm:text-[24px] max-sm:leading-[30px] max-sm:font-bold max-sm:tracking-[-0.02em]" : "text-lg",
         task.isDone && "text-ink-3 line-through decoration-ink-4",
       )}
     />
@@ -466,7 +478,7 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
   return (
     <div className="mt-6">
       <div className="mb-1.5 flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate text-xs font-semibold text-ink-2">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
+        <span className="min-w-0 truncate text-xs font-semibold text-ink-2 max-sm:pl-2 max-sm:text-[13.5px]">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
         {canPlan && (
           <Tooltip label="Suggest steps, dated back from the deadline">
             <Button size="sm" variant="ghost" className="-my-1 h-6 px-1.5 text-xs text-ink-3" icon={<Route className="size-3.5" />} onClick={() => setPlanning(true)}>
@@ -533,6 +545,7 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
   const [value, setValue] = useState(sub.title);
   const [dateOpen, setDateOpen] = useState(false);
   const isAssignment = task.type === "assignment";
+  const phone = useMedia("(max-width: 767px)");
   const commit = () => {
     setEditing(false);
     const title = value.trim();
@@ -570,8 +583,8 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
       ]
     : [];
   return (
-    <div className="group flex min-h-8 items-center gap-1 rounded-ctl pr-1 transition-colors hover:bg-fill/60">
-      <TaskCheck size={15} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} />
+    <div className="group flex min-h-8 items-center gap-1 rounded-ctl pr-1 transition-colors hover:bg-fill/60 max-md:min-h-11 max-md:gap-1.5">
+      <TaskCheck size={phone ? 19 : 15} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} />
       {editing ? (
         <input
           autoFocus

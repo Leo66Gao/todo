@@ -9,7 +9,7 @@ import { argbToCss } from "@/lib/dart";
 import type { Project, Task } from "@/lib/model";
 import { addDays, dayKey, daysFromToday, formatClock, relativeDay, sameDay, startOfWeek, today } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
-import { PageHeader } from "@/shell/Shell";
+import { PageHeader, Stepper } from "@/shell/Shell";
 import { ui, useUI } from "@/shell/ui";
 import { openTask, taskMenu } from "@/features/tasks/actions";
 import { tasksForDay, useAllTasks, useProjectMap } from "@/features/tasks/meta";
@@ -131,25 +131,18 @@ export function CalendarView() {
         actions={
           <>
             {listToggle}
-            <div className="mr-1 flex items-center">
-              <IconButton label={prevLabel} onClick={() => step(-1)}>
-                <ChevronLeft className="size-4" />
-              </IconButton>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={isToday}
-                onClick={() => {
-                  setDayOnly(false);
-                  pick(today());
-                }}
-              >
-                Today
-              </Button>
-              <IconButton label={nextLabel} onClick={() => step(1)}>
-                <ChevronRight className="size-4" />
-              </IconButton>
-            </div>
+            <Stepper
+              prev={prevLabel}
+              next={nextLabel}
+              onPrev={() => step(-1)}
+              onNext={() => step(1)}
+              present="Today"
+              atPresent={isToday}
+              onPresent={() => {
+                setDayOnly(false);
+                pick(today());
+              }}
+            />
             <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: selected })}>
               <span className="max-sm:hidden">New task</span>
             </Button>
@@ -233,14 +226,14 @@ function MonthCard({
     else if (offset.x > 56 || velocity.x > 450) onSwipe(-1);
   };
   return (
-    <div className="card flex min-h-0 flex-1 flex-col overflow-hidden p-2 max-md:p-1.5">
+    <div className="card flex min-h-0 flex-1 flex-col overflow-hidden p-2 max-md:px-1.5 max-md:pt-2.5 max-md:pb-1">
       <div className="grid shrink-0 grid-cols-7 pb-1">
         {WEEKDAYS.map((d) => (
           <span
             key={d}
-            className="py-1.5 text-2xs font-medium text-ink-3 max-md:text-center md:px-2.5"
+            className="py-1.5 text-2xs font-medium text-ink-3 max-md:py-1 max-md:text-center max-md:text-[12px] md:px-2.5"
           >
-            {d}
+            {phone ? d[0] : d}
           </span>
         ))}
       </div>
@@ -260,7 +253,7 @@ function MonthCard({
             dragElastic={0.22}
             dragSnapToOrigin
             onDragEnd={onDragEnd}
-            className={cn("grid h-full grid-cols-7 gap-1 max-md:gap-[3px]", phone && "touch-pan-y")}
+            className={cn("grid h-full grid-cols-7 gap-1 max-md:gap-0", phone && "touch-pan-y")}
             style={{ gridTemplateRows: `repeat(${weeks}, minmax(0, 1fr))` }}
           >
             {days.map((d) => (
@@ -394,6 +387,8 @@ function MonthCell({
       ...dayEvents.slice(0, 3).map((e) => ({ key: e.key, color: e.color, ring: false })),
       ...open.slice(0, Math.max(0, 3 - dayEvents.length)).map((t) => ({ key: t.id, color: dotColor(t, projects), ring: t.parentTaskId != null })),
     ];
+    // Open space, not boxes: the date in a circle (graphite when selected,
+    // blue for today), with its dots underneath.
     return (
       <button
         ref={setNodeRef}
@@ -402,39 +397,34 @@ function MonthCell({
         onClick={onClick}
         aria-label={format(date, "EEEE d MMMM")}
         aria-pressed={selected}
-        className={cn(
-          "relative flex min-h-[42px] flex-col items-center justify-center gap-[5px] rounded-[12px] transition-[background-color,transform] duration-150 active:scale-[0.94]",
-          !inMonth && "opacity-45",
-          selected
-            ? isToday
-              ? "bg-accent text-white"
-              : "bg-ink text-on-ink"
-            : isOver
-              ? "bg-accent-soft"
-              : inMonth
-                ? "bg-fill/55"
-                : "",
-          isToday && !selected && "shadow-[inset_0_0_0_1.5px_var(--accent)]",
-        )}
+        className="relative flex min-h-[52px] flex-col items-center justify-start gap-[5px] pt-1 transition-transform duration-150 active:scale-[0.92]"
       >
         <span
           className={cn(
-            "text-sm leading-none tnum",
-            selected ? "font-semibold" : isToday ? "font-semibold text-accent" : weekend ? "text-ink-2" : "text-ink",
+            "flex size-[38px] items-center justify-center rounded-full text-[17px] leading-none tnum transition-colors duration-150",
+            selected
+              ? isToday
+                ? "bg-accent font-semibold text-white"
+                : "bg-ink font-semibold text-on-ink"
+              : isOver
+                ? "bg-accent-soft"
+                : isToday
+                  ? "font-semibold text-accent"
+                  : !inMonth
+                    ? "text-ink-4"
+                    : weekend
+                      ? "text-ink-3"
+                      : "text-ink",
           )}
         >
           {date.getDate()}
         </span>
-        <span className="flex h-[5px] items-center gap-[3px]">
+        <span className={cn("flex h-[5px] items-center gap-[3px]", !inMonth && "opacity-40")}>
           {dots.map((d) => (
             <span
               key={d.key}
               className="size-[5px] rounded-full"
-              style={
-                d.ring
-                  ? { boxShadow: `inset 0 0 0 1.3px ${selected ? lighten(d.color) : d.color}` }
-                  : { background: selected ? lighten(d.color) : d.color }
-              }
+              style={d.ring ? { boxShadow: `inset 0 0 0 1.3px ${d.color}` } : { background: d.color }}
             />
           ))}
         </span>
@@ -503,8 +493,6 @@ function dotColor(task: Task, projects: Map<string, Project>) {
   if (project) return argbToCss(project.colorValue);
   return task.type === "assignment" || task.parentTaskId ? "var(--accent)" : "var(--ink-3)";
 }
-/** Keeps a dot readable on the selected (ink) day. */
-const lighten = (color: string) => `color-mix(in srgb, ${color} 62%, white)`;
 
 function CalendarChip({ task }: { task: Task }) {
   const navigate = useNavigate();

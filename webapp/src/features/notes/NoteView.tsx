@@ -306,7 +306,8 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
         }
       />
       <div className="scroll-area flex-1 pb-32">
-        <article className="mx-auto w-full max-w-[720px] px-6 pt-4 max-sm:px-4">
+        {/* Phones: the note is a sheet of paper on the cement page. */}
+        <article className="mx-auto w-full max-w-[720px] px-6 pt-4 max-md:card max-md:mx-3 max-md:mt-1 max-md:w-auto max-md:min-h-[calc(100%-16px)] max-md:px-5 max-md:pt-5 max-md:pb-10">
           <textarea
             rows={1}
             value={title}
@@ -325,7 +326,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               }
             }}
             placeholder="Untitled note"
-            className="field-sizing-content block w-full resize-none bg-transparent font-display text-xl font-semibold tracking-[-0.015em] outline-none placeholder:text-ink-4"
+            className="field-sizing-content block w-full resize-none bg-transparent font-display text-xl font-semibold tracking-[-0.015em] outline-none placeholder:text-ink-4 max-md:text-[26px] max-md:leading-[32px] max-md:font-bold max-md:tracking-[-0.025em]"
           />
           <div className="mt-1 mb-5 flex items-center justify-between gap-3 text-xs text-ink-3">
             <span>{editedLabel(note.updatedAt)}</span>
@@ -334,7 +335,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
           <RichText
             value={note.content}
             toolbar="full"
-            toolbarClassName="sticky top-0 z-10 -mx-2 bg-canvas/90 px-1 py-1.5 backdrop-blur-md"
+            toolbarClassName="sticky top-0 z-10 -mx-2 bg-canvas/90 px-1 py-1.5 backdrop-blur-md max-md:bg-card/90"
             reading
             minHeight={320}
             placeholder="Start writing, or type / for blocks and [[ to link a note"

@@ -1,15 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Geist } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Suspense } from "react";
 import "quill/dist/quill.core.css";
 import "./globals.css";
 import "@/glass/glass.css";
 import { Shell } from "@/shell/Shell";
 
-// Geist for the interface: a crisp neo-grotesque that stays precise at small
-// sizes. Page titles keep Figtree, the app's original geometric face.
-const ui = Geist({ subsets: ["latin"], variable: "--font-ui", display: "swap" });
-const title = Figtree({ subsets: ["latin"], variable: "--font-title", display: "swap" });
+// One typeface throughout: Inter, with its optical sizes, so large titles
+// tighten and small labels open up the way a system font does.
+const ui = Inter({ subsets: ["latin"], axes: ["opsz"], variable: "--font-ui", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Todo",
@@ -22,8 +21,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0b0d" },
+    { media: "(prefers-color-scheme: light)", color: "#e8e8e4" },
+    { media: "(prefers-color-scheme: dark)", color: "#121212" },
   ],
   // Content runs under the notch and home indicator; safe-area insets pad it.
   viewportFit: "cover",
@@ -35,7 +34,7 @@ const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${ui.variable} ${title.variable}`} suppressHydrationWarning>
+    <html lang="en" className={ui.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
       </head>

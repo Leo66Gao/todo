@@ -50,7 +50,7 @@ export function SubjectsView() {
         }
       />
       <div className="scroll-area flex-1 pb-bar">
-        <div className="mx-auto w-full max-w-[900px] px-6 max-sm:px-3">
+        <div className="mx-auto w-full max-w-[900px] px-6 max-md:px-4">
           {projects.length === 0 ? (
             <div className="flex flex-col items-center py-20 text-center">
               <p className="text-sm font-medium">No subjects yet</p>

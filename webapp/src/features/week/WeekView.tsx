@@ -7,12 +7,12 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, CornerDownRight, GraduationCap, Plus } from "lucide-react";
+import { CornerDownRight, GraduationCap, Plus } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { addDays, formatClock, formatDuration, sameDay, startOfWeek, today } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
-import { PageHeader } from "@/shell/Shell";
+import { PageHeader, Stepper } from "@/shell/Shell";
 import { ui, useUI } from "@/shell/ui";
 import { openTask, taskMenu } from "@/features/tasks/actions";
 import { priorityColor, tasksForDay, useAllTasks, useProjectMap, workMinutes } from "@/features/tasks/meta";
@@ -20,7 +20,7 @@ import { TaskCheck } from "@/features/tasks/TaskCheck";
 import type { TaskDragData } from "@/features/tasks/TaskRow";
 import { toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
-import { Button, IconButton } from "@/ui/controls";
+import { Button } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
 import { eventsOnDay, useEvents, type GEvent } from "@/lib/googleEvents";
@@ -67,24 +67,22 @@ export function WeekView() {
         detail={`${format(start, "d MMM")} – ${format(end, start.getMonth() === end.getMonth() ? "d" : "d MMM")}${start.getMonth() === end.getMonth() ? format(end, " MMMM") : ""}`}
         actions={
           <>
-            <div className="mr-1 flex items-center">
-              <IconButton label="Previous week" onClick={() => ui.set({ weekOf: addDays(start, -7) })}>
-                <ChevronLeft className="size-4" />
-              </IconButton>
-              <Button variant="ghost" size="sm" disabled={sameDay(start, startOfWeek(today()))} onClick={() => ui.set({ weekOf: today() })}>
-                This week
-              </Button>
-              <IconButton label="Next week" onClick={() => ui.set({ weekOf: addDays(start, 7) })}>
-                <ChevronRight className="size-4" />
-              </IconButton>
-            </div>
+            <Stepper
+              prev="Previous week"
+              next="Next week"
+              onPrev={() => ui.set({ weekOf: addDays(start, -7) })}
+              onNext={() => ui.set({ weekOf: addDays(start, 7) })}
+              present="This week"
+              atPresent={sameDay(start, startOfWeek(today()))}
+              onPresent={() => ui.set({ weekOf: today() })}
+            />
             <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: sameDay(start, startOfWeek(today())) ? today() : start })}>
               <span className="max-sm:hidden">New task</span>
             </Button>
           </>
         }
       />
-      <div className="flex items-center gap-5 px-6 pb-3 text-xs whitespace-nowrap text-ink-3 max-sm:gap-4 max-sm:px-4">
+      <div className="flex items-center gap-5 px-6 pb-3 text-xs whitespace-nowrap text-ink-3 max-md:hidden">
         <span>
           <span className="font-semibold text-ink tnum">{stats.open}</span> open
         </span>

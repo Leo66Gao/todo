@@ -15,6 +15,7 @@ import { priorityColor, useProjectMap, workMinutes, difficultyColor } from "@/fe
 import { TaskCheck } from "@/features/tasks/TaskCheck";
 import { toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
+import { useMedia } from "@/ui/useMedia";
 import { Button, Segmented } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
@@ -81,7 +82,7 @@ export function AssignmentsView() {
         }
       />
       <div className="scroll-area flex-1 pb-bar">
-        <div className="mx-auto w-full max-w-[820px] px-6 max-sm:px-3">
+        <div className="mx-auto w-full max-w-[820px] px-6 max-md:px-4">
           {open.length > 0 && (
             <div className="card grid grid-cols-3 divide-x divide-line overflow-hidden">
               <Stat value={String(stats.dueSoon)} label="due in the next 7 days" />
@@ -102,23 +103,31 @@ export function AssignmentsView() {
           ) : (
             groups.map((group) => (
               <motion.section key={group.title} layout="position" transition={springs.layout} className="mt-6">
-                <h2 className={cn("px-2 pb-2 text-xs font-semibold", group.title === "Overdue" ? "text-danger" : "text-ink-2")}>
+                <h2
+                  className={cn(
+                    "px-2 pb-2 text-xs font-semibold max-md:px-4 max-md:text-[13.5px]",
+                    group.title === "Overdue" ? "text-danger" : "text-ink-2",
+                  )}
+                >
                   {group.title}
                 </h2>
-                <AnimatePresence initial={false}>
-                  {group.items.map((t) => (
-                    <motion.div
-                      key={t.id}
-                      layout="position"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={springs.layout}
-                    >
-                      <AssignmentRow task={t} />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                {/* A section's assignments share one card. */}
+                <div className="task-group card">
+                  <AnimatePresence initial={false}>
+                    {group.items.map((t) => (
+                      <motion.div
+                        key={t.id}
+                        layout="position"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={springs.layout}
+                      >
+                        <AssignmentRow task={t} />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
               </motion.section>
             ))
           )}
@@ -146,27 +155,30 @@ function AssignmentRow({ task }: { task: Task }) {
   const days = daysFromToday(task.date);
   const overdue = isOverdue(task.date, task.isDone);
   const minutes = workMinutes(task);
+  const phone = useMedia("(max-width: 767px)");
   return (
     <ContextMenu items={() => taskMenu(task, navigate)}>
       <div
         role="button"
         tabIndex={-1}
         data-task-id={task.id}
+        data-task-card=""
         onClick={() => navigate({ view: "assignment", id: task.id })}
         className={cn(
-          "card group relative mb-2.5 flex items-start gap-2 py-3 pr-3.5 pl-2 transition-[background-color,opacity] hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
+          "group relative flex items-start gap-2 py-3 pr-3.5 pl-2 transition-[background-color,opacity] hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] max-md:gap-2.5 max-md:py-3.5 max-md:pr-4 max-md:pl-3",
           task.isDone && "opacity-70",
         )}
       >
-        {/* The blue edge that marks an assignment everywhere. */}
-        <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_0_0_1.25px_var(--accent-line)]" />
+        {/* The blue mark that goes with an assignment everywhere. */}
+        <span aria-hidden className="pointer-events-none absolute top-3.5 bottom-3.5 left-0 w-[3px] rounded-r-full bg-accent" />
         <TaskCheck
+          size={phone ? 22 : 18}
           checked={task.isDone}
           color={task.priority !== "none" ? priorityColor(task.priority) : undefined}
           onToggle={() => toggleTask(task.id)}
-          className="-my-0.5"
+          className="-my-0.5 max-md:-my-[3px]"
         />
-        <div className="min-w-0 flex-1 pt-[3px]">
+        <div className="min-w-0 flex-1 pt-[3px] max-md:pt-[2px]">
           <div className="flex items-start gap-3">
             <span
               className={cn(
@@ -178,7 +190,7 @@ function AssignmentRow({ task }: { task: Task }) {
             </span>
             <span
               className={cn(
-                "mt-px shrink-0 rounded-full px-2 py-px text-2xs font-medium whitespace-nowrap",
+                "mt-px shrink-0 rounded-full px-2 py-px text-2xs font-medium whitespace-nowrap max-md:px-2.5 max-md:py-[3px] max-md:text-[12.5px]",
                 task.isDone
                   ? "bg-fill text-ink-3"
                   : overdue
