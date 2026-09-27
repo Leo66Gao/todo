@@ -52,13 +52,10 @@ export function TaskList({
       ))}
     </AnimatePresence>
   );
-  // A section's tasks share one card, divided by hairlines (unless the list
-  // already sits inside a card).
-  const body = <div className={plain ? undefined : "task-group card"}>{rows}</div>;
-  if (!sortable) return body;
+  if (!sortable) return <div>{rows}</div>;
   return (
     <SortableContext id={id} items={tasks.filter((t) => !t.milestone).map((t) => t.id)} strategy={verticalListSortingStrategy}>
-      {body}
+      <div>{rows}</div>
     </SortableContext>
   );
 }
@@ -88,13 +85,13 @@ export function Section({
           <ChevronRight className="size-3.5" />
         </motion.span>
       )}
-      <span className="text-xs font-semibold text-ink-2 max-md:text-[13.5px]">{title}</span>
-      {count != null && <span className="text-xs text-ink-3 tnum max-md:text-[13.5px]">{count}</span>}
+      <span className="text-xs font-semibold text-ink-2">{title}</span>
+      {count != null && <span className="text-xs text-ink-3 tnum">{count}</span>}
     </span>
   );
   return (
     <motion.section layout="position" transition={springs.layout} className={cn("mt-5 first:mt-0", className)}>
-      <div className="flex h-7 items-center justify-between pr-1 pl-2 max-md:mb-0.5 max-md:pl-4">
+      <div className="flex h-7 items-center justify-between pr-1 pl-2">
         {collapsible ? (
           <button type="button" onClick={() => setOpen((v) => !v)} className="-ml-1 rounded-[6px] px-1 py-0.5 hover:bg-fill">
             {heading}

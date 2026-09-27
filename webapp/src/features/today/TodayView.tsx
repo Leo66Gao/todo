@@ -3,17 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { addDays, formatDuration, relativeDay, sameDay, today } from "@/lib/time";
 import { useEvents } from "@/lib/googleEvents";
 import { EventRow } from "@/features/events/EventSheet";
-import { PageHeader, Stepper } from "@/shell/Shell";
+import { PageHeader } from "@/shell/Shell";
 import { ui, useUI } from "@/shell/ui";
 import { overdueTasks, tasksForDay, useAllTasks, workMinutes } from "@/features/tasks/meta";
 import { Section, TaskList } from "@/features/tasks/TaskList";
 import { moveTask } from "@/features/tasks/actions";
 import { rescheduleTask } from "@/store/workspace";
-import { Button } from "@/ui/controls";
+import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Tooltip } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
@@ -56,17 +56,21 @@ export function TodayView() {
         detail={format(day, isToday ? "EEEE d MMMM" : "d MMMM yyyy")}
         actions={
           <>
-            <Stepper
-              prev="Previous day"
-              next="Next day"
-              prevShortcut={["←"]}
-              nextShortcut={["→"]}
-              onPrev={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1))}
-              onNext={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1))}
-              present="Today"
-              atPresent={isToday}
-              onPresent={() => setDay(today())}
-            />
+            <div className="mr-1 flex items-center">
+              <Tooltip label="Previous day" shortcut={["←"]}>
+                <IconButton label="Previous day" onClick={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1))}>
+                  <ChevronLeft className="size-4" />
+                </IconButton>
+              </Tooltip>
+              <Button variant="ghost" size="sm" disabled={isToday} onClick={() => setDay(today())}>
+                Today
+              </Button>
+              <Tooltip label="Next day" shortcut={["→"]}>
+                <IconButton label="Next day" onClick={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1))}>
+                  <ChevronRight className="size-4" />
+                </IconButton>
+              </Tooltip>
+            </div>
             <Tooltip label="New task" shortcut={["N"]}>
               <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: day })}>
                 <span className="max-sm:hidden">New task</span>
@@ -76,14 +80,14 @@ export function TodayView() {
         }
       />
       <div className="@container flex min-h-0 flex-1 flex-col">
-        <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 max-md:px-3 @min-[1060px]:max-w-[1160px]">
-          <div className="card p-1.5 max-md:bg-transparent max-md:p-0 max-md:shadow-none">
+        <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
+          <div className="card p-1.5">
             <DayStrip day={day} onPick={setDay} tasks={all} />
           </div>
         </div>
-        <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-md:px-4 @min-[1060px]:max-w-[1160px]">
+        <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
           <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-bar">
-            <div className="mt-4 flex items-center gap-5 px-2 text-xs whitespace-nowrap text-ink-3 max-md:hidden">
+            <div className="mt-4 flex items-center gap-5 px-2 text-xs whitespace-nowrap text-ink-3 max-sm:gap-4">
               <span>
                 <span className="font-semibold text-ink tnum">{open}</span> open
               </span>

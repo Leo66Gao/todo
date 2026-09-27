@@ -436,11 +436,8 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
           </div>
         </motion.div>
       </div>
-      {/* Phones: the fields sit in one grouped card on the page colour. */}
-      <div className="scroll-area min-h-0 flex-1 border-t border-line px-5 py-4 max-sm:border-t-0 max-sm:bg-canvas max-sm:px-4 max-sm:pt-3">
-        <div className="space-y-3.5 max-sm:card max-sm:space-y-0 max-sm:divide-y max-sm:divide-line">{rows}</div>
-      </div>
-      <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3 max-sm:border-t-0 max-sm:bg-canvas max-sm:px-4 max-sm:pb-4">
+      <div className="scroll-area min-h-0 flex-1 space-y-3.5 border-t border-line px-5 py-4">{rows}</div>
+      <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
         <span className="hover-only flex items-center gap-1 text-2xs text-ink-3 max-sm:hidden">
           <Kbd>⌘</Kbd>
           <Kbd>↩</Kbd>
@@ -462,8 +459,8 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
 
 function Row({ label, children, top }: { label: string; children: ReactNode; top?: boolean }) {
   return (
-    <div className={cn("grid grid-cols-[96px_1fr] gap-3 max-sm:grid-cols-1 max-sm:gap-2 max-sm:px-4 max-sm:py-3", top ? "items-start" : "items-center")}>
-      <span className={cn("text-xs font-medium text-ink-2 max-sm:text-[13.5px]", top && "pt-2 max-sm:pt-0")}>{label}</span>
+    <div className={cn("grid grid-cols-[96px_1fr] gap-3 max-sm:grid-cols-1 max-sm:gap-1.5", top ? "items-start" : "items-center")}>
+      <span className={cn("text-xs font-medium text-ink-2", top && "pt-2")}>{label}</span>
       <div className="min-w-0">{children}</div>
     </div>
   );

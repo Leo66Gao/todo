@@ -3,8 +3,8 @@
   "short_name": "Todo",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#e8e8e4",
-  "theme_color": "#e8e8e4",
+  "background_color": "#f2f2f7",
+  "theme_color": "#f2f2f7",
   "description": "Tasks, assignments, subjects and notes, synced across your devices.",
   "icons": [
     { "src": "/icons/Todo-192.png", "sizes": "192x192", "type": "image/png" },

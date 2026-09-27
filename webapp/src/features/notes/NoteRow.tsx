@@ -25,11 +25,10 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
       <button
         type="button"
         onClick={() => navigate({ view: "note", id: note.id })}
-        data-note-row=""
-        className="relative block w-full px-4 py-3 text-left transition-colors hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] max-md:py-3.5"
+        className="card mb-2 block w-full px-4 py-3 text-left transition-colors hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]"
       >
         <div className="flex items-baseline gap-3">
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{note.title || "Untitled note"}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{note.title || "Untitled note"}</span>
           <span className="shrink-0 text-2xs text-ink-3">{editedLabel(note.updatedAt).replace("Edited ", "")}</span>
         </div>
         <p className="mt-0.5 line-clamp-2 text-xs leading-[18px] break-words text-ink-3">{preview || "No additional text"}</p>

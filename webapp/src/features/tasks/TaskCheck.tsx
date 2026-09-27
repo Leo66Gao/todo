@@ -14,15 +14,12 @@ export function TaskCheck({
   color,
   onToggle,
   size = 18,
-  round = true,
   className,
 }: {
   checked: boolean;
   color?: string;
   onToggle: () => void;
   size?: number;
-  /** A circle, for things to get done; square for picking from a list. */
-  round?: boolean;
   className?: string;
 }) {
   // Only animate changes the user makes, not the first paint of a list.
@@ -46,7 +43,7 @@ export function TaskCheck({
       style={{ width: size + 8, height: size + 8 }}
     >
       <motion.span
-        className={cn("absolute border-[1.5px]", round ? "rounded-full" : "rounded-[5px]")}
+        className="absolute rounded-[5px] border-[1.5px]"
         style={{ width: size, height: size }}
         initial={false}
         animate={{

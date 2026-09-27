@@ -18,10 +18,9 @@ const variants: Record<Variant, string> = {
   accent: "bg-accent-soft text-accent hover:bg-accent/15 active:bg-accent/20",
 };
 
-// Phones: capsules, sized for a finger.
 const sizes: Record<Size, string> = {
-  sm: "h-[26px] px-2.5 text-xs gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)] max-md:h-8 max-md:rounded-full max-md:px-3.5 max-md:text-[14px]",
-  md: "h-[30px] px-3 text-sm gap-1.5 rounded-ctl max-md:h-10 max-md:rounded-full max-md:px-4 max-md:text-[15px]",
+  sm: "h-[26px] px-2.5 text-xs gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)]",
+  md: "h-[30px] px-3 text-sm gap-1.5 rounded-ctl",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -72,8 +71,7 @@ export const IconButton = forwardRef<
         "transition-[background-color,color,transform] duration-150 hover:bg-fill hover:text-ink active:scale-[0.94] active:bg-fill-strong",
         "disabled:pointer-events-none disabled:opacity-40",
         active && "bg-fill text-ink",
-        // Phones: round, finger-sized targets.
-        size === "sm" ? "size-6" : "size-[30px] max-md:size-9 max-md:rounded-full",
+        size === "sm" ? "size-6" : "size-[30px]",
         className,
       )}
       {...rest}

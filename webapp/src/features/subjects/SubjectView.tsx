@@ -106,7 +106,7 @@ export function SubjectView({ id }: { id: string }) {
         }
       />
       <div className="scroll-area flex-1 pb-bar">
-        <div className="mx-auto grid w-full max-w-[1100px] grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-10 px-6 max-lg:grid-cols-1 max-md:px-4">
+        <div className="mx-auto grid w-full max-w-[1100px] grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-10 px-6 max-lg:grid-cols-1 max-sm:px-3">
           <div>
             {tasks.length === 0 && (
               <div className="rounded-[calc(var(--radius-ctl)_+_4px)] border border-dashed border-line-strong px-4 py-8 text-center">
@@ -183,7 +183,7 @@ export function SubjectView({ id }: { id: string }) {
                 Folder
               </button>
             </div>
-            <div className={cn("mt-2", subjectNotes.length > 0 && "note-group card")}>
+            <div className="mt-2">
               <AnimatePresence initial={false} mode="popLayout">
                 {subjectNotes.map((n) => (
                   <motion.div

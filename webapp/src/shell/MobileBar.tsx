@@ -42,14 +42,14 @@ export function createForRoute(route: Route, navigate: (r: Route) => void) {
 const HAS_ADD: Route["view"][] = ["today", "week", "calendar", "assignments", "subject", "notes"];
 
 /**
- * Phone navigation: a floating capsule of icon-only tabs within thumb reach,
- * with everything else (Week, Subjects, Settings) under More, and the add
- * button beside it as a solid graphite circle, the one strong action on
- * screen. The capsule is frosted glass. Hidden from tablet width up.
+ * Phone navigation: a floating capsule of tabs within thumb reach, with
+ * everything else (Week, Subjects, Settings) under More, and the add button
+ * as a matching drop of glass beside it. Both are a fixed, subtle frosted
+ * glass (the Liquid Glass theme is desktop only). Hidden from tablet width up.
  *
- * The geometry is concentric: the capsule is 58 px tall with a 5 px inset,
- * so the selection inside it (48 px) shares its centre of curvature, and the
- * add button is a 58 px circle.
+ * The geometry is concentric: the capsule is 60 px tall with a 4 px inset,
+ * so the selection inside it (52 px) shares its centre of curvature, and the
+ * add button is a 60 px circle.
  */
 export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: Route) => void }) {
   const drawer = useUI((s) => s.sidebarOpen);
@@ -57,8 +57,8 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
   const current = TABS.find((t) => t.view === route.view || t.also?.includes(route.view));
   const canAdd = HAS_ADD.includes(route.view) && !hidden;
   return (
-    <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-4 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
-      <div className="float-glass pointer-events-auto grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
+    <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-2.5 pb-[max(10px,env(safe-area-inset-bottom))] md:hidden">
+      <div className="float-glass pointer-events-auto grid h-[60px] min-w-0 flex-1 grid-cols-[1fr_1fr_1.3fr_1fr_1fr] rounded-full p-1">
         {TABS.map((tab) => (
           <TabButton
             key={tab.view}
@@ -79,14 +79,14 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
             type="button"
             aria-label={route.view === "notes" ? "New note" : "New task"}
             initial={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
-            animate={{ width: 58, marginLeft: 10, opacity: 1, scale: 1 }}
+            animate={{ width: 60, marginLeft: 8, opacity: 1, scale: 1 }}
             exit={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
             whileTap={{ scale: 0.9 }}
             transition={springs.panel}
             onClick={() => createForRoute(route, navigate)}
-            className="pointer-events-auto flex h-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink text-on-ink shadow-[0_10px_24px_-8px_rgb(0_0_0/0.4),0_2px_6px_-2px_rgb(0_0_0/0.2)]"
+            className="float-glass pointer-events-auto flex h-[60px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink"
           >
-            <Plus className="size-[24px] shrink-0" strokeWidth={2.2} />
+            <Plus className="size-[26px] shrink-0" strokeWidth={2.1} />
           </motion.button>
         )}
       </AnimatePresence>
@@ -100,16 +100,16 @@ function TabButton({ label, icon, active, onClick }: { label: string; icon: Reac
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      aria-label={label}
       className={cn(
-        "relative flex min-w-0 items-center justify-center rounded-full transition-[color,transform] duration-150 active:scale-[0.9]",
-        active ? "text-ink" : "text-ink-3",
+        "relative flex min-w-0 flex-col items-center justify-center gap-[3px] rounded-full transition-[color,transform] duration-150 active:scale-[0.92]",
+        active ? "text-ink" : "text-ink-2",
       )}
     >
       {active && (
-        <motion.span layoutId="tab-pill" transition={springs.snappy} className="absolute inset-0 rounded-full bg-ink/[0.075] dark:bg-white/[0.12]" />
+        <motion.span layoutId="tab-pill" transition={springs.snappy} className="absolute inset-0 rounded-full bg-ink/[0.07] dark:bg-white/[0.12]" />
       )}
-      <span className={cn("relative flex [&>svg]:size-[23px]", active ? "[&>svg]:stroke-[2.1]" : "[&>svg]:stroke-[1.75]")}>{icon}</span>
+      <span className={cn("relative flex [&>svg]:size-[21px]", active ? "[&>svg]:stroke-[2.1]" : "[&>svg]:stroke-[1.7]")}>{icon}</span>
+      <span className={cn("relative max-w-full truncate px-0.5 text-[10px] leading-none tracking-[-0.01em]", active && "font-semibold")}>{label}</span>
     </button>
   );
 }

@@ -81,7 +81,7 @@ export function NotesView() {
         }
       />
       <div className="scroll-area flex-1 pb-bar">
-        <div className="mx-auto w-full max-w-[760px] px-6 max-md:px-4">
+        <div className="mx-auto w-full max-w-[760px] px-6 max-sm:px-3">
           <div className="flex items-center gap-2">
             <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm shadow-card transition-colors">
               <Search className="size-3.5 text-ink-3" />
@@ -129,23 +129,21 @@ export function NotesView() {
           ) : (
             groups.map((g) => (
               <section key={g.title} className="mt-6">
-                <h2 className="px-3 pb-2 text-xs font-semibold text-ink-2 max-md:px-4 max-md:text-[13.5px]">{g.title}</h2>
-                <div className="note-group card">
-                  <AnimatePresence initial={false}>
-                    {g.items.map((n) => (
-                      <motion.div
-                        key={n.id}
-                        layout="position"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={springs.layout}
-                      >
-                        <NoteRow note={n} />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
+                <h2 className="px-3 pb-1 text-xs font-semibold text-ink-2">{g.title}</h2>
+                <AnimatePresence initial={false}>
+                  {g.items.map((n) => (
+                    <motion.div
+                      key={n.id}
+                      layout="position"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={springs.layout}
+                    >
+                      <NoteRow note={n} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </section>
             ))
           )}

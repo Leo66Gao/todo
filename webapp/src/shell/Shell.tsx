@@ -16,7 +16,7 @@ import {
   type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { ChevronLeft, ChevronRight, Menu as MenuIcon } from "lucide-react";
+import { Menu as MenuIcon } from "lucide-react";
 import type { Task } from "@/lib/model";
 import { restoreAppearance, useAppearance } from "@/lib/appearance";
 import { addDays, formatClock, relativeDay, sameDay, today } from "@/lib/time";
@@ -41,9 +41,9 @@ import { NoteView } from "@/features/notes/NoteView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
-import { Button, IconButton, Spinner } from "@/ui/controls";
+import { IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
-import { AskHost, Tooltip, TooltipProvider } from "@/ui/overlay";
+import { AskHost, TooltipProvider } from "@/ui/overlay";
 import { FormulaHost } from "@/ui/FormulaDialog";
 import { SourcesHost } from "@/features/sources/SourcesSheet";
 import { FocusTimer } from "@/features/focus/FocusTimer";
@@ -285,7 +285,7 @@ function Workspace() {
               <motion.aside
                 data-overlay
                 data-surface="drawer"
-                className="glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal max-md:w-[min(84vw,330px)] lg:hidden"
+                className="glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal lg:hidden"
                 initial={{ x: -290 }}
                 animate={{ x: 0 }}
                 exit={{ x: -290 }}
@@ -365,14 +365,7 @@ export function PageHeader({
 }) {
   const collapsed = useUI((s) => s.sidebarCollapsed);
   return (
-    // Phones: a large title with its detail beneath, as in iOS; header
-    // buttons become white chips on the cement page.
-    <header
-      className={cn(
-        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:px-5 max-md:pt-[max(14px,env(safe-area-inset-top))] max-md:pb-3",
-        className,
-      )}
-    >
+    <header className={cn("flex h-[60px] shrink-0 items-center gap-3 px-6 max-sm:px-4", className)}>
       <IconButton label="Show sidebar" className="-ml-1.5 max-md:hidden lg:hidden" onClick={() => ui.set({ sidebarOpen: true })}>
         <MenuIcon className="size-[17px]" />
       </IconButton>
@@ -382,66 +375,12 @@ export function PageHeader({
         </IconButton>
       )}
       {leading}
-      <div className="flex min-w-0 items-baseline gap-2.5 max-md:flex-col max-md:gap-0.5">
-        <h1 className="max-w-full truncate font-display text-xl font-semibold tracking-[-0.015em] max-md:text-[30px] max-md:leading-[36px] max-md:font-bold max-md:tracking-[-0.03em]">
-          {title}
-        </h1>
-        {detail && <span className="max-w-full truncate text-sm text-ink-3 max-md:text-[14px] max-md:font-medium">{detail}</span>}
+      <div className="flex min-w-0 items-baseline gap-2.5">
+        <h1 className="truncate font-display text-xl font-semibold tracking-[-0.015em]">{title}</h1>
+        {detail && <span className="truncate text-sm text-ink-3 max-sm:hidden">{detail}</span>}
       </div>
-      <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-2 max-md:[&>button]:bg-card max-md:[&>button]:text-ink-2 max-md:[&>button]:shadow-card">
-        {actions}
-      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>
     </header>
-  );
-}
-
-/**
- * Back, a jump to the present, and forward. On phones the three share one
- * white capsule, and the jump only shows when it would go somewhere.
- */
-export function Stepper({
-  prev,
-  next,
-  onPrev,
-  onNext,
-  present,
-  atPresent,
-  onPresent,
-  prevShortcut,
-  nextShortcut,
-}: {
-  prev: string;
-  next: string;
-  onPrev: () => void;
-  onNext: () => void;
-  present: string;
-  atPresent: boolean;
-  onPresent: () => void;
-  prevShortcut?: string[];
-  nextShortcut?: string[];
-}) {
-  return (
-    <div className="mr-1 flex items-center max-md:mr-0 max-md:h-9 max-md:rounded-full max-md:bg-card max-md:px-0.5 max-md:shadow-card">
-      <Tooltip label={prev} shortcut={prevShortcut}>
-        <IconButton label={prev} onClick={onPrev} className="max-md:text-ink-2">
-          <ChevronLeft className="size-4 max-md:size-[18px]" />
-        </IconButton>
-      </Tooltip>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={atPresent}
-        onClick={onPresent}
-        className={cn("max-md:h-8 max-md:rounded-full max-md:px-2 max-md:text-[14px] max-md:text-ink", atPresent && "max-md:hidden")}
-      >
-        {present}
-      </Button>
-      <Tooltip label={next} shortcut={nextShortcut}>
-        <IconButton label={next} onClick={onNext} className="max-md:text-ink-2">
-          <ChevronRight className="size-4 max-md:size-[18px]" />
-        </IconButton>
-      </Tooltip>
-    </div>
   );
 }
 

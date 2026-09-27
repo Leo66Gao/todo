@@ -3,72 +3,73 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Tokens: cement and graphite. The page is a neutral cement grey, content
- * sits on near-white cards, and graphite ink does almost all of the work:
- * text, selection, the primary action. One calm steel blue marks today and
- * assignments. Dark mode is the same idea in graphite, with no blue cast.
+ * Tokens. A calm grey-white page (like iOS grouped lists) with content in
+ * white, well-rounded cards; black cards on a darker page in dark mode. A
+ * neutral, slightly cool greyscale does almost all of the work; ink
+ * (near-black) is the primary action colour, as in the original app, and a
+ * single calm cobalt marks "now", selection and assignments.
  */
 :root {
-  --canvas: #e8e8e4;
-  --sidebar: #e8e8e4;
-  --card: #fcfcfb;
+  --canvas: #f2f2f7;
+  --sidebar: #f2f2f7;
+  --card: #ffffff;
   --raised: #ffffff;
-  --fill: #efefec;
-  --row-hover: color-mix(in srgb, var(--fill) 70%, transparent);
-  --fill-strong: #e2e2de;
-  --line: #e3e3df;
-  --line-strong: #d3d3ce;
-  --ink: #1b1c1e;
-  --ink-2: #5b5d61;
-  --ink-3: #8b8d91;
-  --ink-4: #bfc0c1;
+  --fill: #eeeef2;
+  --row-hover: color-mix(in srgb, var(--fill) 60%, transparent);
+  --fill-strong: #e4e4ea;
+  --line: #e7e7ec;
+  --line-strong: #d9d9df;
+  --ink: #1d1d20;
+  --ink-2: #5f5f67;
+  --ink-3: #8e8e96;
+  --ink-4: #c3c3c9;
   --on-ink: #ffffff;
-  --accent: #3563c9;
-  --accent-soft: rgb(53 99 201 / 0.09);
-  --accent-line: rgb(53 99 201 / 0.3);
-  --danger: #c93d32;
-  --danger-soft: rgb(201 61 50 / 0.08);
+  --accent: #2f5fd0;
+  --accent-soft: rgb(47 95 208 / 0.09);
+  --accent-line: rgb(47 95 208 / 0.28);
+  --danger: #cf3a2f;
+  --danger-soft: rgb(207 58 47 / 0.08);
   --p-low: #3d9a5f;
   --p-medium: #d19a17;
   --p-high: #e0701f;
-  --p-critical: #c93d32;
-  --scrim: rgb(24 24 22 / 0.24);
-  --shadow-card: 0 0 0 0.5px rgb(40 40 30 / 0.05), 0 1px 2px rgb(40 40 30 / 0.04);
-  --shadow-pop: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 12px 32px -8px rgb(30 30 20 / 0.2),
+  --p-critical: #cf3a2f;
+  --scrim: rgb(20 20 24 / 0.22);
+  --shadow-card: 0 0 0 0.5px rgb(0 0 0 / 0.045), 0 1px 2px rgb(0 0 0 / 0.03), 0 4px 14px -6px rgb(0 0 0 / 0.06);
+  --shadow-pop: 0 0 0 1px rgb(0 0 0 / 0.06), 0 10px 28px -6px rgb(0 0 0 / 0.16),
     0 2px 6px -2px rgb(0 0 0 / 0.06);
-  --shadow-modal: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 24px 64px -12px rgb(30 30 20 / 0.28);
-  --shadow-lift: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 10px 24px -6px rgb(30 30 20 / 0.22);
+  --shadow-modal: 0 0 0 1px rgb(0 0 0 / 0.05), 0 24px 64px -12px rgb(0 0 0 / 0.25);
+  --shadow-lift: 0 0 0 1px rgb(0 0 0 / 0.05), 0 8px 20px -6px rgb(0 0 0 / 0.18);
   color-scheme: light;
 }
 
 .dark {
-  --canvas: #121212;
-  --sidebar: #121212;
-  --card: #1f1f1e;
-  --raised: #272726;
-  --fill: #2b2b2a;
-  --fill-strong: #353533;
-  --line: #2d2d2b;
-  --line-strong: #3b3b39;
-  --ink: #ededea;
-  --ink-2: #a4a4a0;
-  --ink-3: #777774;
-  --ink-4: #4a4a48;
-  --on-ink: #161615;
-  --accent: #7a9cf0;
-  --accent-soft: rgb(122 156 240 / 0.13);
-  --accent-line: rgb(122 156 240 / 0.38);
-  --danger: #ea6a5e;
-  --danger-soft: rgb(234 106 94 / 0.12);
+  --canvas: #0b0b0d;
+  --sidebar: #0b0b0d;
+  --card: #1a1a1d;
+  --raised: #222226;
+  --fill: #29292e;
+  --fill-strong: #323238;
+  --line: #29292e;
+  --line-strong: #37373d;
+  --ink: #ececef;
+  --ink-2: #a3a3ab;
+  --ink-3: #75757e;
+  --ink-4: #4a4a51;
+  --on-ink: #161618;
+  --accent: #7097f2;
+  --accent-soft: rgb(112 151 242 / 0.13);
+  --accent-line: rgb(112 151 242 / 0.38);
+  --danger: #ec6a5f;
+  --danger-soft: rgb(236 106 95 / 0.12);
   --p-low: #58b77b;
   --p-medium: #e2b23a;
   --p-high: #ee8a42;
-  --p-critical: #ea6a5e;
+  --p-critical: #ec6a5f;
   --scrim: rgb(0 0 0 / 0.5);
-  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.05);
-  --shadow-pop: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 12px 32px -6px rgb(0 0 0 / 0.55);
-  --shadow-modal: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 28px 70px -12px rgb(0 0 0 / 0.7);
-  --shadow-lift: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 10px 24px -6px rgb(0 0 0 / 0.6);
+  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.07), 0 12px 32px -6px rgb(0 0 0 / 0.55);
+  --shadow-modal: 0 0 0 1px rgb(255 255 255 / 0.07), 0 28px 70px -12px rgb(0 0 0 / 0.7);
+  --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 10px 24px -6px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
@@ -93,7 +94,7 @@
   --color-danger-soft: var(--danger-soft);
   --color-scrim: var(--scrim);
   --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-title), var(--font-ui), ui-sans-serif, system-ui, sans-serif;
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
   --shadow-modal: var(--shadow-modal);
@@ -101,7 +102,7 @@
   --radius-ctl: 10px;
   --radius-pop: 14px;
   --radius-modal: 22px;
-  --radius-card: 16px;
+  --radius-card: 18px;
 }
 
 /* Not inlined, so the phone media query below can re-scale them. */
@@ -184,8 +185,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  /* Inter as drawn (closest to a system face); figures are tabular where set (.tnum). */
-  font-feature-settings: "kern";
+  font-feature-settings: "cv11", "ss01";
 }
 
 ::selection {
@@ -523,7 +523,7 @@ html:not(.glass) .float-glass {
     0 10px 30px -10px rgb(0 0 0 / 0.22), 0 2px 6px -2px rgb(0 0 0 / 0.06);
 }
 html.dark:not(.glass) .float-glass {
-  background-color: rgb(40 40 38 / 0.76);
+  background-color: rgb(44 44 48 / 0.72);
   box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.14), 0 0 0 0.5px rgb(255 255 255 / 0.08),
     0 12px 32px -10px rgb(0 0 0 / 0.6);
 }
@@ -552,40 +552,7 @@ html.dark:not(.glass) .float-glass {
   }
 }
 
-/* Grouped rows: a hairline between tasks, inset to where the text starts. */
-.task-group {
-  overflow: clip;
-}
-.task-group > * + * [data-task-card]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 44px;
-  height: 0.5px;
-  background: var(--line-strong);
-  z-index: 3;
-}
-@media (max-width: 767px) {
-  .task-group > * + * [data-task-card]::before {
-    left: 50px;
-  }
-}
-
-.note-group {
-  overflow: clip;
-}
-.note-group > * + * [data-note-row]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 16px;
-  height: 0.5px;
-  background: var(--line-strong);
-}
-
-/* A near-white (graphite, in dark mode) rounded box on the cement page. */
+/* A white (black, in dark mode) rounded box on the grey page. */
 @utility card {
   background-color: var(--card);
   border-radius: var(--radius-card);

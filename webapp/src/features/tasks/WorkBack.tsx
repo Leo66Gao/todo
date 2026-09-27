@@ -163,7 +163,7 @@ export function WorkBack({ task, open, onOpenChange }: { task: Task; open: boole
                   <ul className={cn("scroll-area max-h-[46vh] px-3 py-2 transition-opacity", busy && "opacity-50")}>
                     {steps.map((s) => (
                       <li key={s.key} className="flex items-center gap-2.5 rounded-ctl px-2 py-1.5 transition-colors hover:bg-fill/60">
-                        <TaskCheck size={16} round={false} checked={s.include} onToggle={() => update(s.key, { include: !s.include })} />
+                        <TaskCheck size={16} checked={s.include} onToggle={() => update(s.key, { include: !s.include })} />
                         <div className={cn("min-w-0 flex-1", !s.include && "opacity-45")}>
                           <input
                             value={s.title}
