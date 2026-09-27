@@ -19,6 +19,8 @@ interface UIState {
   weekOf: Date;
   /** Selected day on the Calendar (its month is the one displayed). */
   calendarDay: Date;
+  /** The Calendar shows the upcoming list instead of the month. */
+  calendarList: boolean;
   /** Keyboard/selection focus in lists. */
   selectedId: string | null;
   /** Task shown in the detail panel. */
@@ -41,6 +43,7 @@ export const useUI = create<UIState>(() => ({
   day: today(),
   weekOf: today(),
   calendarDay: today(),
+  calendarList: false,
   selectedId: null,
   inspectorId: null,
   editor: null,
@@ -82,7 +85,11 @@ export const ui = {
     setLocal("sidebarCollapsed", collapsed);
   },
   restore() {
-    useUI.setState({ sidebarCollapsed: getLocal("sidebarCollapsed", false) });
+    useUI.setState({ sidebarCollapsed: getLocal("sidebarCollapsed", false), calendarList: getLocal("calendarList", false) });
+  },
+  setCalendarList(list: boolean) {
+    useUI.setState({ calendarList: list });
+    setLocal("calendarList", list);
   },
 };
 

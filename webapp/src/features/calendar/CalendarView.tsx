@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, type PanInfo } from "motion/react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { format } from "date-fns";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, List, Plus } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Project, Task } from "@/lib/model";
 import { addDays, dayKey, daysFromToday, formatClock, relativeDay, sameDay, startOfWeek, today } from "@/lib/time";
@@ -18,10 +18,11 @@ import type { TaskDragData } from "@/features/tasks/TaskRow";
 import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
-import { ContextMenu, Popover } from "@/ui/overlay";
+import { ContextMenu, Popover, Tooltip } from "@/ui/overlay";
 import { useMedia } from "@/ui/useMedia";
 import { eventsOnDay, useEvents, type GEvent } from "@/lib/googleEvents";
 import { EventRow, openEvent } from "@/features/events/EventSheet";
+import { Upcoming } from "./Upcoming";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** Phone layout: a compact month of dots over the selected day's agenda. */
@@ -36,6 +37,7 @@ function weeksIn(month: Date) {
 
 export function CalendarView() {
   const selected = useUI((s) => s.calendarDay);
+  const list = useUI((s) => s.calendarList);
   const all = useAllTasks();
   const phone = useMedia(PHONE);
   const month = new Date(selected.getFullYear(), selected.getMonth(), 1);
@@ -92,12 +94,43 @@ export function CalendarView() {
   const prevLabel = showDayOnly ? "Previous day" : "Previous month";
   const nextLabel = showDayOnly ? "Next day" : "Next month";
 
+  // The original app's Schedule: everything ahead, day by day.
+  const listToggle = (
+    <Tooltip label={list ? "Month" : "Upcoming"}>
+      <IconButton label={list ? "Show the month" : "Show upcoming"} onClick={() => ui.setCalendarList(!list)}>
+        {list ? <CalendarDays className="size-4" /> : <List className="size-4" />}
+      </IconButton>
+    </Tooltip>
+  );
+  if (list) {
+    return (
+      <>
+        <PageHeader
+          title="Upcoming"
+          detail="Everything from today on"
+          actions={
+            <>
+              {listToggle}
+              <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: today() })}>
+                <span className="max-sm:hidden">New task</span>
+              </Button>
+            </>
+          }
+        />
+        <div className="scroll-area min-h-0 flex-1 px-4 pb-bar max-md:px-3">
+          <Upcoming all={all} />
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader
         title={<MonthPicker month={month} onPick={(m) => pick(sameDay(startOfMonth(today()), m) ? today() : m)} />}
         actions={
           <>
+            {listToggle}
             <div className="mr-1 flex items-center">
               <IconButton label={prevLabel} onClick={() => step(-1)}>
                 <ChevronLeft className="size-4" />
