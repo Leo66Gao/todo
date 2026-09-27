@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { format } from "date-fns";
 import { motion } from "motion/react";
 import { ChevronLeft, MoreHorizontal, Pencil, Timer } from "lucide-react";
@@ -17,6 +16,7 @@ import { useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
+import { Numeral } from "@/ui/Numeral";
 import { Menu, Tooltip } from "@/ui/overlay";
 
 /**
@@ -155,7 +155,7 @@ function StatusCard({ task }: { task: Task }) {
       <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 divide-x divide-line">
         <Figure value={minutes > 0 ? formatDuration(minutes) : "—"} label="Work left" />
         <Figure
-          value={task.isDone ? "Done" : overdue ? `${-days}d` : days === 0 ? "Today" : `${days}d`}
+          value={task.isDone ? "Done" : days === 0 ? "Today" : `${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"}`}
           label={task.isDone ? "Status" : overdue ? "Overdue" : "To due"}
           danger={overdue}
         />
@@ -165,12 +165,10 @@ function StatusCard({ task }: { task: Task }) {
   );
 }
 
-function Figure({ value, label, danger }: { value: ReactNode; label: string; danger?: boolean }) {
+function Figure({ value, label, danger }: { value: string; label: string; danger?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col items-center text-center">
-      <div className={cn("max-w-full truncate text-[19px] leading-none font-semibold tracking-[-0.02em] tnum", danger && "text-danger", value === "—" && "text-ink-4")}>
-        {value}
-      </div>
+      <Numeral value={value} className={cn("max-w-full truncate text-[22px] leading-none font-semibold tracking-[-0.03em]", danger && "text-danger")} />
       <div className="mt-1.5 max-w-full truncate text-[11.5px] text-ink-3">{label}</div>
     </div>
   );

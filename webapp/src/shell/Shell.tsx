@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, MotionConfig } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { animate, AnimatePresence, motion, MotionConfig, useMotionValue } from "motion/react";
 import {
   DndContext,
   DragOverlay,
@@ -133,6 +133,7 @@ function Workspace() {
   const navigate = useNavigate();
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
+  const drawerSwipe = useDrawerSwipe(() => ui.set({ sidebarOpen: false }));
   const glass = useGlassOn();
   const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
   const slabGlass = useGlass({ level: 1, kind: "slab" });
@@ -292,15 +293,8 @@ function Workspace() {
                 exit={{ x: -330 }}
                 transition={springs.panel}
                 // Swipes back off to the left to close.
-                drag="x"
-                dragDirectionLock
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={{ left: 0.9, right: 0 }}
-                dragSnapToOrigin
-                onDragEnd={(_, info) => {
-                  if (info.offset.x < -70 || info.velocity.x < -400) ui.set({ sidebarOpen: false });
-                }}
-                style={{ touchAction: "pan-y" }}
+                {...drawerSwipe.handlers}
+                style={{ x: drawerSwipe.x, touchAction: "pan-y" }}
               >
                 <Sidebar onNavigate={() => ui.set({ sidebarOpen: false })} />
               </motion.aside>
@@ -599,4 +593,41 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [route, navigate]);
+}
+
+/**
+ * Swiping the phone menu to the left drags it along and closes it past a
+ * short distance (or on a flick); vertical movement is left to scrolling.
+ */
+function useDrawerSwipe(close: () => void) {
+  const x = useMotionValue(-330);
+  const start = useRef<{ x: number; y: number; t: number; axis: "x" | "y" | null } | null>(null);
+  const handlers = {
+    onTouchStart(e: React.TouchEvent) {
+      const t = e.touches[0];
+      start.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: performance.now(), axis: null } : null;
+    },
+    onTouchMove(e: React.TouchEvent) {
+      const s = start.current;
+      if (!s) return;
+      const t = e.touches[0];
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      if (!s.axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        s.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
+      if (s.axis === "x") x.set(Math.min(0, dx));
+    },
+    onTouchEnd(e: React.TouchEvent) {
+      const s = start.current;
+      start.current = null;
+      if (!s || s.axis !== "x") return;
+      const dx = (e.changedTouches[0]?.clientX ?? s.x) - s.x;
+      const speed = dx / Math.max(1, performance.now() - s.t);
+      if (dx < -70 || speed < -0.5) close();
+      else void animate(x, 0, springs.panel);
+    },
+  };
+  return { x, handlers };
 }

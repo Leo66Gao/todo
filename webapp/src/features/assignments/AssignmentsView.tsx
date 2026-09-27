@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
-import { Plus, Timer } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { hasExplicitDifficulty, type Task } from "@/lib/model";
 import { addDays, daysFromToday, dueLabel, formatDuration, isOverdue, today } from "@/lib/time";
@@ -11,9 +11,9 @@ import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { ui } from "@/shell/ui";
 import { taskMenu } from "@/features/tasks/actions";
-import { priorityColor, useProjectMap, workMinutes, difficultyColor } from "@/features/tasks/meta";
-import { TaskCheck } from "@/features/tasks/TaskCheck";
-import { toggleTask, useWorkspace } from "@/store/workspace";
+import { useProjectMap, workMinutes } from "@/features/tasks/meta";
+import { useWorkspace } from "@/store/workspace";
+import { Numeral } from "@/ui/Numeral";
 import { cn } from "@/ui/cn";
 import { Button, Segmented } from "@/ui/controls";
 import { springs } from "@/ui/motion";
@@ -133,7 +133,7 @@ export function AssignmentsView() {
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 px-3.5 py-2.5">
-      <div className={cn("truncate text-[19px] leading-none font-semibold tracking-[-0.02em] tnum", value === "—" && "text-ink-4")}>{value}</div>
+      <Numeral value={value} className="truncate text-[22px] leading-none font-semibold tracking-[-0.03em]" />
       <div className="truncate text-[11.5px] leading-tight text-ink-3">{label}</div>
     </div>
   );
@@ -156,79 +156,73 @@ function AssignmentRow({ task }: { task: Task }) {
         data-task-id={task.id}
         onClick={() => navigate({ view: "assignment", id: task.id })}
         className={cn(
-          "group relative mb-2.5 rounded-[22px] border border-line bg-card pt-2.5 pr-[18px] pb-4 pl-1.5 shadow-card transition-[background-color,opacity] hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] md:rounded-card",
-          task.isDone && "opacity-70",
+          "group relative mb-2.5 rounded-[22px] border border-line bg-card px-[18px] pt-4 pb-[18px] transition-[background-color,opacity] hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] md:rounded-card",
+          task.isDone && "opacity-60",
         )}
       >
-        <div className="flex items-center gap-1">
-          <span className="flex size-11 shrink-0 items-center justify-center">
-            <TaskCheck
-              size={22}
-              checked={task.isDone}
-              color={task.priority !== "none" ? priorityColor(task.priority) : undefined}
-              onToggle={() => toggleTask(task.id)}
-            />
-          </span>
-          <span
-            className={cn(
-              "line-clamp-2 min-w-0 flex-1 text-[17px] leading-snug font-medium tracking-[-0.01em] break-words [overflow-wrap:anywhere]",
-              task.isDone && "text-ink-3 line-through decoration-ink-4",
+        <div className="flex items-center gap-3">
+          <span className="flex min-w-0 flex-1 items-center gap-2 text-[13px] font-medium text-ink-2">
+            {project && (
+              <>
+                <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ background: argbToCss(project.colorValue), boxShadow: `0 0 0 3px color-mix(in srgb, ${argbToCss(project.colorValue)} 16%, transparent)` }}
+                />
+                <span className="truncate">{project.title}</span>
+              </>
             )}
-          >
-            {task.title}
           </span>
           <span
             className={cn(
-              "shrink-0 rounded-[10px] px-2.5 py-[5px] text-[12px] font-medium whitespace-nowrap",
+              "flex h-[26px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold tracking-[-0.005em] whitespace-nowrap",
               task.isDone
-                ? "bg-fill text-ink-3"
+                ? "bg-fill text-ink-2"
                 : overdue
                   ? "bg-danger-soft text-danger"
-                  : days <= 1
+                  : days <= 2
                     ? "bg-accent-soft text-accent"
                     : "bg-fill text-ink-2",
             )}
           >
-            {dueLabel(task.date, task.isDone)}
+            {task.isDone ? <Check className="size-3.5" strokeWidth={2.4} /> : <span className="size-1.5 rounded-full bg-current" />}
+            {task.isDone ? "Done" : dueLabel(task.date)}
           </span>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-1 pl-[50px] text-ink-3">
-          <span className="font-mono text-[12px] tnum">{format(task.date, "EEE d MMM")}</span>
-          {minutes > 0 && (
-            <span className="flex items-center gap-1 font-mono text-[12px]">
-              <Timer className="size-3" />
-              {formatDuration(minutes)}
-            </span>
+        <h3
+          className={cn(
+            "mt-2.5 line-clamp-2 text-[18px] leading-snug font-semibold tracking-[-0.015em] break-words [overflow-wrap:anywhere]",
+            task.isDone && "text-ink-3",
           )}
-          {project && (
-            <span className="flex min-w-0 items-center gap-1.5 text-xs">
-              <span className="size-[7px] shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
-              <span className="truncate">{project.title}</span>
-            </span>
-          )}
-          {hasExplicitDifficulty(task) && (
-            <span className="flex items-center gap-1.5 text-xs">
-              <span className="size-[7px] rounded-full" style={{ background: difficultyColor(task.difficulty) }} />
-              Level {task.difficulty}
-            </span>
-          )}
-        </div>
-        <div className="mt-3.5 flex flex-col gap-2 pl-[50px]">
-          <div className="relative h-1 overflow-hidden rounded-full bg-fill-strong">
-            <motion.div
-              className="absolute inset-y-0 left-0 rounded-full bg-accent"
-              initial={false}
-              animate={{ width: total > 0 ? `${(done / total) * 100}%` : "0%" }}
-              transition={springs.panel}
-            />
-          </div>
-          <div className="flex justify-between text-[12px] text-ink-3">
-            <span>{total === 0 ? "No subtasks yet" : done === total ? "All subtasks done" : `${total - done} ${total - done === 1 ? "subtask" : "subtasks"} to go`}</span>
-            <span className="font-mono tnum">
-              {done}/{total}
+        >
+          {task.title}
+        </h3>
+        <p className="mt-1 truncate text-[13px] text-ink-3">
+          {[
+            `Due ${format(task.date, "EEE d MMM")}`,
+            minutes > 0 && !task.isDone ? `${formatDuration(minutes)} of work` : null,
+            hasExplicitDifficulty(task) ? `Level ${task.difficulty}` : null,
+          ]
+            .filter(Boolean)
+            .join("  ·  ")}
+        </p>
+        {total > 0 ? (
+          <div className="mt-4 flex items-center gap-3">
+            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-fill-strong">
+              <motion.div
+                className={cn("absolute inset-y-0 left-0 rounded-full", done === total ? "bg-[var(--p-low)]" : "bg-accent")}
+                initial={false}
+                animate={{ width: `${(done / total) * 100}%` }}
+                transition={springs.panel}
+              />
+            </div>
+            <span className="shrink-0 text-[13px] font-semibold text-ink-2 tnum">
+              {done}
+              <span className="font-medium text-ink-3">/{total}</span>
             </span>
           </div>
-        </div>
+        ) : (
+          <p className="mt-3 text-[12.5px] text-ink-3">No subtasks yet</p>
+        )}
       </div>
     </ContextMenu>
   );
