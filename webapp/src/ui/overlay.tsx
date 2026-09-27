@@ -222,7 +222,7 @@ const itemClass = cn(
   "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-sm text-ink outline-none",
   "data-[highlighted]:bg-fill data-[state=open]:bg-fill data-[disabled]:opacity-40",
 );
-const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] rounded-pop bg-raised p-1 shadow-pop";
+const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] max-w-[calc(100vw-24px)] rounded-pop bg-raised p-1 shadow-pop max-sm:min-w-[156px]";
 
 type Parts = typeof RDM | typeof RCM;
 
@@ -246,7 +246,7 @@ function renderItems(P: Parts, items: MenuItem[]): ReactNode {
         </span>
         <span className={cn("flex-1 truncate", item.destructive && "text-danger")}>{item.label}</span>
         {item.checked && <Check className="size-3.5 text-ink-2" />}
-        {item.shortcut && <span className="text-2xs text-ink-3">{item.shortcut}</span>}
+        {item.shortcut && <span className="hover-only text-2xs text-ink-3">{item.shortcut}</span>}
       </>
     );
     if (item.items) {

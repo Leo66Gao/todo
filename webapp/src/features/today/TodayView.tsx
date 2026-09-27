@@ -126,8 +126,8 @@ export function TodayView() {
                     <div className="flex items-center gap-2 pl-2">
                       <span className="size-1.5 rounded-full bg-danger" />
                       <span className="min-w-0 flex-1 truncate text-sm text-ink-2">
-                        <span className="font-medium text-ink tnum">{overdue.length}</span> overdue{" "}
-                        {overdue.length === 1 ? "task" : "tasks"}
+                        <span className="font-medium text-ink tnum">{overdue.length}</span> overdue
+                        <span className="max-[400px]:hidden"> {overdue.length === 1 ? "task" : "tasks"}</span>
                         <span className="max-sm:hidden"> from earlier days</span>
                       </span>
                       <Button variant="ghost" size="sm" onClick={() => setReviewing((v) => !v)}>
