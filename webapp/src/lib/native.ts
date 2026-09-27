@@ -74,7 +74,7 @@ function syncChrome() {
     applyChrome(hex(glassTop), (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.55);
   } else {
     const dark = root.classList.contains("dark");
-    applyChrome(dark ? "#0b0b0d" : "#f8f8f7", dark);
+    applyChrome(dark ? "#0a0a0b" : "#f8f8f7", dark);
   }
 }
 

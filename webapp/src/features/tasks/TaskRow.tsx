@@ -6,10 +6,10 @@ import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowRight, Check, ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
+import { Check, Trash2, ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
-import { addDays, dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
+import { dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
 import { isEmptyContent } from "@/lib/delta";
 import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
@@ -17,7 +17,8 @@ import { toggleSubtask, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
-import { editTask, moveTask, openTask, taskMenu } from "./actions";
+import { useMedia } from "@/ui/useMedia";
+import { editTask, openTask, removeTask, taskMenu } from "./actions";
 import { priorityColor, useLabelMap, useProjectMap } from "./meta";
 import { TaskCheck } from "./TaskCheck";
 import { useSwipe } from "./useSwipe";
@@ -97,6 +98,7 @@ const TaskRowView = memo(function TaskRowView({
   );
   const projects = useProjectMap();
   const labels = useLabelMap();
+  const phone = useMedia("(max-width: 767px)");
   const [expanded, setExpanded] = useState(false);
   const [completing, setCompleting] = useState(false);
   const lastClick = useRef(0);
@@ -124,7 +126,8 @@ const TaskRowView = memo(function TaskRowView({
     }, 420);
   };
 
-  const swipe = useSwipe(toggle, () => moveTask(task, addDays(task.date, 1)));
+  // Swipe right completes; swipe left deletes (with Undo).
+  const swipe = useSwipe(toggle, () => removeTask(task));
   const revealLeft = useTransform(swipe.x, (v) => Math.max(0, v));
   const revealRight = useTransform(swipe.x, (v) => Math.max(0, -v));
 
@@ -163,7 +166,7 @@ const TaskRowView = memo(function TaskRowView({
   }
   if (minutes > 0 && settings.showDuration) {
     meta.push(
-      <span key="dur" className="flex items-center gap-1">
+      <span key="dur" className="flex items-center gap-1 font-mono text-[12px]">
         <Timer className="size-3" />
         {formatDuration(minutes)}
       </span>,
@@ -223,21 +226,12 @@ const TaskRowView = memo(function TaskRowView({
       className={cn(
         // Each task is its own rounded card on the page.
         "relative transition-opacity duration-200",
-        plain ? "rounded-ctl" : cn("card", compact ? "mb-1.5 rounded-[14px]" : "mb-2"),
+        plain && "rounded-ctl",
         done && !completing && "opacity-70",
         dragging && "z-10 opacity-40",
       )}
     >
-      {/* Assignments carry a blue edge; their milestones a fainter one. */}
-      {!plain && (isAssignment || isMilestone) && (
-        <span
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-0 z-[1] rounded-[inherit]",
-            isAssignment ? "shadow-[inset_0_0_0_1.25px_var(--accent-line)]" : "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-line)_55%,transparent)]",
-          )}
-        />
-      )}
+
       <div className="relative overflow-hidden rounded-[inherit]">
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div
@@ -255,11 +249,11 @@ const TaskRowView = memo(function TaskRowView({
           style={{ width: revealRight }}
           className={cn(
             "absolute inset-y-0 right-0 flex items-center justify-end overflow-hidden text-xs font-medium whitespace-nowrap transition-colors duration-150",
-            swipe.armed === "left" ? "bg-ink text-on-ink" : "bg-fill text-ink-3",
+            swipe.armed === "left" ? "bg-danger text-white" : "bg-fill text-ink-3",
           )}
         >
-          Tomorrow
-          <ArrowRight className="mr-3 ml-1 size-4 shrink-0" />
+          Delete
+          <Trash2 className="mr-4 ml-1.5 size-4 shrink-0" />
         </motion.div>
       <ContextMenu items={() => taskMenu(task, navigate)}>
         <motion.div
@@ -275,8 +269,8 @@ const TaskRowView = memo(function TaskRowView({
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
-            "group relative flex touch-pan-y items-start gap-2 rounded-[inherit] pr-3 pl-2 outline-none transition-colors duration-100",
-            compact ? "py-1.5" : "py-2.5",
+            "group relative flex touch-pan-y items-start gap-2 rounded-[inherit] pr-3 pl-2 outline-none transition-colors duration-100 max-md:gap-3 max-md:pr-[18px] max-md:pl-3.5",
+            compact ? "py-1.5" : "py-2.5 max-md:py-3.5",
             // Opaque fills, so the swipe panels underneath stay hidden.
             inspected
               ? "bg-card bg-[image:linear-gradient(var(--accent-soft),var(--accent-soft))]"
@@ -285,12 +279,12 @@ const TaskRowView = memo(function TaskRowView({
                 : "bg-card hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
           )}
         >
-          <TaskCheck checked={done} color={check} onToggle={toggle} className="-my-0.5" />
-          <div className="min-w-0 flex-1 pt-[3px]">
+          <TaskCheck checked={done} color={check} onToggle={toggle} size={phone ? 22 : 18} className="-my-0.5 max-md:-my-1" />
+          <div className="min-w-0 flex-1 pt-[3px] max-md:pt-px">
             {/* Long titles wrap onto a second line rather than being cut short. */}
             <div
               className={cn(
-                "text-sm font-medium break-words transition-colors duration-200 [overflow-wrap:anywhere]",
+                "text-sm font-medium break-words transition-colors duration-200 [overflow-wrap:anywhere] max-md:text-base max-md:tracking-[-0.01em]",
                 compact ? "line-clamp-1" : "line-clamp-2",
                 done ? "text-ink-3" : "text-ink",
               )}
@@ -300,7 +294,7 @@ const TaskRowView = memo(function TaskRowView({
               </span>
             </div>
             {meta.length > 0 && !compact && (
-              <div className="mt-[3px] flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
+              <div className="mt-[3px] flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3 max-md:mt-1">
                 {meta}
               </div>
             )}
@@ -308,8 +302,8 @@ const TaskRowView = memo(function TaskRowView({
           {task.startTime && settings.showTime && (
             <span
               className={cn(
-                "mt-[3px] shrink-0 rounded-[6px] px-1.5 py-px text-xs font-medium tnum",
-                done ? "text-ink-4" : "bg-fill text-ink-2",
+                "mt-[3px] shrink-0 rounded-[6px] px-1.5 py-px text-xs font-medium tnum max-md:mt-0.5 max-md:bg-transparent max-md:px-0 max-md:font-mono max-md:text-[14px] max-md:font-normal",
+                done ? "text-ink-4" : "bg-fill text-ink-2 max-md:text-ink",
               )}
             >
               {formatClock(task.startTime)}

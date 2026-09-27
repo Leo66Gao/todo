@@ -25,13 +25,13 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
       <button
         type="button"
         onClick={() => navigate({ view: "note", id: note.id })}
-        className="card mb-2 block w-full px-4 py-3 text-left transition-colors hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]"
+        className="card mb-2 block w-full px-4 py-3 text-left transition-colors hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] max-md:mb-2.5 max-md:rounded-[22px] max-md:border max-md:border-line max-md:px-[18px] max-md:py-4"
       >
         <div className="flex items-baseline gap-3">
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{note.title || "Untitled note"}</span>
-          <span className="shrink-0 text-2xs text-ink-3">{editedLabel(note.updatedAt).replace("Edited ", "")}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium max-md:text-base max-md:tracking-[-0.01em]">{note.title || "Untitled note"}</span>
+          <span className="shrink-0 font-mono text-[11px] text-ink-3">{editedLabel(note.updatedAt).replace("Edited ", "")}</span>
         </div>
-        <p className="mt-0.5 line-clamp-2 text-xs leading-[18px] break-words text-ink-3">{preview || "No additional text"}</p>
+        <p className="mt-0.5 line-clamp-2 text-xs leading-[18px] break-words text-ink-3 max-md:mt-1 max-md:text-[13px] max-md:leading-5">{preview || "No additional text"}</p>
         {((showSubject && subject) || folder) && (
           <div className="mt-1.5 flex min-w-0 items-center gap-3 text-2xs text-ink-3">
             {showSubject && subject && (

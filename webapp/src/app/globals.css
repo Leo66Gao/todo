@@ -43,30 +43,30 @@
 }
 
 .dark {
-  --canvas: #0b0b0d;
-  --sidebar: #0b0b0d;
-  --card: #1a1a1d;
-  --raised: #222226;
-  --fill: #29292e;
-  --fill-strong: #323238;
-  --line: #29292e;
-  --line-strong: #37373d;
-  --ink: #ececef;
-  --ink-2: #a3a3ab;
-  --ink-3: #75757e;
-  --ink-4: #4a4a51;
-  --on-ink: #161618;
-  --accent: #7097f2;
-  --accent-soft: rgb(112 151 242 / 0.13);
-  --accent-line: rgb(112 151 242 / 0.38);
-  --danger: #ec6a5f;
-  --danger-soft: rgb(236 106 95 / 0.12);
+  --canvas: #0a0a0b;
+  --sidebar: #111113;
+  --card: #141416;
+  --raised: #1b1b1e;
+  --fill: #1d1d20;
+  --fill-strong: #26262a;
+  --line: #1f1f22;
+  --line-strong: #2c2c30;
+  --ink: #f2f1ee;
+  --ink-2: #a1a09b;
+  --ink-3: #8a8984;
+  --ink-4: #4a4a4f;
+  --on-ink: #0a0a0b;
+  --accent: #8fa6ff;
+  --accent-soft: rgb(143 166 255 / 0.12);
+  --accent-line: rgb(143 166 255 / 0.38);
+  --danger: #f0655a;
+  --danger-soft: rgb(240 101 90 / 0.12);
   --p-low: #58b77b;
   --p-medium: #e2b23a;
   --p-high: #ee8a42;
-  --p-critical: #ec6a5f;
-  --scrim: rgb(0 0 0 / 0.5);
-  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --p-critical: #f0655a;
+  --scrim: rgb(0 0 0 / 0.6);
+  --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.03);
   --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.07), 0 12px 32px -6px rgb(0 0 0 / 0.55);
   --shadow-modal: 0 0 0 1px rgb(255 255 255 / 0.07), 0 28px 70px -12px rgb(0 0 0 / 0.7);
   --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 10px 24px -6px rgb(0 0 0 / 0.6);
@@ -94,7 +94,8 @@
   --color-danger-soft: var(--danger-soft);
   --color-scrim: var(--scrim);
   --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-title), var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-title), Georgia, serif;
+  --font-mono: var(--font-numeric), ui-monospace, monospace;
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
   --shadow-modal: var(--shadow-modal);
@@ -170,7 +171,7 @@ a,
 
 /* iOS zooms into any field under 16px; keep them at least that on touch screens. */
 @media (pointer: coarse) {
-  :is(input, textarea, select):not([class*="text-lg"], [class*="text-xl"]),
+  :is(input, textarea, select):not([class*="text-lg"], [class*="text-xl"], [class*="font-display"]),
   .ql-editor {
     font-size: 16px !important;
   }
@@ -549,6 +550,23 @@ html.dark:not(.glass) .float-glass {
 @media (max-width: 767px) {
   .pb-bar {
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
+/* A section's tasks: one rounded card, rows divided by hairlines. */
+.task-group {
+  overflow: clip;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+.task-group > * + * {
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 768px) {
+  .task-group {
+    border-radius: var(--radius-card);
   }
 }
 

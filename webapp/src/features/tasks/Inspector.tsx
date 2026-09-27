@@ -113,7 +113,7 @@ export function InspectorSheet() {
   );
 }
 
-export function TaskDetail({ taskId, variant }: { taskId: string; variant: "panel" | "page" }) {
+export function TaskDetail({ taskId, variant, summary }: { taskId: string; variant: "panel" | "page"; summary?: ReactNode }) {
   const task = useWorkspace((s) => s.tasks.find((t) => t.id === taskId));
   const settings = useWorkspace((s) => s.settings);
   const projects = useWorkspace((s) => s.projects);
@@ -330,15 +330,16 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       )}
       <div className={cn(variant === "panel" && "scroll-area flex-1 px-5 pb-10")}>
         <TitleEditor task={task} large={variant === "page"} />
+        {summary}
         {properties.length > 0 && (
-          <div className={cn("mt-3 space-y-0.5", variant === "page" && "card mt-4 px-2 py-2")}>{properties}</div>
+          <div className={cn("mt-3 space-y-0.5", variant === "page" && "card mt-3 px-2 py-2 max-md:rounded-[22px]")}>{properties}</div>
         )}
 
         <SubtaskSection task={task} page={variant === "page"} />
 
         {settings.showNotes && (
           <div className="mt-6">
-            <div className="mb-2 text-xs font-semibold text-ink-2">Notes</div>
+            <div className="mb-2 pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Notes</div>
             <NotesEditor task={task} page={variant === "page"} />
           </div>
         )}
@@ -401,8 +402,8 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
       }}
       aria-label="Title"
       className={cn(
-        "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 font-semibold tracking-[-0.01em] outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
-        large ? "text-xl" : "text-lg",
+        "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
+        large ? "font-display text-[34px] leading-[1.08] font-normal tracking-[-0.01em] max-md:text-[36px]" : "text-lg font-semibold tracking-[-0.01em]",
         task.isDone && "text-ink-3 line-through decoration-ink-4",
       )}
     />
@@ -466,7 +467,7 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
   return (
     <div className="mt-6">
       <div className="mb-1.5 flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate text-xs font-semibold text-ink-2">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
+        <span className="min-w-0 truncate pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
         {canPlan && (
           <Tooltip label="Suggest steps, dated back from the deadline">
             <Button size="sm" variant="ghost" className="-my-1 h-6 px-1.5 text-xs text-ink-3" icon={<Route className="size-3.5" />} onClick={() => setPlanning(true)}>

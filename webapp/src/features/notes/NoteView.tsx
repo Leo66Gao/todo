@@ -325,7 +325,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               }
             }}
             placeholder="Untitled note"
-            className="field-sizing-content block w-full resize-none bg-transparent font-display text-xl font-semibold tracking-[-0.015em] outline-none placeholder:text-ink-4"
+            className="field-sizing-content block w-full resize-none bg-transparent font-display text-[30px] leading-[1.1] font-normal tracking-[-0.01em] outline-none placeholder:text-ink-4 max-md:text-[34px]"
           />
           <div className="mt-1 mb-5 flex items-center justify-between gap-3 text-xs text-ink-3">
             <span>{editedLabel(note.updatedAt)}</span>

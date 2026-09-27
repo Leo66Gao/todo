@@ -1,15 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Geist } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { Suspense } from "react";
 import "quill/dist/quill.core.css";
 import "./globals.css";
 import "@/glass/glass.css";
 import { Shell } from "@/shell/Shell";
 
-// Geist for the interface: a crisp neo-grotesque that stays precise at small
-// sizes. Page titles keep Figtree, the app's original geometric face.
+// Geist for the interface, Instrument Serif for page titles, and Geist Mono
+// for the small print: dates, times, counts and section labels.
 const ui = Geist({ subsets: ["latin"], variable: "--font-ui", display: "swap" });
-const title = Figtree({ subsets: ["latin"], variable: "--font-title", display: "swap" });
+const title = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: "--font-title", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-numeric", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Todo",
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f8f8f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0b0d" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0b" },
   ],
   // Content runs under the notch and home indicator; safe-area insets pad it.
   viewportFit: "cover",
@@ -35,7 +36,7 @@ const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${ui.variable} ${title.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${ui.variable} ${title.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
       </head>

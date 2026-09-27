@@ -128,6 +128,7 @@ export function CalendarView() {
     <>
       <PageHeader
         title={<MonthPicker month={month} onPick={(m) => pick(sameDay(startOfMonth(today()), m) ? today() : m)} />}
+        eyebrow={String(month.getFullYear())}
         actions={
           <>
             {listToggle}
@@ -226,12 +227,12 @@ function MonthCard({
     else if (offset.x > 56 || velocity.x > 450) onSwipe(-1);
   };
   return (
-    <div className="card flex min-h-0 flex-1 flex-col overflow-hidden p-2 max-md:px-1.5 max-md:pt-2.5 max-md:pb-1">
+    <div className="card flex min-h-0 flex-1 flex-col overflow-hidden p-2 max-md:rounded-none max-md:border-b max-md:border-line max-md:bg-transparent max-md:px-0 max-md:pt-3 max-md:pb-3.5 max-md:shadow-none">
       <div className="grid shrink-0 grid-cols-7 pb-1">
         {WEEKDAYS.map((d) => (
           <span
             key={d}
-            className="py-1.5 text-2xs font-medium text-ink-3 max-md:py-1 max-md:text-center max-md:text-[12px] md:px-2.5"
+            className="py-1.5 text-2xs font-medium text-ink-3 max-md:pt-0 max-md:pb-2 max-md:text-center max-md:font-mono max-md:text-[11px] max-md:font-normal max-md:tracking-[0.06em] md:px-2.5"
           >
             {phone ? d[0] : d}
           </span>
@@ -253,7 +254,7 @@ function MonthCard({
             dragElastic={0.22}
             dragSnapToOrigin
             onDragEnd={onDragEnd}
-            className={cn("grid h-full grid-cols-7 gap-1 max-md:gap-0", phone && "touch-pan-y")}
+            className={cn("grid h-full grid-cols-7 gap-1 max-md:gap-x-0 max-md:gap-y-0.5", phone && "touch-pan-y")}
             style={{ gridTemplateRows: `repeat(${weeks}, minmax(0, 1fr))` }}
           >
             {days.map((d) => (
@@ -287,10 +288,10 @@ function MonthPicker({ month, onPick }: { month: Date; onPick: (d: Date) => void
         if (o) setYear(month.getFullYear());
       }}
       trigger={
-        <button type="button" className="-mx-1.5 flex min-w-0 items-center gap-1.5 rounded-ctl px-1.5 transition-colors hover:bg-fill">
+        <button type="button" className="-mx-1.5 flex min-w-0 items-center gap-1.5 rounded-ctl px-1.5 transition-colors hover:bg-fill max-md:-mx-1 max-md:gap-1 max-md:px-1">
           <span className="truncate">{format(month, "MMMM")}</span>
-          {month.getFullYear() !== now.getFullYear() && <span className="font-normal text-ink-3">{month.getFullYear()}</span>}
-          <ChevronDown className="size-4 shrink-0 text-ink-3" />
+          {month.getFullYear() !== now.getFullYear() && <span className="text-ink-3 max-md:hidden">{month.getFullYear()}</span>}
+          <ChevronDown className="size-4 shrink-0 text-ink-3 max-md:mt-2 max-md:size-5" strokeWidth={1.8} />
         </button>
       }
     >
@@ -397,14 +398,14 @@ function MonthCell({
         onClick={onClick}
         aria-label={format(date, "EEEE d MMMM")}
         aria-pressed={selected}
-        className="relative flex min-h-[52px] flex-col items-center justify-start gap-[5px] pt-1 transition-transform duration-150 active:scale-[0.92]"
+        className="relative flex h-[46px] flex-col items-center justify-center gap-0.5 transition-transform duration-150 active:scale-[0.92]"
       >
         <span
           className={cn(
-            "flex size-[38px] items-center justify-center rounded-full text-[17px] leading-none tnum transition-colors duration-150",
+            "flex size-[34px] items-center justify-center rounded-full text-[15px] leading-none tnum transition-colors duration-150",
             selected
               ? isToday
-                ? "bg-accent font-semibold text-white"
+                ? "bg-accent font-semibold text-on-ink"
                 : "bg-ink font-semibold text-on-ink"
               : isOver
                 ? "bg-accent-soft"
@@ -419,11 +420,11 @@ function MonthCell({
         >
           {date.getDate()}
         </span>
-        <span className={cn("flex h-[5px] items-center gap-[3px]", !inMonth && "opacity-40")}>
+        <span className={cn("flex h-1 items-center gap-[3px]", !inMonth && "opacity-40")}>
           {dots.map((d) => (
             <span
               key={d.key}
-              className="size-[5px] rounded-full"
+              className="size-1 rounded-full"
               style={d.ring ? { boxShadow: `inset 0 0 0 1.3px ${d.color}` } : { background: d.color }}
             />
           ))}
@@ -559,10 +560,16 @@ function Agenda({
   const near = relative === "Today" || relative === "Tomorrow" || relative === "Yesterday";
   return (
     <aside className="scroll-area min-h-0 w-[340px] shrink-0 max-xl:w-full max-xl:flex-1 max-md:pb-bar">
-      <div className="flex min-w-0 items-center gap-3 px-2 pt-2 pb-2.5 max-md:pt-4">
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold">{near ? relative : format(day, "EEEE d MMMM")}</h2>
-          <p className="truncate text-xs text-ink-3">{near ? format(day, "EEEE d MMMM") : distance(day)}</p>
+      <div className="flex min-w-0 items-center gap-3 px-2 pt-2 pb-2.5 max-md:px-1 max-md:pt-5 max-md:pb-3">
+        <div className="min-w-0 flex-1 max-md:flex max-md:items-baseline max-md:justify-between max-md:gap-3">
+          <h2 className="truncate text-base font-semibold max-md:font-display max-md:text-[26px] max-md:leading-none max-md:font-normal max-md:tracking-[-0.01em]">
+            <span className="md:hidden">{near ? relative : format(day, "EEEE")}</span>
+            <span className="max-md:hidden">{near ? relative : format(day, "EEEE d MMMM")}</span>
+          </h2>
+          <p className="truncate text-xs text-ink-3 max-md:shrink-0 max-md:font-mono max-md:text-[12px] max-md:tracking-[0.04em] max-md:text-ink-2">
+            <span className="md:hidden">{format(day, "EEE d MMM")}</span>
+            <span className="max-md:hidden">{near ? format(day, "EEEE d MMMM") : distance(day)}</span>
+          </p>
         </div>
         {dayOnly && (
           <Button size="sm" variant="secondary" icon={<CalendarDays className="size-3.5" />} onClick={onShowMonth}>

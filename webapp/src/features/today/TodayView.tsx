@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { addDays, formatDuration, relativeDay, sameDay, today } from "@/lib/time";
 import { useEvents } from "@/lib/googleEvents";
 import { EventRow } from "@/features/events/EventSheet";
@@ -13,7 +13,7 @@ import { overdueTasks, tasksForDay, useAllTasks, workMinutes } from "@/features/
 import { Section, TaskList } from "@/features/tasks/TaskList";
 import { moveTask } from "@/features/tasks/actions";
 import { rescheduleTask } from "@/store/workspace";
-import { Button } from "@/ui/controls";
+import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Tooltip } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
@@ -38,6 +38,9 @@ export function TodayView() {
   }, [timed, untimed, done, overdue, reviewing]);
 
   const setDay = (d: Date) => ui.set({ day: d });
+  // The title is the weekday; "Today", "Tomorrow" or "Yesterday" goes with the date.
+  const relative = relativeDay(day);
+  const nearWord = ["Today", "Tomorrow", "Yesterday"].includes(relative) ? relative : null;
 
   const moveAllOverdue = () => {
     const moved = overdue.map((t) => ({ id: t.id, date: t.date }));
@@ -52,10 +55,14 @@ export function TodayView() {
   return (
     <>
       <PageHeader
-        title={relativeDay(day)}
-        detail={format(day, isToday ? "EEEE d MMMM" : "d MMMM yyyy")}
+        title={format(day, "EEEE")}
+        detail={nearWord ? `${nearWord}, ${format(day, "d MMMM")}` : format(day, "d MMMM yyyy")}
+        eyebrow={nearWord ? `${nearWord} · ${format(day, "d MMM")}` : format(day, "d MMM yyyy")}
         actions={
           <>
+            <IconButton label="Search" className="md:hidden" onClick={() => ui.set({ paletteOpen: true })}>
+              <Search className="size-[18px]" />
+            </IconButton>
             <Stepper
               prev="Previous day"
               next="Next day"
@@ -77,7 +84,7 @@ export function TodayView() {
       />
       <div className="@container flex min-h-0 flex-1 flex-col">
         <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
-          <div className="card p-1.5">
+          <div className="card p-1.5 max-md:rounded-[26px] max-md:border max-md:border-line">
             <DayStrip day={day} onPick={setDay} tasks={all} />
           </div>
         </div>

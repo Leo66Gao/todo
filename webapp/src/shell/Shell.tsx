@@ -285,10 +285,10 @@ function Workspace() {
               <motion.aside
                 data-overlay
                 data-surface="drawer"
-                className="glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal lg:hidden"
-                initial={{ x: -290 }}
+                className="glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal lg:hidden max-md:top-[max(8px,env(safe-area-inset-top))] max-md:bottom-[max(8px,env(safe-area-inset-bottom))] max-md:left-2 max-md:w-[318px] max-md:max-w-[calc(100vw-56px)] max-md:overflow-hidden max-md:rounded-[30px] max-md:border max-md:border-line"
+                initial={{ x: -330 }}
                 animate={{ x: 0 }}
-                exit={{ x: -290 }}
+                exit={{ x: -330 }}
                 transition={springs.panel}
               >
                 <Sidebar onNavigate={() => ui.set({ sidebarOpen: false })} />
@@ -353,19 +353,29 @@ function View({ route }: { route: Route }) {
 export function PageHeader({
   title,
   detail,
+  eyebrow,
   leading,
   actions,
   className,
 }: {
   title: ReactNode;
   detail?: ReactNode;
+  /** A small line above the title on phones (the detail is used otherwise). */
+  eyebrow?: ReactNode;
   leading?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }) {
   const collapsed = useUI((s) => s.sidebarCollapsed);
   return (
-    <header className={cn("flex h-[60px] shrink-0 items-center gap-3 px-6 max-sm:px-4", className)}>
+    // Phones: a small mono line over a large serif title, with round buttons
+    // aligned to the title's baseline.
+    <header
+      className={cn(
+        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:items-end max-md:px-5 max-md:pt-[calc(max(env(safe-area-inset-top),12px)+20px)] max-md:pb-2",
+        className,
+      )}
+    >
       <IconButton label="Show sidebar" className="-ml-1.5 max-md:hidden lg:hidden" onClick={() => ui.set({ sidebarOpen: true })}>
         <MenuIcon className="size-[17px]" />
       </IconButton>
@@ -375,11 +385,22 @@ export function PageHeader({
         </IconButton>
       )}
       {leading}
-      <div className="flex min-w-0 items-baseline gap-2.5">
-        <h1 className="truncate font-display text-xl font-semibold tracking-[-0.015em]">{title}</h1>
-        {detail && <span className="truncate text-sm text-ink-3 max-sm:hidden">{detail}</span>}
+      <div className="flex min-w-0 items-baseline gap-2.5 max-md:flex-col-reverse max-md:gap-2">
+        {title !== "" && (
+          <h1 className="max-w-full truncate font-display text-[28px] leading-none font-normal tracking-[-0.01em] max-md:pb-0.5 max-md:text-[40px] max-md:leading-[0.95]">
+            {title}
+          </h1>
+        )}
+        {(eyebrow ?? detail) && (
+          <span className="max-w-full truncate text-sm text-ink-3 max-md:font-mono max-md:text-[12px] max-md:tracking-[0.08em] max-md:uppercase">
+            <span className="md:hidden">{eyebrow ?? detail}</span>
+            <span className="max-md:hidden">{detail}</span>
+          </span>
+        )}
       </div>
-      <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-2 max-md:[&>button]:size-11 max-md:[&>button]:rounded-full max-md:[&>button]:border max-md:[&>button]:border-line max-md:[&>button]:bg-card max-md:[&>button]:text-ink-2 max-md:[&>button]:shadow-card">
+        {actions}
+      </div>
     </header>
   );
 }
@@ -410,9 +431,9 @@ export function Stepper({
   nextShortcut?: string[];
 }) {
   return (
-    <div className="mr-1 flex items-center max-md:mr-0 max-md:h-9 max-md:rounded-full max-md:bg-card max-md:px-0.5 max-md:shadow-card">
+    <div className="mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full max-md:border max-md:border-line max-md:bg-card max-md:shadow-card">
       <Tooltip label={prev} shortcut={prevShortcut}>
-        <IconButton label={prev} onClick={onPrev} className="max-md:size-8 max-md:rounded-full max-md:text-ink-2">
+        <IconButton label={prev} onClick={onPrev} className="max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronLeft className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
@@ -426,7 +447,7 @@ export function Stepper({
         {present}
       </Button>
       <Tooltip label={next} shortcut={nextShortcut}>
-        <IconButton label={next} onClick={onNext} className="max-md:size-8 max-md:rounded-full max-md:text-ink-2">
+        <IconButton label={next} onClick={onNext} className="max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronRight className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
