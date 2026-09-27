@@ -2,6 +2,8 @@
 // flutter_quill, which shares the format). Older notes hold raw Markdown or
 // plain text; every reader here accepts both.
 
+import { looksLikeMarkdown, markdownToDelta } from "./markdownPaste";
+
 export interface DeltaOp {
   insert?: unknown;
   attributes?: Record<string, unknown>;
@@ -23,10 +25,15 @@ export function parseDelta(content: string): DeltaOp[] | null {
 
 export const isQuillDelta = (content: string) => parseDelta(content) != null;
 
-/** Delta ops for any stored content (legacy text becomes one paragraph). */
+/**
+ * Delta ops for any stored content. Legacy Markdown shows formatted, as the
+ * original app rendered it (the stored text only changes when edited);
+ * other legacy text becomes plain paragraphs.
+ */
 export function deltaFromContent(content: string): DeltaOp[] {
   const ops = parseDelta(content);
   if (ops) return ops;
+  if (looksLikeMarkdown(content)) return markdownToDelta(content);
   const text = content.endsWith("\n") ? content : `${content}\n`;
   return [{ insert: text }];
 }

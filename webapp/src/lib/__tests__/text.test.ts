@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEmptyContent, plainText, safeLink, withAutoLinks } from "@/lib/delta";
+import { deltaFromContent, isEmptyContent, plainText, safeLink, withAutoLinks } from "@/lib/delta";
 import { parseTimeFromTitle, parseTimeToken } from "@/lib/timeParse";
 
 describe("time entry", () => {
@@ -50,5 +50,18 @@ describe("note content", () => {
     expect(safeLink("https://example.com")).toBe("https://example.com/");
     expect(safeLink("mailto:a@b.c")).toBe("mailto:a@b.c");
     expect(safeLink("javascript:alert(1)")).toBeNull();
+  });
+});
+
+describe("legacy note text", () => {
+  it("shows old Markdown notes formatted", () => {
+    const ops = deltaFromContent("# Plan\n- **one**\n- two");
+    expect(ops).toContainEqual({ insert: "one", attributes: { bold: true } });
+    expect(ops.some((op) => (op.attributes as Record<string, unknown> | undefined)?.header === 1)).toBe(true);
+    expect(ops.some((op) => (op.attributes as Record<string, unknown> | undefined)?.list === "bullet")).toBe(true);
+  });
+
+  it("keeps plain text as it is", () => {
+    expect(deltaFromContent("Buy milk")).toEqual([{ insert: "Buy milk\n" }]);
   });
 });
