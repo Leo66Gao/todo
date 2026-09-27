@@ -11,7 +11,7 @@ import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { ui } from "@/shell/ui";
 import { taskMenu } from "@/features/tasks/actions";
-import { priorityColor, useProjectMap, workMinutes } from "@/features/tasks/meta";
+import { priorityColor, useProjectMap, workMinutes, difficultyColor } from "@/features/tasks/meta";
 import { TaskCheck } from "@/features/tasks/TaskCheck";
 import { toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
@@ -32,8 +32,10 @@ export function AssignmentsView() {
   const open = assignments.filter((t) => !t.isDone);
 
   const stats = useMemo(() => {
+    const start = today().getTime();
     const weekEnd = addDays(today(), 7).getTime();
-    const dueSoon = open.filter((t) => t.date.getTime() < weekEnd).length;
+    // Overdue ones have their own group; "the next 7 days" starts today.
+    const dueSoon = open.filter((t) => t.date.getTime() >= start && t.date.getTime() < weekEnd).length;
     const work = open.reduce((s, t) => s + workMinutes(t), 0);
     const subs = open.flatMap((t) => t.subtasks);
     return { dueSoon, work, subsDone: subs.filter((s) => s.isDone).length, subsTotal: subs.length };
@@ -213,7 +215,12 @@ function AssignmentRow({ task }: { task: Task }) {
                 </span>
               </span>
             )}
-            {hasExplicitDifficulty(task) && <span>Level {task.difficulty}</span>}
+            {hasExplicitDifficulty(task) && (
+              <span className="flex items-center gap-1.5">
+                <span className="size-[7px] rounded-full" style={{ background: difficultyColor(task.difficulty) }} />
+                Level {task.difficulty}
+              </span>
+            )}
           </div>
         </div>
       </div>

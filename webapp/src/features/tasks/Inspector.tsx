@@ -39,7 +39,7 @@ import { RichText } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
 import { taskMenu } from "./actions";
 import { DateField, SubjectField, TimeField } from "./fields";
-import { PRIORITY_LABEL, priorityColor } from "./meta";
+import { PRIORITY_LABEL, priorityColor, difficultyColor } from "./meta";
 import { WorkBack } from "./WorkBack";
 import { startFocus } from "@/lib/focus";
 import { TaskCheck } from "./TaskCheck";
@@ -202,7 +202,12 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
     properties.push(
       <Property key="difficulty" label="Difficulty">
         <Menu
-          trigger={<ValueButton muted={!selected}>{selected ? `Level ${task.difficulty}` : "None"}</ValueButton>}
+          trigger={
+            <ValueButton muted={!selected}>
+              {selected && <span className="size-[7px] shrink-0 rounded-full" style={{ background: difficultyColor(task.difficulty) }} />}
+              {selected ? `Level ${task.difficulty}` : "None"}
+            </ValueButton>
+          }
           items={[
             { label: "None", checked: !selected, onSelect: () => chooseDifficulty(null) },
             ...[1, 2, 3, 4, 5].map((level) => ({

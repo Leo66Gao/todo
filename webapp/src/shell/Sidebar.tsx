@@ -37,6 +37,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const projects = useWorkspace((s) => s.projects);
   const user = useWorkspace((s) => s.user);
   const cloudStatus = useWorkspace((s) => s.cloudStatus);
+  // A save or sync problem shows here in red (details are in Settings).
+  const cloudError = useWorkspace((s) => s.cloudError);
   const searchWell = useGlass<HTMLButtonElement>({ level: 2, kind: "well", interactive: true });
 
   const counts = useMemo(() => {
@@ -165,13 +167,20 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <span className="block truncate text-sm font-medium">{user ? (user.displayName ?? user.email) : "On this device"}</span>
             <span className="flex items-center gap-1.5 truncate text-2xs text-ink-3">
               <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  !user ? "bg-ink-4" : cloudStatus === "Synced" ? "bg-p-low" : "bg-p-medium",
-                )}
-                style={{ background: !user ? undefined : cloudStatus === "Synced" ? "var(--p-low)" : "var(--p-medium)" }}
+                className={cn("size-1.5 shrink-0 rounded-full", !user && !cloudError && "bg-ink-4")}
+                style={{
+                  background: cloudError
+                    ? "var(--danger)"
+                    : !user
+                      ? undefined
+                      : cloudStatus === "Synced"
+                        ? "var(--p-low)"
+                        : "var(--p-medium)",
+                }}
               />
-              {user ? cloudStatus : "Not signed in"}
+              <span className={cn("truncate", cloudError && "text-danger")}>
+                {cloudError ? "Needs attention" : user ? cloudStatus : "Not signed in"}
+              </span>
             </span>
           </span>
           <Settings className="size-4 shrink-0 text-ink-3" />

@@ -18,6 +18,10 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
 export const priorityColor = (p: Priority) =>
   p === "none" ? "var(--ink-4)" : `var(--p-${p})`;
 
+/** Difficulty tint, as in the original app: easy green, level 3 orange, hard red. */
+export const difficultyColor = (level: number) =>
+  level <= 2 ? "var(--p-low)" : level === 3 ? "var(--p-high)" : "var(--p-critical)";
+
 export const difficultyLabel = (level: number) => (level > 1 ? `Level ${level}` : "None");
 
 export const projectColor = (p: Project | null | undefined) => (p ? argbToCss(p.colorValue) : "var(--ink-4)");

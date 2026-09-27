@@ -28,7 +28,8 @@ export function SubjectView({ id }: { id: string }) {
   const all = useAllTasks();
   const [folderId, setFolderId] = useState<string | "all">("all");
 
-  const tasks = useMemo(() => all.filter((t) => t.projectId === id && !t.parentTaskId), [all, id]);
+  // Milestones count as the subject's work too (they carry their assignment's subject).
+  const tasks = useMemo(() => all.filter((t) => t.projectId === id), [all, id]);
   const overdue = tasks.filter((t) => isOverdue(t.date, t.isDone)).sort((a, b) => a.date.getTime() - b.date.getTime());
   const upcoming = tasks
     .filter((t) => !t.isDone && !isOverdue(t.date))
