@@ -16,6 +16,7 @@ import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
 import { toggleSubtask, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
+import { useAiPending } from "@/lib/aiCapture";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
 import { useMedia } from "@/ui/useMedia";
@@ -128,6 +129,7 @@ const TaskRowView = memo(function TaskRowView({
   };
 
   // Swipe right completes; swipe left deletes (with Undo).
+  const aiBusy = useAiPending((s) => s.ids.includes(task.id));
   const swipe = useSwipe(toggle, () => removeTask(task));
   const revealLeft = useTransform(swipe.x, (v) => Math.max(0, v));
   const revealRight = useTransform(swipe.x, (v) => Math.max(0, -v));
@@ -360,7 +362,7 @@ const TaskRowView = memo(function TaskRowView({
                 done ? "text-ink-3" : "text-ink",
               )}
             >
-              <span className="strike" data-done={done || undefined}>
+              <span className={cn("strike", aiBusy && "ai-shimmer")} data-done={done || undefined}>
                 {task.title}
               </span>
             </div>

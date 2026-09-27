@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, CalendarDays, Clock, Flag, Hourglass, X } from "lucide-react";
+import { ArrowRight, Camera, CalendarDays, Clock, Flag, Hourglass, Sparkles, X } from "lucide-react";
+import { smartAdd, tasksFromPhoto } from "@/lib/aiCapture";
 import { format } from "date-fns";
 import { argbToCss } from "@/lib/dart";
 import { parseQuickAdd, type TokenKind } from "@/lib/quickAdd";
@@ -443,13 +444,50 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       </div>
       <div className="scroll-area min-h-0 flex-1 space-y-3.5 border-t border-line px-5 py-4">{rows}</div>
       <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
-        <span className="hover-only flex items-center gap-1 text-2xs text-ink-3 max-sm:hidden">
-          <Kbd>⌘</Kbd>
-          <Kbd>↩</Kbd>
-          <span className="ml-1">to save</span>
-        </span>
+        {existing ? (
+          <span className="hover-only flex items-center gap-1 text-2xs text-ink-3 max-sm:hidden">
+            <Kbd>⌘</Kbd>
+            <Kbd>↩</Kbd>
+            <span className="ml-1">to save</span>
+          </span>
+        ) : (
+          // AI only runs when asked: the task is added straight away and the
+          // AI fills it in afterwards.
+          <div className="flex gap-1.5">
+            <Button
+              variant="ghost"
+              className="max-sm:h-11 max-sm:px-3"
+              icon={<Sparkles className="size-4" />}
+              disabled={!title.trim()}
+              title="Let AI read what you typed and set the date, time, length and the rest"
+              onClick={() => {
+                if (smartAdd(title, { ...defaults, type: effectiveType, category })) ui.closeEditor();
+              }}
+            >
+              <span className="max-sm:hidden">Smart add</span>
+            </Button>
+            <label
+              title="Add tasks from a photo of an assignment sheet or whiteboard"
+              className="flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-[10px] px-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-fill max-sm:h-11 max-sm:px-3"
+            >
+              <Camera className="size-4" />
+              <span className="max-sm:hidden">Photo</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file && tasksFromPhoto(file, { ...defaults, category })) ui.closeEditor();
+                }}
+              />
+            </label>
+          </div>
+        )}
         {/* On phones the buttons share the width, within reach of a thumb. */}
-        <div className="ml-auto flex gap-2 max-sm:ml-0 max-sm:flex-1">
+        <div className="ml-auto flex gap-2 max-sm:flex-1">
           <Button variant="ghost" className="max-sm:h-11 max-sm:flex-1" onClick={() => ui.closeEditor()}>
             Cancel
           </Button>
