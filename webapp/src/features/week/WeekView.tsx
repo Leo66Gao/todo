@@ -107,7 +107,7 @@ export function WeekView() {
           </span>
         )}
       </div>
-      <div className="scroll-area flex min-h-0 flex-1 gap-2 px-4 pt-1 pb-4 max-md:flex-col max-md:gap-2.5 max-md:overflow-y-auto max-md:px-3 max-md:pb-bar">
+      <div className="scroll-area flex min-h-0 flex-1 gap-2 px-4 pt-1 pb-4 max-md:flex-col max-md:pt-2 max-md:gap-2.5 max-md:overflow-y-auto max-md:px-3 max-md:pb-bar">
         {columns.map((col) => (
           <DayColumn key={col.date.getTime()} date={col.date} tasks={col.tasks} events={events} />
         ))}
@@ -220,7 +220,7 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
           }}
           onDoubleClick={() => !task.milestone && ui.editTask(task.id)}
           className={cn(
-            "mb-1 flex gap-1 rounded-[calc(var(--radius-ctl)_+_1px)] py-1.5 pr-2 pl-0.5 transition-colors duration-100",
+            "mb-1 flex items-center gap-1 rounded-[calc(var(--radius-ctl)_+_1px)] py-1.5 pr-2 pl-0.5 transition-colors duration-100",
             selected ? "bg-accent-soft" : "hover:bg-fill",
           )}
         >
@@ -229,7 +229,6 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
             checked={task.isDone}
             color={showPriority && task.priority !== "none" ? priorityColor(task.priority) : undefined}
             onToggle={() => toggleTask(task.id)}
-            className="-mt-[3px]"
           />
           <div className="min-w-0 flex-1">
             <p className={cn("line-clamp-2 text-xs leading-[17px] font-medium", task.isDone ? "text-ink-3 line-through decoration-ink-4" : "text-ink")}>

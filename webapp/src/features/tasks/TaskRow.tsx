@@ -269,7 +269,7 @@ const TaskRowView = memo(function TaskRowView({
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
-            "group relative flex touch-pan-y items-start gap-2 rounded-[inherit] pr-3 pl-2 outline-none transition-colors duration-100 max-md:gap-3 max-md:pr-[18px] max-md:pl-3.5",
+            "group relative flex touch-pan-y items-center gap-2 rounded-[inherit] pr-3 pl-2 outline-none transition-colors duration-100 max-md:gap-3 max-md:pr-[18px] max-md:pl-3.5",
             compact ? "py-1.5" : "py-2.5 max-md:py-3.5",
             // Opaque fills, so the swipe panels underneath stay hidden.
             inspected
@@ -279,8 +279,8 @@ const TaskRowView = memo(function TaskRowView({
                 : "bg-card hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
           )}
         >
-          <TaskCheck checked={done} color={check} onToggle={toggle} size={phone ? 22 : 18} className="-my-0.5 max-md:-my-1" />
-          <div className="min-w-0 flex-1 pt-[3px] max-md:pt-px">
+          <TaskCheck checked={done} color={check} onToggle={toggle} size={phone ? 22 : 18} className="-my-1" />
+          <div className="min-w-0 flex-1">
             {/* Long titles wrap onto a second line rather than being cut short. */}
             <div
               className={cn(
@@ -302,7 +302,7 @@ const TaskRowView = memo(function TaskRowView({
           {task.startTime && settings.showTime && (
             <span
               className={cn(
-                "mt-[3px] shrink-0 rounded-[6px] px-1.5 py-px text-xs font-medium tnum max-md:mt-0.5 max-md:bg-transparent max-md:px-0 max-md:font-mono max-md:text-[14px] max-md:font-normal",
+                "shrink-0 rounded-[6px] px-1.5 py-px text-xs font-medium tnum max-md:bg-transparent max-md:px-0 max-md:font-mono max-md:text-[14px] max-md:font-normal",
                 done ? "text-ink-4" : "bg-fill text-ink-2 max-md:text-ink",
               )}
             >

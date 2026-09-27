@@ -544,12 +544,12 @@ html.dark:not(.glass) .float-glass {
 }
 
 /* Room at the end of a scrolling page for what floats over it. */
-.pb-bar {
+/* Room under a scrolling page so its end clears the floating tab bar.
+   A utility, so it also works behind a variant (max-md:pb-bar). */
+@utility pb-bar {
   padding-bottom: 6rem;
-}
-@media (max-width: 767px) {
-  .pb-bar {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  @media (max-width: 767px) {
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
   }
 }
 

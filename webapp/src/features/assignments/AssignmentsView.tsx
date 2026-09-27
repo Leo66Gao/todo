@@ -60,8 +60,6 @@ export function AssignmentsView() {
     <>
       <PageHeader
         title="Assignments"
-        detail={open.length > 0 ? `${open.length} open` : undefined}
-        eyebrow={open.length > 0 ? `${open.length} open` : " "}
         actions={
           <>
             <Segmented
