@@ -11,7 +11,7 @@ export interface EngineLook {
   dark: boolean;
   /** 0 sharp … 1 fully diffused. */
   blur: number;
-  /** Frosted surface: 0 smooth … 1 fully frosted (a fine grain, no tint). */
+  /** Frosted surface: 0 smooth … 1 fully frosted (milky white haze and an icy grain). */
   frost: number;
   /** Light text over a light background: the glass then keeps itself dark. */
   lightText: boolean;
@@ -374,8 +374,8 @@ export class GlassEngine {
     // Glass under light text behaves as it does in dark mode.
     const dark = look.dark || look.lightText;
     const solid = look.solid;
-    // Blur only softens what shows through; frost only roughens the glass.
-    // Neither tints it: reading surfaces keep a fixed, gentle legibility band.
+    // Blur only softens what shows through; frost turns the glass milky and
+    // grained. Reading surfaces also keep a fixed, gentle legibility band.
     const haze = dark ? [0.4, 0.41, 0.44] : [1, 1, 1];
     const hold = 0.55;
     switch (kind) {

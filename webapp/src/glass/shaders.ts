@@ -296,6 +296,14 @@ float grainAt(vec2 p) {
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
 }
+// Smooth value noise: the soft mottling of ice crystals under the grain.
+float noiseAt(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(grainAt(i), grainAt(i + vec2(1.0, 0.0)), f.x),
+             mix(grainAt(i + vec2(0.0, 1.0)), grainAt(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 // A ring of taps around a pre-blurred level widens its blur smoothly.
 vec3 ring(sampler2D t, vec2 a, vec2 b, vec2 c, float r) {
   vec3 acc = fetch3(t, a, b, c) * 0.2;
@@ -414,16 +422,22 @@ void main() {
     // Blur: a true radius that grows smoothly with the setting and fills the
     // whole shape. Where the lens squeezes the image near the rim it softens
     // a little more, so fine detail can't alias into stripes.
-    float radius = (pow(O.x, 1.4) * 44.0 + fr * 4.0) * uDpr + 9.0 * uDpr * u * u;
+    float radius = (pow(O.x, 1.4) * 44.0 + fr * 18.0) * uDpr + 9.0 * uDpr * u * u;
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
     // Vibrancy.
     float lum = dot(base, vec3(0.299, 0.587, 0.114));
     base = clamp(mix(vec3(lum), base, 1.22) * (uDark > 0.5 ? 1.0 : 1.03), 0.0, 1.0);
-    // Frosted glass also spreads light sideways, flattening contrast a little.
+    // Frost: ice scatters light every way, so the glass turns milky white.
+    // What is behind melts into a soft glow, colour drains towards white,
+    // and a bright haze lifts the whole surface (gentler in dark mode, where
+    // the glass stays smoky so light text still reads).
     if (fr > 0.0) {
-      base = mix(base, fetch3(uHeavy, uvR, uvG, uvB), 0.3 * fr);
-      base += 0.025 * fr * (uDark > 0.5 ? 0.5 : 1.0);
+      base = mix(base, ring(uHeavy, uvR, uvG, uvB, 36.0 * uDpr), 0.85 * fr);
+      float bl0 = dot(base, vec3(0.299, 0.587, 0.114));
+      base = mix(base, vec3(bl0), 0.5 * fr);
+      vec3 ice = uDark > 0.5 ? vec3(0.62, 0.67, 0.74) : vec3(0.975, 0.985, 1.0);
+      base = mix(base, ice, fr * (uDark > 0.5 ? 0.24 : 0.72));
     }
     // A tint (solid surfaces, the search well, primary actions).
     base = mix(base, T.rgb, T.a * (1.0 - st.y * 0.25));
@@ -455,6 +469,18 @@ void main() {
         float hi = uDark > 0.5 ? 0.3 : 0.34;
         if (bl > hi) base *= mix(1.0, hi / bl, k);
       }
+    }
+
+    // Frost texture, laid over the legibility band so it always shows: a
+    // fine sandblasted grain, a soft crystalline mottle, and the odd glint of
+    // an ice facet catching the light.
+    if (fr > 0.0) {
+      vec2 cp = p / uDpr;
+      float sand = grainAt(floor(cp * 1.5)) - 0.5;
+      float mottle = noiseAt(cp / 3.2) * 0.6 + noiseAt(cp / 11.0) * 0.4 - 0.5;
+      float glint = smoothstep(0.93, 1.0, grainAt(floor(cp * 0.75) + 17.3)) * (0.4 + 0.6 * noiseAt(cp / 7.0));
+      float kf = fr * (uDark > 0.5 ? 0.7 : 1.0);
+      base += (sand * 0.05 + mottle * 0.045 + glint * 0.09) * kf;
     }
 
     // Light along the bevel: a faint edge, a soft glow and a glint, brightest

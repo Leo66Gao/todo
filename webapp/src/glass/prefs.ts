@@ -23,7 +23,7 @@ export interface GlassPrefs {
   background: BackgroundId;
   /** How much the glass blurs what is behind it: 0 none … 1 fully diffused. */
   blur: number;
-  /** Milky haze in the glass: 0 clear … 1 fully frosted. */
+  /** Frost on the glass: 0 clear … 1 milky white, icy and grained. */
   frost: number;
   /** Light text in light mode, for darker backgrounds. */
   lightText: boolean;

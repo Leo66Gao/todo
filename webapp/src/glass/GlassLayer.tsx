@@ -23,6 +23,14 @@ export function useGlassDocumentClasses() {
     };
   }, [enabled, background]);
 
+  // Overlays drawn in CSS follow the frost setting too: whiter, and grained.
+  const frost = useGlassPrefs((s) => s.frost);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--glass-frost", String(enabled ? frost : 0));
+    root.classList.toggle("glass-frosty", enabled && frost > 0.15);
+  }, [enabled, frost]);
+
   const lightText = useGlassPrefs((s) => s.lightText);
   useEffect(() => {
     document.documentElement.classList.toggle("glass-light-text", enabled && lightText);

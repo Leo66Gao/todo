@@ -194,7 +194,7 @@ function AppearanceSection() {
             <Item title="Blur" detail="How much the glass softens what is behind it.">
               <RangeSlider value={blur} onChange={(v) => setGlassPrefs({ blur: v })} label="Blur" from="Sharp" to="Soft" />
             </Item>
-            <Item title="Frost" detail="A frosted texture, like sandblasted glass.">
+            <Item title="Frost" detail="Milky white ice with a fine grain, like frosted glass.">
               <RangeSlider value={frost} onChange={(v) => setGlassPrefs({ frost: v })} label="Frost" from="Clear" to="Frosted" />
             </Item>
             <Item title="Text in light mode" detail="Light text reads better over darker backgrounds.">
