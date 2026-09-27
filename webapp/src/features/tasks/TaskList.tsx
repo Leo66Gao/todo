@@ -52,7 +52,7 @@ export function TaskList({
       ))}
     </AnimatePresence>
   );
-  const body = <div>{rows}</div>;
+  const body = <div className={plain ? undefined : "task-stack"}>{rows}</div>;
   if (!sortable) return body;
   return (
     <SortableContext id={id} items={tasks.filter((t) => !t.milestone).map((t) => t.id)} strategy={verticalListSortingStrategy}>

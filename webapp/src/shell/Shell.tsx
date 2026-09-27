@@ -440,7 +440,7 @@ export function Stepper({
 }) {
   return (
     <div className="relative mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full">
-      <GlassLens radius={22} bezel={12} className="md:hidden" />
+      <GlassLens radius={22} bezel={15} className="md:hidden" />
       <Tooltip label={prev} shortcut={prevShortcut}>
         <IconButton label={prev} onClick={onPrev} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronLeft className="size-4 max-md:size-[18px]" />

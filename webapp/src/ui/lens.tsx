@@ -50,9 +50,10 @@ function lensMap(w: number, h: number, radius: number, bezel: number): string {
         depth = r - qy;
         ny = Math.sign(py);
       }
-      // 1 at the rim, easing to 0 at the inner edge of the bezel.
+      // 1 at the rim, easing to 0 at the inner edge of the bezel: a rounded
+      // (circular) profile, so the bend steepens sharply right at the edge.
       const t = depth <= 0 ? 1 : depth >= bezel ? 0 : 1 - depth / bezel;
-      const m = t * t;
+      const m = 1 - Math.sqrt(Math.max(0, 1 - t * t));
       const i = (y * w + x) * 4;
       img.data[i] = 128 - nx * m * 127;
       img.data[i + 1] = 128 - ny * m * 127;
@@ -92,8 +93,8 @@ export function LensFilter({ id, w, h, radius, bezel, scale = 26 }: { id: string
 export function LensDefs() {
   return (
     <>
-      <LensFilter id="lens-c44" w={44} h={44} radius={22} bezel={11} scale={22} />
-      <LensFilter id="lens-c58" w={58} h={58} radius={29} bezel={14} scale={26} />
+      <LensFilter id="lens-c44" w={44} h={44} radius={22} bezel={15} scale={34} />
+      <LensFilter id="lens-c58" w={58} h={58} radius={29} bezel={20} scale={44} />
     </>
   );
 }
@@ -102,7 +103,7 @@ export function LensDefs() {
  * Glass that sizes itself to its parent (which must be positioned and
  * rounded): for bars whose width varies, like the tab bar.
  */
-export function GlassLens({ radius, bezel = 16, className }: { radius: number; bezel?: number; className?: string }) {
+export function GlassLens({ radius, bezel = 20, className }: { radius: number; bezel?: number; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const id = `lens-${useId().replace(/:/g, "")}`;
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -124,9 +125,9 @@ export function GlassLens({ radius, bezel = 16, className }: { radius: number; b
       ref={ref}
       aria-hidden
       className={cn("lens-surface pointer-events-none absolute inset-0 rounded-[inherit]", className)}
-      style={size ? { backdropFilter: `blur(3px) saturate(1.8) url(#${id})` } : undefined}
+      style={size ? { backdropFilter: `blur(1.5px) saturate(1.9) brightness(1.04) url(#${id})` } : undefined}
     >
-      {size && <LensFilter id={id} w={size.w} h={size.h} radius={Math.min(radius, size.h / 2)} bezel={bezel} scale={28} />}
+      {size && <LensFilter id={id} w={size.w} h={size.h} radius={Math.min(radius, size.h / 2)} bezel={bezel} scale={48} />}
     </span>
   );
 }

@@ -18,6 +18,7 @@ import { Menu, Popover, promptDialog, Tooltip } from "@/ui/overlay";
 import { noteHref, RichText, type EditorAction, type NoteLinks } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
 import { getLocal, setLocal } from "@/lib/prefs";
+import { useMedia } from "@/ui/useMedia";
 import { editedLabel, recordVersion, removeNote } from "./noteActions";
 import { VersionHistory } from "./VersionHistory";
 import { NoteAiButton } from "./NoteAi";
@@ -75,6 +76,10 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   const [editing, setEditingMode] = useState(
     () => (note.title === "" && isEmptyContent(note.content)) || getLocal<string>("notes.mode", "view") === "edit",
   );
+  // Phones always write straight into the note; the two modes are for wider screens.
+  const phone = useMedia("(max-width: 767px)");
+  const paged = !phone && editing;
+  const readOnly = !phone && !editing;
   const setEditing = (on: boolean) => {
     setEditingMode(on);
     setLocal("notes.mode", on ? "edit" : "view");
@@ -265,6 +270,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
         leading={back}
         actions={
           <>
+            {!phone && (
             <Tooltip label={editing ? "Done editing" : "Edit the note"}>
               {editing ? (
                 <button
@@ -286,6 +292,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
                 </button>
               )}
             </Tooltip>
+            )}
             <NoteAiButton quill={quill} note={note} />
             <Menu
               align="end"
@@ -310,19 +317,19 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
           </>
         }
       />
-      <div className={cn("scroll-area flex-1 pb-32", editing && "note-desk")}>
+      <div className={cn("scroll-area flex-1 pb-32", paged && "note-desk")}>
         <article
           className={cn(
             "mx-auto w-full",
-            editing
-              ? "note-page mt-2 max-w-[816px] px-[72px] pt-12 pb-16 max-md:mx-3 max-md:w-auto max-md:px-5 max-md:pt-6 max-md:pb-10"
+            paged
+              ? "note-page mt-6 max-w-[816px] px-[72px] pt-12 pb-16 max-md:mx-3 max-md:w-auto max-md:px-5 max-md:pt-6 max-md:pb-10"
               : "max-w-[720px] px-6 pt-4 max-sm:px-4",
           )}
         >
           <textarea
             rows={1}
             value={title}
-            readOnly={!editing}
+            readOnly={readOnly}
             autoFocus={note.title === "" && isEmptyContent(note.content)}
             onChange={(e) => {
               const value = e.target.value.replace(/\n/g, " ");
@@ -390,12 +397,12 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             value={note.content}
             toolbar="full"
             toolbarClassName={
-              editing
+              paged
                 ? "note-toolbar sticky top-2 z-10 -mx-3 rounded-[12px] px-1.5 py-1 max-md:-mx-2"
                 : "sticky top-0 z-10 -mx-2 bg-canvas/90 px-1 py-1.5 backdrop-blur-md"
             }
-            readOnly={!editing}
-            reading={!editing}
+            readOnly={readOnly}
+            reading={!paged}
             minHeight={320}
             placeholder="Start writing, or type / for blocks and [[ to link a note"
             onReady={setQuill}

@@ -272,7 +272,7 @@ const TaskRowView = memo(function TaskRowView({
       className={cn(
         // Each task is its own rounded card on the page.
         "relative transition-opacity duration-200",
-        plain ? "rounded-ctl" : cn("card", compact ? "mb-1.5 rounded-[14px]" : "mb-2 max-md:mb-2.5 max-md:rounded-[18px]"),
+        plain ? "rounded-ctl" : cn("md:card", compact ? "md:mb-1.5 md:rounded-[14px]" : "md:mb-2"),
         done && !completing && "opacity-70",
         dragging && "z-10 opacity-40",
       )}
@@ -283,7 +283,7 @@ const TaskRowView = memo(function TaskRowView({
         <span
           aria-hidden
           className={cn(
-            "pointer-events-none absolute inset-0 z-[1] rounded-[inherit]",
+            "pointer-events-none absolute inset-0 z-[1] rounded-[inherit] max-md:hidden",
             isAssignment ? "shadow-[inset_0_0_0_1.25px_var(--accent-line)]" : "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-line)_55%,transparent)]",
           )}
         />
