@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { addDays, formatDuration, relativeDay, sameDay, today } from "@/lib/time";
 import { useEvents } from "@/lib/googleEvents";
 import { EventRow } from "@/features/events/EventSheet";
@@ -13,10 +13,11 @@ import { overdueTasks, tasksForDay, useAllTasks, workMinutes } from "@/features/
 import { Section, TaskList } from "@/features/tasks/TaskList";
 import { moveTask } from "@/features/tasks/actions";
 import { rescheduleTask } from "@/store/workspace";
-import { Button, IconButton } from "@/ui/controls";
+import { Button } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Tooltip } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
+import { useMedia } from "@/ui/useMedia";
 import { DayStrip } from "./DayStrip";
 import { ScheduleRail } from "./ScheduleRail";
 
@@ -38,6 +39,7 @@ export function TodayView() {
   }, [timed, untimed, done, overdue, reviewing]);
 
   const setDay = (d: Date) => ui.set({ day: d });
+  const phone = useMedia("(max-width: 767px)");
   // The title is the weekday; "Today", "Tomorrow" or "Yesterday" goes with the date.
   const relative = relativeDay(day);
   const nearWord = ["Today", "Tomorrow", "Yesterday"].includes(relative) ? relative : null;
@@ -60,9 +62,6 @@ export function TodayView() {
         eyebrow={nearWord ? `${nearWord} · ${format(day, "d MMM")}` : format(day, "d MMM yyyy")}
         actions={
           <>
-            <IconButton label="Search" className="md:hidden" onClick={() => ui.set({ paletteOpen: true })}>
-              <Search className="size-[18px]" />
-            </IconButton>
             <Stepper
               prev="Previous day"
               next="Next day"
@@ -83,13 +82,21 @@ export function TodayView() {
         }
       />
       <div className="@container flex min-h-0 flex-1 flex-col">
-        <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
-          <div className="card p-1.5 max-md:rounded-[26px] max-md:border max-md:border-line">
-            <DayStrip day={day} onPick={setDay} tasks={all} />
+        {!phone && (
+          <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 @min-[1060px]:max-w-[1160px]">
+            <div className="card p-1.5">
+              <DayStrip day={day} onPick={setDay} tasks={all} />
+            </div>
           </div>
-        </div>
+        )}
         <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
           <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-bar">
+            {/* On phones the strip floats over the list, which scrolls past its rounded corners. */}
+            {phone && (
+              <div className="sticky top-0 z-10 rounded-[26px] border border-line bg-card p-1.5">
+                <DayStrip day={day} onPick={setDay} tasks={all} />
+              </div>
+            )}
             <div className="mt-4 flex items-center gap-5 px-2 text-xs whitespace-nowrap text-ink-3 max-sm:gap-4">
               <span>
                 <span className="font-semibold text-ink tnum">{open}</span> open

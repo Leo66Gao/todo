@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Pause, Play, Plus, Square } from "lucide-react";
 import {
+  advanceFocus,
   announceEnd,
   extendFocus,
+  focusRound,
   pauseFocus,
   resumeFocus,
   setFocusExpanded,
@@ -45,6 +47,8 @@ function useTick(session: FocusSession | null) {
     if (left <= 0 && announced.current !== session.endsAt) {
       announced.current = session.endsAt;
       announceEnd(session);
+      // A planned session rolls on into its break, or its next round.
+      advanceFocus();
     }
   }, [now, session]);
   return now;
@@ -83,6 +87,17 @@ export function FocusTimer() {
   const progress = session ? 1 - left / session.length : 0;
   const isBreak = session?.kind === "break";
   const title = isBreak ? "Break" : session?.title || "Focus";
+  const round = session ? focusRound(session) : null;
+  const roundLine = round
+    ? [
+        `Round ${round.round} of ${round.of}`,
+        round.next
+          ? round.next.kind === "break"
+            ? `then a ${Math.round(round.next.ms / 60_000)}-minute break`
+            : `then ${Math.round(round.next.ms / 60_000)} minutes of focus`
+          : "the last one",
+      ].join(", ")
+    : null;
 
   return (
     <>
@@ -124,7 +139,8 @@ export function FocusTimer() {
         {session && (
           <div className="flex flex-col items-center px-6 pt-7 pb-6 text-center">
             <span className="text-xs font-medium text-ink-3">{isBreak ? "Break" : paused ? "Paused" : finished ? "Done" : "Focusing"}</span>
-            <p className="mt-1 line-clamp-2 max-w-full text-base font-semibold">{title}</p>
+            <p className="mt-1 line-clamp-2 max-w-full text-base font-semibold">{isBreak && session.title ? session.title : title}</p>
+            {roundLine && <p className="mt-1 text-xs text-ink-3">{roundLine}</p>}
             <div className={cn("mt-6 font-mono text-[52px] leading-none font-medium tracking-[-0.03em] tnum", paused && "text-ink-3")}>
               {finished ? "0:00" : clock(left)}
             </div>

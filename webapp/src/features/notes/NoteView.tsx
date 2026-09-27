@@ -19,14 +19,24 @@ import { noteHref, RichText, type EditorAction, type NoteLinks } from "@/ui/Rich
 import { toast } from "@/ui/toast";
 import { editedLabel, recordVersion, removeNote } from "./noteActions";
 import { VersionHistory } from "./VersionHistory";
+import { NoteAiButton } from "./NoteAi";
+
+const pill =
+  "flex h-9 max-w-full min-w-0 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-[13px] font-medium text-ink-2 shadow-card transition-colors hover:bg-fill data-[state=open]:bg-fill";
 
 export function NoteView({ id }: { id: string }) {
   const note = useWorkspace((s) => s.notes.find((n) => n.id === id));
   const navigate = useNavigate();
   const back = (
-    <Button variant="ghost" size="sm" className="-ml-2 text-ink-3" icon={<ChevronLeft className="size-4" />} onClick={() => history.length > 1 ? history.back() : navigate({ view: "notes" })}>
-      Back
-    </Button>
+    <button
+      type="button"
+      aria-label="Back"
+      onClick={() => (history.length > 1 ? history.back() : navigate({ view: "notes" }))}
+      className="-ml-1 flex h-9 items-center gap-1 rounded-full pr-3 pl-1.5 text-sm text-ink-3 transition-colors hover:bg-fill hover:text-ink max-md:ml-0 max-md:size-11 max-md:justify-center max-md:border max-md:border-line max-md:bg-card max-md:p-0 max-md:text-ink max-md:shadow-card"
+    >
+      <ChevronLeft className="size-[18px] max-md:size-5" />
+      <span className="max-md:hidden">Back</span>
+    </button>
   );
   if (!note) {
     return (
@@ -244,44 +254,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
         leading={back}
         actions={
           <>
-            <Menu
-              align="end"
-              trigger={
-                <Button variant="ghost" size="sm" className="text-ink-2">
-                  {subject ? (
-                    <span className="size-2 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />
-                  ) : null}
-                  {subject?.title ?? "No subject"}
-                  <ChevronDown className="size-3.5 text-ink-3" />
-                </Button>
-              }
-              items={[
-                { label: "No subject", checked: !subject, onSelect: () => setSubject(null) },
-                ...(projects.length ? [{ separator: true as const }] : []),
-                ...projects.map((p) => ({
-                  label: p.title,
-                  swatch: argbToCss(p.colorValue),
-                  checked: p.id === note.subjectId,
-                  onSelect: () => setSubject(p.id),
-                })),
-              ]}
-            />
-            <Menu
-              align="end"
-              trigger={
-                <Button variant="ghost" size="sm" className="text-ink-2" icon={<Folder className="size-3.5" />}>
-                  {folder?.name ?? "No folder"}
-                  <ChevronDown className="size-3.5 text-ink-3" />
-                </Button>
-              }
-              items={[
-                { label: "No folder", checked: !folder, onSelect: () => setFolder(null) },
-                ...(subjectFolders.length ? [{ separator: true as const }] : []),
-                ...subjectFolders.map((f) => ({ label: f.name, checked: f.id === note.folderId, onSelect: () => setFolder(f.id) })),
-                { separator: true },
-                { label: "New folder…", onSelect: () => void newFolder() },
-              ]}
-            />
+            <NoteAiButton quill={quill} note={note} />
             <Menu
               align="end"
               trigger={
@@ -327,7 +300,49 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             placeholder="Untitled note"
             className="field-sizing-content block w-full resize-none bg-transparent font-display text-[30px] leading-[1.1] font-normal tracking-[-0.01em] outline-none placeholder:text-ink-4 max-md:text-[34px]"
           />
-          <div className="mt-1 mb-5 flex items-center justify-between gap-3 text-xs text-ink-3">
+          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+      <Menu
+        align="end"
+        trigger={
+          <button type="button" className={pill}>
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: subject ? argbToCss(subject.colorValue) : "var(--ink-4)" }}
+            />
+            <span className="truncate">{subject?.title ?? "No subject"}</span>
+            <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
+          </button>
+        }
+        items={[
+          { label: "No subject", checked: !subject, onSelect: () => setSubject(null) },
+          ...(projects.length ? [{ separator: true as const }] : []),
+          ...projects.map((p) => ({
+            label: p.title,
+            swatch: argbToCss(p.colorValue),
+            checked: p.id === note.subjectId,
+            onSelect: () => setSubject(p.id),
+          })),
+        ]}
+      />
+      <Menu
+        align="end"
+        trigger={
+          <button type="button" className={pill}>
+            <Folder className="size-3.5 shrink-0 text-ink-3" />
+            <span className="truncate">{folder?.name ?? "No folder"}</span>
+            <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
+          </button>
+        }
+        items={[
+          { label: "No folder", checked: !folder, onSelect: () => setFolder(null) },
+          ...(subjectFolders.length ? [{ separator: true as const }] : []),
+          ...subjectFolders.map((f) => ({ label: f.name, checked: f.id === note.folderId, onSelect: () => setFolder(f.id) })),
+          { separator: true },
+          { label: "New folder…", onSelect: () => void newFolder() },
+        ]}
+      />
+          </div>
+          <div className="mt-3 mb-5 flex items-center justify-between gap-3 text-xs text-ink-3">
             <span>{editedLabel(note.updatedAt)}</span>
             <WordCount quill={quill} note={note} />
           </div>

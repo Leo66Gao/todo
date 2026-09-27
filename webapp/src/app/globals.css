@@ -559,7 +559,6 @@ html.dark:not(.glass) .float-glass {
   border-radius: 22px;
   background: var(--card);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-card);
 }
 .task-group > * + * {
   border-top: 1px solid var(--line);

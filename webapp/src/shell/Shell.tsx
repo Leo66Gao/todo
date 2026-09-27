@@ -47,7 +47,8 @@ import { AskHost, Tooltip, TooltipProvider } from "@/ui/overlay";
 import { FormulaHost } from "@/ui/FormulaDialog";
 import { SourcesHost } from "@/features/sources/SourcesSheet";
 import { FocusTimer } from "@/features/focus/FocusTimer";
-import { startFocus } from "@/lib/focus";
+import { startTaskFocus } from "@/lib/focus";
+import { workMinutes } from "@/features/tasks/meta";
 import { toast, ToastHost } from "@/ui/toast";
 import { GlassLayer } from "@/glass/GlassLayer";
 import { restoreGlassPrefs, useGlassOn } from "@/glass/prefs";
@@ -290,6 +291,16 @@ function Workspace() {
                 animate={{ x: 0 }}
                 exit={{ x: -330 }}
                 transition={springs.panel}
+                // Swipes back off to the left to close.
+                drag="x"
+                dragDirectionLock
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={{ left: 0.9, right: 0 }}
+                dragSnapToOrigin
+                onDragEnd={(_, info) => {
+                  if (info.offset.x < -70 || info.velocity.x < -400) ui.set({ sidebarOpen: false });
+                }}
+                style={{ touchAction: "pan-y" }}
               >
                 <Sidebar onNavigate={() => ui.set({ sidebarOpen: false })} />
               </motion.aside>
@@ -385,7 +396,7 @@ export function PageHeader({
         </IconButton>
       )}
       {leading}
-      <div className="flex min-w-0 items-baseline gap-2.5 max-md:flex-col-reverse max-md:gap-2">
+      <div className="flex min-w-0 items-baseline gap-2.5 max-md:flex-col-reverse max-md:gap-0">
         {title !== "" && (
           <h1 className="-my-[0.08em] max-w-full truncate font-display text-[28px] leading-[1.2] font-normal tracking-[-0.01em] max-md:text-[40px] max-md:leading-[1.15]">
             {title}
@@ -512,7 +523,7 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
           const task = findSelected();
           if (!task || task.isDone) return;
           e.preventDefault();
-          startFocus(25, { id: task.id, title: task.title });
+          startTaskFocus(task, workMinutes(task));
           return;
         }
         case "Escape":

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { format } from "date-fns";
 import { motion } from "motion/react";
-import { ChevronLeft, MoreHorizontal, Pencil } from "lucide-react";
+import { ChevronLeft, MoreHorizontal, Pencil, Timer } from "lucide-react";
 import { daysFromToday, formatDuration, isOverdue } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
@@ -12,6 +12,7 @@ import { taskMenu } from "@/features/tasks/actions";
 import { TaskDetail } from "@/features/tasks/Inspector";
 import { difficultyColor, workMinutes } from "@/features/tasks/meta";
 import { hasExplicitDifficulty, type Task } from "@/lib/model";
+import { startTaskFocus } from "@/lib/focus";
 import { useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { IconButton } from "@/ui/controls";
@@ -52,6 +53,13 @@ export function AssignmentView({ id }: { id: string }) {
         leading={back}
         actions={
           <>
+            {!task.isDone && (
+              <Tooltip label="Focus in 40-minute rounds">
+                <IconButton label="Focus" onClick={() => startTaskFocus(task, workMinutes(task))}>
+                  <Timer className="size-4 max-md:size-[18px]" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip label="Edit all fields">
               <IconButton label="Edit assignment" onClick={() => ui.editTask(task.id)}>
                 <Pencil className="size-[15px] max-md:size-[17px]" />
@@ -144,7 +152,7 @@ function StatusCard({ task }: { task: Task }) {
         </svg>
         <span className="absolute inset-0 flex items-center justify-center font-mono text-[13px] font-medium tnum">{Math.round(ratio * 100)}%</span>
       </div>
-      <div className="grid min-w-0 flex-1 grid-cols-3 gap-3">
+      <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 divide-x divide-line">
         <Figure value={minutes > 0 ? formatDuration(minutes) : "—"} label="Work left" />
         <Figure
           value={task.isDone ? "Done" : overdue ? `${-days}d` : days === 0 ? "Today" : `${days}d`}
@@ -159,11 +167,11 @@ function StatusCard({ task }: { task: Task }) {
 
 function Figure({ value, label, danger }: { value: ReactNode; label: string; danger?: boolean }) {
   return (
-    <div className="min-w-0">
-      <div className={cn("truncate text-[19px] leading-none font-semibold tracking-[-0.02em] tnum", danger && "text-danger", value === "—" && "text-ink-4")}>
+    <div className="flex min-w-0 flex-col items-center text-center">
+      <div className={cn("max-w-full truncate text-[19px] leading-none font-semibold tracking-[-0.02em] tnum", danger && "text-danger", value === "—" && "text-ink-4")}>
         {value}
       </div>
-      <div className="mt-1.5 truncate text-[11.5px] text-ink-3">{label}</div>
+      <div className="mt-1.5 max-w-full truncate text-[11.5px] text-ink-3">{label}</div>
     </div>
   );
 }

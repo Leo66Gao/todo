@@ -387,6 +387,11 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
         <textarea
           ref={titleRef}
           autoFocus
+          // Editing starts at the end of the title, ready to add to it.
+          onFocus={(e) => {
+            const end = e.currentTarget.value.length;
+            e.currentTarget.setSelectionRange(end, end);
+          }}
           rows={1}
           value={title}
           onChange={(e) => setTitle(e.target.value.replace(/\n/g, " "))}

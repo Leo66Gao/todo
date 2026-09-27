@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   CalendarDays,
+  CalendarX2,
   Check,
   ChevronDown,
   MoreHorizontal,
@@ -39,9 +40,11 @@ import { RichText } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
 import { taskMenu } from "./actions";
 import { DateField, SubjectField, TimeField } from "./fields";
-import { PRIORITY_LABEL, priorityColor, difficultyColor } from "./meta";
+import { PRIORITY_LABEL, priorityColor, difficultyColor, workMinutes } from "./meta";
 import { WorkBack } from "./WorkBack";
-import { startFocus } from "@/lib/focus";
+import { SubtaskSheet } from "./SubtaskSheet";
+import { format } from "date-fns";
+import { startTaskFocus } from "@/lib/focus";
 import { TaskCheck } from "./TaskCheck";
 import { useGlassOn } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
@@ -300,8 +303,8 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
               </Button>
             )}
             {!task.isDone && (
-              <Tooltip label="Focus for 25 minutes" shortcut={["F"]}>
-                <IconButton label="Focus" onClick={() => startFocus(25, { id: task.id, title: task.title })}>
+              <Tooltip label="Focus (40-minute rounds)" shortcut={["F"]}>
+                <IconButton label="Focus" onClick={() => startTaskFocus(task, workMinutes(task))}>
                   <Timer className="size-[15px]" />
                 </IconButton>
               </Tooltip>
@@ -331,9 +334,14 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
       <div className={cn(variant === "panel" && "scroll-area flex-1 px-5 pb-10")}>
         <TitleEditor task={task} large={variant === "page"} />
         {summary}
-        {properties.length > 0 && (
-          <div className={cn("mt-3 space-y-0.5", variant === "page" && "card mt-3 px-2 py-2 max-md:rounded-[22px]")}>{properties}</div>
-        )}
+        {properties.length > 0 &&
+          (variant === "page" ? (
+            <PageRows.Provider value>
+              <div className="task-group mt-3">{properties}</div>
+            </PageRows.Provider>
+          ) : (
+            <div className="mt-3 space-y-0.5">{properties}</div>
+          ))}
 
         <SubtaskSection task={task} page={variant === "page"} />
 
@@ -348,7 +356,19 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
   );
 }
 
+/** On an assignment's page the fields are a list of rows: name on the left, value on the right. */
+const PageRows = createContext(false);
+
 function Property({ label, children }: { label: string; children: ReactNode }) {
+  const page = useContext(PageRows);
+  if (page) {
+    return (
+      <div className="flex min-h-12 items-center justify-between gap-4 pr-2 pl-4">
+        <span className="shrink-0 text-[15px] text-ink-2">{label}</span>
+        <div className="flex min-w-0 justify-end text-right [&_button]:justify-end [&_button]:text-[15px] [&>*]:w-auto!">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-[104px_1fr] items-center">
       <span className="text-xs text-ink-3">{label}</span>
@@ -454,6 +474,8 @@ function NotesEditor({ task, page }: { task: Task; page?: boolean }) {
 function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
   const [draft, setDraft] = useState("");
   const [planning, setPlanning] = useState(false);
+  // Assignments add and edit subtasks in a sheet, as in the phone app.
+  const [sheet, setSheet] = useState<{ open: boolean; sub: Subtask | null }>({ open: false, sub: null });
   const canPlan = task.type === "assignment" && !task.isDone && startOfDay(task.date) >= startOfDay(new Date());
   const isAssignment = task.type === "assignment";
   const done = task.subtasks.filter((s) => s.isDone).length;
@@ -467,7 +489,7 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
   return (
     <div className="mt-6">
       <div className="mb-1.5 flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
+        <span className="min-w-0 truncate pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Subtasks</span>
         {canPlan && (
           <Tooltip label="Suggest steps, dated back from the deadline">
             <Button size="sm" variant="ghost" className="-my-1 h-6 px-1.5 text-xs text-ink-3" icon={<Route className="size-3.5" />} onClick={() => setPlanning(true)}>
@@ -491,6 +513,33 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
           </>
         )}
       </div>
+      {isAssignment ? (
+        <div className="flex flex-col gap-1.5">
+          <AnimatePresence initial={false}>
+            {task.subtasks.map((sub) => (
+              <motion.div
+                key={sub.id}
+                layout="position"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={springs.layout}
+              >
+                <SubtaskTile task={task} sub={sub} onEdit={() => setSheet({ open: true, sub })} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          <button
+            type="button"
+            onClick={() => setSheet({ open: true, sub: null })}
+            className="flex h-11 items-center justify-center gap-2 rounded-[14px] border border-line text-sm font-semibold transition-colors hover:bg-fill active:scale-[0.99]"
+          >
+            <Plus className="size-[18px]" />
+            Add subtask
+          </button>
+          <SubtaskSheet task={task} existing={sheet.sub} open={sheet.open} onOpenChange={(open) => setSheet((s) => ({ ...s, open }))} />
+        </div>
+      ) : (
       <div className={cn(page && "card px-2 py-1.5")}>
         <AnimatePresence initial={false}>
           {task.subtasks.map((sub) => (
@@ -524,7 +573,66 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
           />
         </form>
       </div>
+      )}
       {canPlan && <WorkBack task={task} open={planning} onOpenChange={setPlanning} />}
+    </div>
+  );
+}
+
+/** An assignment's subtask: tap to edit it; a date makes it a milestone. */
+function SubtaskTile({ task, sub, onEdit }: { task: Task; sub: Subtask; onEdit: () => void }) {
+  const [dateOpen, setDateOpen] = useState(false);
+  const milestone = sub.date != null;
+  return (
+    <div
+      className={cn(
+        "flex min-h-12 items-center gap-2 rounded-[14px] border border-line py-1 pr-1.5 pl-2",
+        milestone ? "bg-fill/60" : "bg-card",
+      )}
+    >
+      <TaskCheck size={20} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} />
+      <button
+        type="button"
+        onClick={onEdit}
+        className={cn(
+          "min-w-0 flex-1 py-1.5 text-left text-[15px] leading-snug break-words",
+          sub.isDone ? "text-ink-3 line-through decoration-ink-4" : "text-ink",
+        )}
+      >
+        {sub.title}
+      </button>
+      {milestone && (
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <span className="rounded-[5px] bg-fill-strong px-1.5 py-px text-[9px] font-bold tracking-[0.06em] text-ink-2">MILESTONE</span>
+          <span className="font-mono text-[11px] text-ink-3">{format(sub.date!, "MMM d")}</span>
+        </span>
+      )}
+      <Popover
+        open={dateOpen}
+        onOpenChange={setDateOpen}
+        align="end"
+        trigger={
+          <IconButton label={milestone ? "Change the milestone date" : "Make it a milestone"} size="sm" className="size-8 shrink-0 text-ink-3">
+            <CalendarDays className="size-4" />
+          </IconButton>
+        }
+      >
+        <DatePanel
+          value={sub.date ?? task.date}
+          onPick={(d) => {
+            updateSubtask(task.id, { ...sub, date: startOfDay(d) });
+            setDateOpen(false);
+          }}
+        />
+      </Popover>
+      {milestone && (
+        <IconButton label="Remove the milestone date" size="sm" className="size-8 shrink-0 text-ink-3" onClick={() => updateSubtask(task.id, { ...sub, date: null })}>
+          <CalendarX2 className="size-4" />
+        </IconButton>
+      )}
+      <IconButton label="Delete subtask" size="sm" className="size-8 shrink-0 text-ink-3" onClick={() => deleteSubtask(task.id, sub.id)}>
+        <X className="size-4" />
+      </IconButton>
     </div>
   );
 }

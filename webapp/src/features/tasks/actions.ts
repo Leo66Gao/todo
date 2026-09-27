@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import type { Priority } from "@/lib/dart";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
-import { focusLengths, startFocus } from "@/lib/focus";
+import { startTaskFocus } from "@/lib/focus";
 import { addDays, formatDuration, relativeDay, startOfWeek, today } from "@/lib/time";
 import type { Route } from "@/shell/nav";
 import { ui } from "@/shell/ui";
@@ -20,7 +20,7 @@ import {
 } from "@/store/workspace";
 import type { MenuItem } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
-import { PRIORITY_LABEL, priorityColor } from "./meta";
+import { PRIORITY_LABEL, priorityColor, workMinutes } from "./meta";
 
 type Navigate = (route: Route) => void;
 
@@ -109,13 +109,11 @@ export function taskMenu(task: Task, navigate: Navigate): MenuItem[] {
   }
   items.push({ label: task.isDone ? "Mark as not done" : "Mark as done", shortcut: "Space", onSelect: () => toggleTask(task.id) });
   if (!task.isDone) {
+    const minutes = workMinutes(task);
     items.push({
-      label: "Focus",
-      items: focusLengths(task.durationMinutes).map((m) => ({
-        label: m === task.durationMinutes && ![25, 45, 60].includes(m) ? `${formatDuration(m)} (the task’s time)` : `${m} minutes`,
-        shortcut: m === 25 ? "F" : undefined,
-        onSelect: () => startFocus(m, { id: task.id, title: task.title }),
-      })),
+      label: minutes > 0 ? `Focus for ${formatDuration(minutes)}` : "Focus",
+      shortcut: "F",
+      onSelect: () => startTaskFocus(task, minutes),
     });
   }
   items.push(

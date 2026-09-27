@@ -19,7 +19,17 @@ export interface FocusSession {
   left: number | null;
   /** A break follows a focus session. */
   kind: "focus" | "break";
+  /** A task's time split into rounds (40 minutes of focus, 5 of break). */
+  plan?: { blocks: FocusBlock[]; index: number } | null;
 }
+
+export interface FocusBlock {
+  kind: "focus" | "break";
+  ms: number;
+}
+
+export const POMODORO_FOCUS = 40;
+export const POMODORO_BREAK = 5;
 
 const STORE = "focus.session";
 export const FOCUS_NOTIFICATION_ID = 1_999_000_001;
@@ -42,6 +52,68 @@ export function startFocus(minutes: number, task?: { id: string; title: string }
   save({ taskId: task?.id ?? null, title: task?.title ?? "", length, endsAt: Date.now() + length, left: null, kind });
   useFocus.setState({ expanded: false });
   void requestAlerts();
+}
+
+/** Rounds of focus and break that add up to `minutes` of focus. */
+export function pomodoroBlocks(minutes: number): FocusBlock[] {
+  const blocks: FocusBlock[] = [];
+  let left = Math.max(1, Math.round(minutes));
+  while (left > 0) {
+    const focus = Math.min(POMODORO_FOCUS, left);
+    blocks.push({ kind: "focus", ms: focus * 60_000 });
+    left -= focus;
+    if (left > 0) blocks.push({ kind: "break", ms: POMODORO_BREAK * 60_000 });
+  }
+  return blocks;
+}
+
+/**
+ * Focus on a task for as long as it takes (its planned time, or one round
+ * when it has none), in rounds of 40 minutes with 5-minute breaks between.
+ * The timer opens so it's clear it has started.
+ */
+export function startTaskFocus(task: { id: string; title: string }, minutes: number) {
+  const blocks = pomodoroBlocks(minutes > 0 ? minutes : POMODORO_FOCUS);
+  save({
+    taskId: task.id,
+    title: task.title,
+    length: blocks[0].ms,
+    endsAt: Date.now() + blocks[0].ms,
+    left: null,
+    kind: "focus",
+    plan: blocks.length > 1 ? { blocks, index: 0 } : null,
+  });
+  useFocus.setState({ expanded: true });
+  void requestAlerts();
+}
+
+/**
+ * Moves a planned session on to its next round once the current one is over
+ * (catching up on rounds that ended while the app was closed). Returns
+ * whether it moved.
+ */
+export function advanceFocus(now = Date.now()): boolean {
+  let s: FocusSession | null = useFocus.getState().session;
+  if (!s?.plan || s.endsAt == null || s.endsAt > now) return false;
+  const { blocks } = s.plan;
+  let moved = false;
+  while (s.plan && s.endsAt != null && s.endsAt <= now && s.plan.index < blocks.length - 1) {
+    const index: number = s.plan.index + 1;
+    const block: FocusBlock = blocks[index];
+    s = { ...s, kind: block.kind, length: block.ms, endsAt: s.endsAt + block.ms, left: null, plan: { blocks, index } };
+    moved = true;
+  }
+  if (moved) save(s);
+  return moved;
+}
+
+/** Which round of focus this is, and how many there are. */
+export function focusRound(s: FocusSession) {
+  if (!s.plan) return null;
+  const focusBlocks = s.plan.blocks.filter((b) => b.kind === "focus").length;
+  const done = s.plan.blocks.slice(0, s.plan.index + 1).filter((b) => b.kind === "focus").length;
+  const next = s.plan.blocks[s.plan.index + 1] ?? null;
+  return { round: Math.max(1, done), of: focusBlocks, next };
 }
 
 export function pauseFocus() {
@@ -90,25 +162,42 @@ async function requestAlerts() {
   }
 }
 
+const MAX_ROUNDS = 40;
+
 async function scheduleEnd(session: FocusSession | null) {
   if (!isNative()) return;
   const { LocalNotifications } = await import("@capacitor/local-notifications");
-  await LocalNotifications.cancel({ notifications: [{ id: FOCUS_NOTIFICATION_ID }] }).catch(() => {});
+  await LocalNotifications.cancel({
+    notifications: Array.from({ length: MAX_ROUNDS }, (_, i) => ({ id: FOCUS_NOTIFICATION_ID + i })),
+  }).catch(() => {});
   if (!session?.endsAt || session.endsAt <= Date.now()) return;
   if ((await LocalNotifications.checkPermissions()).display !== "granted") return;
+  // The end of this round, and of each round after it, so they arrive with the app closed.
+  const ends: { at: number; kind: FocusBlock["kind"]; last: boolean }[] = [];
+  const blocks = session.plan?.blocks ?? [];
+  const index = session.plan?.index ?? 0;
+  let at = session.endsAt;
+  ends.push({ at, kind: session.kind, last: !session.plan || index === blocks.length - 1 });
+  for (let i = index + 1; i < blocks.length && ends.length < MAX_ROUNDS; i++) {
+    at += blocks[i].ms;
+    ends.push({ at, kind: blocks[i].kind, last: i === blocks.length - 1 });
+  }
   await LocalNotifications.schedule({
-    notifications: [
-      {
-        id: FOCUS_NOTIFICATION_ID,
-        title: session.kind === "break" ? "Break’s over" : "Time’s up",
-        body: session.kind === "break" ? "Back to it when you’re ready." : session.title || "Your focus session has ended.",
-        channelId: "tasks",
-        smallIcon: "ic_stat_todo",
-        iconColor: "#2F5FD0",
-        schedule: { at: new Date(session.endsAt), allowWhileIdle: true },
-        extra: { focus: true },
-      },
-    ],
+    notifications: ends.map((end, i) => ({
+      id: FOCUS_NOTIFICATION_ID + i,
+      title: end.kind === "break" ? "Break’s over" : end.last ? "Time’s up" : `Take ${POMODORO_BREAK} minutes`,
+      body:
+        end.kind === "break"
+          ? `Back to ${session.title || "it"}.`
+          : end.last
+            ? session.title || "Your focus session has ended."
+            : `Round done${session.title ? ` on ${session.title}` : ""}. A short break starts now.`,
+      channelId: "tasks",
+      smallIcon: "ic_stat_todo",
+      iconColor: "#2F5FD0",
+      schedule: { at: new Date(end.at), allowWhileIdle: true },
+      extra: { focus: true },
+    })),
   });
 }
 

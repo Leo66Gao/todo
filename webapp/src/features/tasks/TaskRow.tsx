@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDraggable } from "@dnd-kit/core";
@@ -11,6 +11,7 @@ import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
 import { isEmptyContent } from "@/lib/delta";
+import { haptic } from "@/lib/native";
 import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
 import { toggleSubtask, toggleTask, useWorkspace } from "@/store/workspace";
@@ -131,7 +132,52 @@ const TaskRowView = memo(function TaskRowView({
   const revealLeft = useTransform(swipe.x, (v) => Math.max(0, v));
   const revealRight = useTransform(swipe.x, (v) => Math.max(0, -v));
 
+  // Touch: holding the row opens the editor; holding the checkbox picks the
+  // task up to reorder it (the drag sensor listens there only).
+  const hold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const held = useRef(false);
+  const cancelHold = () => {
+    if (hold.current) clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  const startHold = (e: React.TouchEvent) => {
+    cancelHold();
+    held.current = false;
+    if (e.touches.length !== 1 || (e.target as Element).closest("[data-drag-handle]")) return;
+    const t = e.touches[0];
+    hold.current = {
+      x: t.clientX,
+      y: t.clientY,
+      timer: setTimeout(() => {
+        hold.current = null;
+        held.current = true;
+        haptic("medium");
+        editTask(task, navigate);
+      }, 480),
+    };
+  };
+  const moveHold = (e: React.TouchEvent) => {
+    const h = hold.current;
+    const t = e.touches[0];
+    if (h && t && Math.hypot(t.clientX - h.x, t.clientY - h.y) > 8) cancelHold();
+  };
+  useEffect(() => cancelHold, []);
+
+  // The tap that ends a drag from the checkbox mustn't also tick it.
+  const dragEndedAt = useRef(0);
+  useEffect(() => {
+    if (!dragging) dragEndedAt.current = performance.now();
+  }, [dragging]);
+  const checkToggle = () => {
+    if (dragging || performance.now() - dragEndedAt.current < 350) return;
+    toggle();
+  };
+
   const onClick = (e: React.MouseEvent) => {
+    if (held.current) {
+      held.current = false;
+      return;
+    }
     if (swipe.consumeSwipe()) return;
     if (e.defaultPrevented) return;
     const now = performance.now();
@@ -255,13 +301,25 @@ const TaskRowView = memo(function TaskRowView({
           Delete
           <Trash2 className="mr-4 ml-1.5 size-4 shrink-0" />
         </motion.div>
-      <ContextMenu items={() => taskMenu(task, navigate)}>
+      <ContextMenu items={() => taskMenu(task, navigate)} disabled={phone}>
         <motion.div
           {...dragProps}
           {...swipe.handlers}
           onTouchStart={(e: React.TouchEvent) => {
-            dragTouchStart?.(e);
             swipe.handlers.onTouchStart(e);
+            startHold(e);
+          }}
+          onTouchMove={(e: React.TouchEvent) => {
+            swipe.handlers.onTouchMove(e);
+            moveHold(e);
+          }}
+          onTouchEnd={() => {
+            swipe.handlers.onTouchEnd();
+            cancelHold();
+          }}
+          onTouchCancel={() => {
+            swipe.handlers.onTouchCancel();
+            cancelHold();
           }}
           style={{ x: swipe.x }}
           role="button"
@@ -269,7 +327,7 @@ const TaskRowView = memo(function TaskRowView({
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
-            "group relative flex touch-pan-y items-center gap-2 rounded-[inherit] pr-3 pl-2 outline-none transition-colors duration-100 max-md:gap-3 max-md:pr-[18px] max-md:pl-3.5",
+            "group relative flex touch-pan-y items-center gap-2 rounded-[inherit] max-md:select-none max-md:[-webkit-touch-callout:none] pr-3 pl-2 outline-none transition-colors duration-100 max-md:gap-3 max-md:pr-[18px] max-md:pl-3.5",
             compact ? "py-1.5" : "py-2.5 max-md:py-3.5",
             // Opaque fills, so the swipe panels underneath stay hidden.
             inspected
@@ -279,7 +337,9 @@ const TaskRowView = memo(function TaskRowView({
                 : "bg-card hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
           )}
         >
-          <TaskCheck checked={done} color={check} onToggle={toggle} size={phone ? 22 : 18} className="-my-1" />
+          <span data-drag-handle className="-my-1 flex shrink-0" onTouchStart={dragTouchStart}>
+            <TaskCheck checked={done} color={check} onToggle={checkToggle} size={phone ? 22 : 18} />
+          </span>
           <div className="min-w-0 flex-1">
             {/* Long titles wrap onto a second line rather than being cut short. */}
             <div

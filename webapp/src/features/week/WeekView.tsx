@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDroppable } from "@dnd-kit/core";
@@ -123,12 +123,30 @@ function DayColumn({ date, tasks, events }: { date: Date; tasks: Task[]; events:
   }, [events, date]);
   const { setNodeRef, isOver } = useDroppable({ id: `week-${date.getTime()}`, data: { type: "day", date } });
   const isToday = sameDay(date, today());
+  const section = useRef<HTMLElement | null>(null);
+  const ref = useMergedRefs(setNodeRef, section);
+  // Phones list the days one under another; glide down to today on arrival.
+  useEffect(() => {
+    if (!isToday || !matchMedia("(max-width: 767px)").matches) return;
+    const el = section.current;
+    const list = el?.parentElement;
+    if (!el || !list) return;
+    const id = setTimeout(
+      () =>
+        list.scrollTo({
+          top: el.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8,
+          behavior: "smooth",
+        }),
+      180,
+    );
+    return () => clearTimeout(id);
+  }, [isToday]);
   const open = tasks.filter((t) => !t.isDone).length;
   const past = date.getTime() < today().getTime();
   const sortableIds = tasks.filter((t) => !t.milestone && !t.isDone && !t.startTime).map((t) => t.id);
   return (
     <section
-      ref={setNodeRef}
+      ref={ref}
       className={cn(
         "card group/col flex min-w-[124px] flex-1 flex-col transition-[outline-color] duration-150 max-md:flex-none",
         // Today, and a day a task is dragged over, get a blue edge.

@@ -45,7 +45,6 @@ export function NotesView() {
     <>
       <PageHeader
         title="Notes"
-        detail={notes.length > 0 ? `${notes.length} ${notes.length === 1 ? "note" : "notes"}` : undefined}
         actions={
           <>
             <input
