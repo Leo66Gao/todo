@@ -142,7 +142,7 @@ export function FocusTimer() {
             <span className="text-xs font-medium text-ink-3">{isBreak ? "Break" : paused ? "Paused" : finished ? "Done" : "Focusing"}</span>
             <p className="mt-1 line-clamp-2 max-w-full text-base font-semibold">{isBreak && session.title ? session.title : title}</p>
             {roundLine && <p className="mt-1 text-xs text-ink-3">{roundLine}</p>}
-            <div className={cn("mt-6 font-mono text-[52px] leading-none font-medium tracking-[-0.03em] tnum", paused && "text-ink-3")}>
+            <div className={cn("mt-6 font-display text-[56px] leading-none font-semibold tracking-[-0.03em] tnum", paused && "text-ink-3")}>
               {finished ? "0:00" : clock(left)}
             </div>
             <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-fill-strong">

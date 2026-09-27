@@ -32,7 +32,7 @@ export function AssignmentView({ id }: { id: string }) {
       type="button"
       aria-label="Back to assignments"
       onClick={() => navigate({ view: "assignments" })}
-      className="-ml-1 flex h-9 items-center gap-1 rounded-full pr-3 pl-1.5 text-sm text-ink-3 transition-colors hover:bg-fill hover:text-ink max-md:ml-0 max-md:size-11 max-md:justify-center max-md:border max-md:border-line max-md:bg-card max-md:p-0 max-md:text-ink max-md:shadow-card"
+      className="-ml-1 flex h-9 items-center gap-1 rounded-full pr-3 pl-1.5 text-sm text-ink-3 transition-colors hover:bg-fill hover:text-ink max-md:ml-0 max-md:size-11 max-md:justify-center max-md:lens-chip max-md:p-0 max-md:text-ink"
     >
       <ChevronLeft className="size-[18px] max-md:size-5" />
       <span className="max-md:hidden">Assignments</span>
@@ -168,10 +168,10 @@ function StatusCard({ task }: { task: Task }) {
 function Figure({ value, label, danger }: { value: string; label: string; danger?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col items-center text-center">
-      <div className="flex h-6 max-w-full items-end">
+      <div className="flex h-[22px] max-w-full items-end">
         <Numeral
           value={value}
-          className={cn("truncate leading-none font-medium tracking-[-0.02em]", /\d/.test(value) ? "text-[22px]" : "text-[17px]", danger && "text-danger")}
+          className={cn("truncate font-display leading-none font-semibold tracking-[-0.01em]", /\d/.test(value) ? "text-[19px]" : "text-[16px]", danger && "text-danger")}
         />
       </div>
       <div className="mt-1.5 max-w-full truncate text-[11.5px] text-ink-3">{label}</div>

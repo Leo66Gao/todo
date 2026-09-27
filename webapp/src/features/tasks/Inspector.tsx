@@ -425,7 +425,7 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
       aria-label="Title"
       className={cn(
         "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
-        large ? "font-display text-[34px] leading-[1.08] font-normal tracking-[0.02em] max-md:text-[36px]" : "text-lg font-semibold tracking-[-0.01em]",
+        large ? "font-display text-xl font-semibold tracking-[-0.015em] max-md:text-[28px] max-md:leading-[1.2] max-md:font-bold max-md:tracking-[-0.02em]" : "text-lg font-semibold tracking-[-0.01em]",
         task.isDone && "text-ink-3 line-through decoration-ink-4",
       )}
     />

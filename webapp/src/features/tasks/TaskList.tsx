@@ -52,9 +52,7 @@ export function TaskList({
       ))}
     </AnimatePresence>
   );
-  // A section's tasks share one rounded card, divided by hairlines (unless
-  // the list already sits inside a card).
-  const body = <div className={plain ? undefined : "task-group"}>{rows}</div>;
+  const body = <div>{rows}</div>;
   if (!sortable) return body;
   return (
     <SortableContext id={id} items={tasks.filter((t) => !t.milestone).map((t) => t.id)} strategy={verticalListSortingStrategy}>

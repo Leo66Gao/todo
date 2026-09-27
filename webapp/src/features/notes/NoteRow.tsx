@@ -29,7 +29,7 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
       >
         <div className="flex items-baseline gap-3">
           <span className="min-w-0 flex-1 truncate text-sm font-medium max-md:text-base max-md:tracking-[-0.01em]">{note.title || "Untitled note"}</span>
-          <span className="shrink-0 font-mono text-[11px] text-ink-3">{editedLabel(note.updatedAt).replace("Edited ", "")}</span>
+          <span className="shrink-0 text-2xs text-ink-3 max-md:font-mono max-md:text-[11px]">{editedLabel(note.updatedAt).replace("Edited ", "")}</span>
         </div>
         <p className="mt-0.5 line-clamp-2 text-xs leading-[18px] break-words text-ink-3 max-md:mt-1 max-md:text-[13px] max-md:leading-5">{preview || "No additional text"}</p>
         {((showSubject && subject) || folder) && (

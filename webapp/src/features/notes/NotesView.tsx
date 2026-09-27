@@ -117,20 +117,27 @@ export function NotesView() {
 
           {groups.length === 0 ? (
             <div className="flex flex-col items-center py-20 text-center max-md:pt-28">
-              <NotebookPen className="size-11 text-ink-4" strokeWidth={1.2} />
-              <p className="mt-6 font-display text-[28px] leading-[1.05] tracking-[0.02em] max-md:text-[32px]">{query ? "No notes match" : "No notes yet"}</p>
-              <p className="mt-2.5 max-w-[260px] text-sm leading-normal text-pretty text-ink-2 max-md:text-[15px]">
+              <NotebookPen className="size-11 text-ink-4 md:hidden" strokeWidth={1.2} />
+              <p className="text-sm font-medium max-md:mt-6 max-md:font-display max-md:text-[26px] max-md:font-bold max-md:tracking-[-0.02em]">
+                {query ? "No notes match your search" : "No notes yet"}
+              </p>
+              <p className="mt-1 text-xs text-ink-3 max-md:mt-2.5 max-md:max-w-[260px] max-md:text-[15px] max-md:text-ink-2">
                 {query ? "Try another word, or clear the search." : "Notes can belong to a subject and sit in folders."}
               </p>
               {!query && (
-                <button
-                  type="button"
-                  onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}
-                  className="mt-6 flex h-11 items-center gap-2 rounded-full bg-ink pr-5 pl-4 text-sm font-semibold text-on-ink transition-transform active:scale-[0.97] max-md:h-12 max-md:text-[15px]"
-                >
-                  <Plus className="size-[18px]" strokeWidth={2.2} />
-                  New note
-                </button>
+                <>
+                  <Button className="mt-4 max-md:hidden" icon={<Plus className="size-4" />} onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}>
+                    New note
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}
+                    className="mt-6 flex h-12 items-center gap-2 rounded-full bg-ink pr-5 pl-4 text-[15px] font-semibold text-on-ink transition-transform active:scale-[0.97] md:hidden"
+                  >
+                    <Plus className="size-[18px]" strokeWidth={2.2} />
+                    New note
+                  </button>
+                </>
               )}
             </div>
           ) : (

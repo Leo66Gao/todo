@@ -19,7 +19,7 @@ import { Button, Segmented } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
 
-type Filter = "open" | "done" | "all";
+type Filter = "open" | "all";
 
 export function AssignmentsView() {
   const tasks = useWorkspace((s) => s.tasks);
@@ -28,7 +28,7 @@ export function AssignmentsView() {
     () => tasks.filter((t) => t.type === "assignment").sort((a, b) => a.date.getTime() - b.date.getTime()),
     [tasks],
   );
-  const shown = assignments.filter((t) => (filter === "open" ? !t.isDone : filter === "done" ? t.isDone : true));
+  const shown = assignments.filter((t) => filter === "all" || !t.isDone);
   const open = assignments.filter((t) => !t.isDone);
 
   const stats = useMemo(() => {
@@ -69,7 +69,6 @@ export function AssignmentsView() {
               className="mr-1 max-sm:hidden"
               options={[
                 { value: "open", label: "Open" },
-                { value: "done", label: "Completed" },
                 { value: "all", label: "All" },
               ]}
             />
@@ -91,7 +90,7 @@ export function AssignmentsView() {
           {shown.length === 0 ? (
             <div className="flex flex-col items-center py-20 text-center">
               <p className="text-sm font-medium">
-                {filter === "done" ? "No completed assignments yet" : "No open assignments"}
+                {filter === "all" ? "No assignments yet" : "No open assignments"}
               </p>
               <p className="mt-1 text-xs text-ink-3">Assignments collect subtasks, milestones and notes in one place.</p>
               <Button className="mt-4" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ type: "assignment", durationMinutes: 120 })}>
@@ -133,8 +132,8 @@ export function AssignmentsView() {
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 px-3.5 py-2.5">
-      <div className="flex h-6 items-end">
-        <Numeral value={value} className="truncate text-[22px] leading-none font-medium tracking-[-0.02em]" />
+      <div className="flex h-[22px] items-end">
+        <Numeral value={value} className="truncate font-display text-[19px] leading-none font-semibold tracking-[-0.01em]" />
       </div>
       <div className="truncate text-[11.5px] leading-tight text-ink-3">{label}</div>
     </div>

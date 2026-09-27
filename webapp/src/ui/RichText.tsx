@@ -66,6 +66,8 @@ export interface RichTextProps {
   placeholder?: string;
   toolbar?: ToolbarKind;
   reading?: boolean;
+  /** Shown but not editable (links still open). */
+  readOnly?: boolean;
   autoFocus?: boolean;
   className?: string;
   minHeight?: number;
@@ -101,6 +103,7 @@ export function RichText({
   placeholder,
   toolbar = "none",
   reading,
+  readOnly,
   autoFocus,
   className,
   minHeight,
@@ -129,6 +132,9 @@ export function RichText({
   }, [noteLinks, actions]);
   const entries = (menu: Slash | null) => (menu ? menuEntries(menu, linksRef.current, actionsRef.current) : []);
   const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (ready) quillRef.current?.enable(!readOnly);
+  }, [ready, readOnly]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -379,7 +385,7 @@ export function RichText({
 
   return (
     <div className={cn("flex flex-col", className)}>
-      {toolbar === "full" && bar && <div className={cn("mb-3", toolbarClassName)}>{bar}</div>}
+      {toolbar === "full" && bar && !readOnly && <div className={cn("mb-3", toolbarClassName)}>{bar}</div>}
       <div className="relative">
         <div
           ref={host}

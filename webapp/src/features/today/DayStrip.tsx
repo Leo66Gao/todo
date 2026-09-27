@@ -114,7 +114,7 @@ function DayCell({
       <span
         className={cn(
           "relative text-base font-semibold leading-none tnum max-md:text-[17px] max-md:font-medium",
-          selected ? "text-on-ink max-md:font-semibold" : isToday ? "text-accent" : weekend ? "text-ink-3" : "text-ink",
+          selected ? "text-on-ink max-md:font-semibold" : isToday ? "text-accent" : weekend ? "text-ink max-md:text-ink-3" : "text-ink",
         )}
       >
         {date.getDate()}

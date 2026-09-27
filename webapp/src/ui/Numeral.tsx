@@ -18,7 +18,7 @@ export function Numeral({ value, className }: { value: string; className?: strin
           <span
             key={i}
             className={cn(
-              "text-[0.7em] font-normal tracking-normal text-ink-2",
+              "text-[0.72em] font-medium tracking-normal text-ink-3",
               part.trim() === "/" ? "mx-[0.06em]" : "mr-[0.18em] ml-[0.08em] last:mr-0",
             )}
           >

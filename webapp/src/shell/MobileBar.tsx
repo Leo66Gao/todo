@@ -6,6 +6,7 @@ import { CalendarDays, FileText, GraduationCap, Menu as MenuIcon, Plus, Sun } fr
 import { createNote } from "@/features/notes/noteActions";
 import { cn } from "@/ui/cn";
 import { springs } from "@/ui/motion";
+import { GlassLens } from "@/ui/lens";
 import type { Route } from "./nav";
 import { ui, useUI } from "./ui";
 
@@ -59,7 +60,8 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
   const canAdd = HAS_ADD.includes(route.view) && !hidden;
   return (
     <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-4 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
-      <div className="float-glass pointer-events-auto grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
+      <div className="pointer-events-auto relative grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
+        <GlassLens radius={29} bezel={18} />
         {TABS.map((tab) => (
           <TabButton
             key={tab.view}
@@ -85,7 +87,7 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
             whileTap={{ scale: 0.9 }}
             transition={springs.panel}
             onClick={() => createForRoute(route, navigate)}
-            className="float-glass pointer-events-auto flex h-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink"
+            className="lens-round pointer-events-auto flex h-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink"
           >
             <Plus className="size-[25px] shrink-0" strokeWidth={2.1} />
           </motion.button>

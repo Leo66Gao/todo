@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type QuillType from "quill";
-import { BookMarked, ChevronDown, ChevronLeft, FileText, Folder, MoreHorizontal } from "lucide-react";
+import { BookMarked, Check, ChevronDown, ChevronLeft, FileText, Folder, MoreHorizontal, PenLine } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { isEmptyContent } from "@/lib/delta";
 import { encodeNote, recordFits, uuid, type StudyNote } from "@/lib/model";
@@ -14,9 +14,10 @@ import { PageHeader } from "@/shell/Shell";
 import { addFolder, addNote, deleteNote, readSide, updateNote, useWorkspace } from "@/store/workspace";
 import { Button, IconButton } from "@/ui/controls";
 import { cn } from "@/ui/cn";
-import { Menu, Popover, promptDialog } from "@/ui/overlay";
+import { Menu, Popover, promptDialog, Tooltip } from "@/ui/overlay";
 import { noteHref, RichText, type EditorAction, type NoteLinks } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
+import { getLocal, setLocal } from "@/lib/prefs";
 import { editedLabel, recordVersion, removeNote } from "./noteActions";
 import { VersionHistory } from "./VersionHistory";
 import { NoteAiButton } from "./NoteAi";
@@ -32,7 +33,7 @@ export function NoteView({ id }: { id: string }) {
       type="button"
       aria-label="Back"
       onClick={() => (history.length > 1 ? history.back() : navigate({ view: "notes" }))}
-      className="-ml-1 flex h-9 items-center gap-1 rounded-full pr-3 pl-1.5 text-sm text-ink-3 transition-colors hover:bg-fill hover:text-ink max-md:ml-0 max-md:size-11 max-md:justify-center max-md:border max-md:border-line max-md:bg-card max-md:p-0 max-md:text-ink max-md:shadow-card"
+      className="-ml-1 flex h-9 items-center gap-1 rounded-full pr-3 pl-1.5 text-sm text-ink-3 transition-colors hover:bg-fill hover:text-ink max-md:ml-0 max-md:size-11 max-md:justify-center max-md:lens-chip max-md:p-0 max-md:text-ink"
     >
       <ChevronLeft className="size-[18px] max-md:size-5" />
       <span className="max-md:hidden">Back</span>
@@ -69,6 +70,16 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   }
 
   const [quill, setQuill] = useState<QuillType | null>(null);
+  // View reads the note as a page; Edit is a plain white page with the
+  // formatting bar, like a word processor. A new note opens ready to write.
+  const [editing, setEditingMode] = useState(
+    () => (note.title === "" && isEmptyContent(note.content)) || getLocal<string>("notes.mode", "view") === "edit",
+  );
+  const setEditing = (on: boolean) => {
+    setEditingMode(on);
+    setLocal("notes.mode", on ? "edit" : "view");
+    if (!on) persist();
+  };
   const [historyOpen, setHistoryOpen] = useState(false);
   const noteLinks = useMemo<NoteLinks>(
     () => ({
@@ -254,6 +265,27 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
         leading={back}
         actions={
           <>
+            <Tooltip label={editing ? "Done editing" : "Edit the note"}>
+              {editing ? (
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-3.5 text-sm font-semibold text-on-ink transition-transform active:scale-[0.97] max-md:size-11 max-md:justify-center max-md:border-transparent! max-md:bg-ink! max-md:px-0 max-md:text-on-ink!"
+                >
+                  <Check className="size-4 max-md:size-5" strokeWidth={2.4} />
+                  <span className="max-md:hidden">Done</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="flex h-8 items-center gap-1.5 rounded-full border border-line bg-card px-3.5 text-sm font-medium shadow-card transition-transform active:scale-[0.97] max-md:size-11 max-md:justify-center max-md:px-0 max-md:lens-chip"
+                >
+                  <PenLine className="size-4 max-md:size-[18px]" />
+                  <span className="max-md:hidden">Edit</span>
+                </button>
+              )}
+            </Tooltip>
             <NoteAiButton quill={quill} note={note} />
             <Menu
               align="end"
@@ -278,11 +310,19 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
           </>
         }
       />
-      <div className="scroll-area flex-1 pb-32">
-        <article className="mx-auto w-full max-w-[720px] px-6 pt-4 max-sm:px-4">
+      <div className={cn("scroll-area flex-1 pb-32", editing && "note-desk")}>
+        <article
+          className={cn(
+            "mx-auto w-full",
+            editing
+              ? "note-page mt-2 max-w-[816px] px-[72px] pt-12 pb-16 max-md:mx-3 max-md:w-auto max-md:px-5 max-md:pt-6 max-md:pb-10"
+              : "max-w-[720px] px-6 pt-4 max-sm:px-4",
+          )}
+        >
           <textarea
             rows={1}
             value={title}
+            readOnly={!editing}
             autoFocus={note.title === "" && isEmptyContent(note.content)}
             onChange={(e) => {
               const value = e.target.value.replace(/\n/g, " ");
@@ -298,7 +338,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               }
             }}
             placeholder="Untitled note"
-            className="field-sizing-content block w-full resize-none bg-transparent font-display text-[30px] leading-[1.1] font-normal tracking-[0.02em] outline-none placeholder:text-ink-4 max-md:text-[34px]"
+            className="field-sizing-content block w-full resize-none bg-transparent font-display text-xl font-semibold tracking-[-0.015em] outline-none placeholder:text-ink-4 max-md:text-[28px] max-md:leading-[1.2] max-md:font-bold max-md:tracking-[-0.02em]"
           />
           <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
       <Menu
@@ -349,8 +389,13 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
           <RichText
             value={note.content}
             toolbar="full"
-            toolbarClassName="sticky top-0 z-10 -mx-2 bg-canvas/90 px-1 py-1.5 backdrop-blur-md"
-            reading
+            toolbarClassName={
+              editing
+                ? "note-toolbar sticky top-2 z-10 -mx-3 rounded-[12px] px-1.5 py-1 max-md:-mx-2"
+                : "sticky top-0 z-10 -mx-2 bg-canvas/90 px-1 py-1.5 backdrop-blur-md"
+            }
+            readOnly={!editing}
+            reading={!editing}
             minHeight={320}
             placeholder="Start writing, or type / for blocks and [[ to link a note"
             onReady={setQuill}

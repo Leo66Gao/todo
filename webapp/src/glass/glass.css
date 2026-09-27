@@ -182,19 +182,17 @@ html.glass .glass-overlay {
   box-shadow: var(--glass-rim), var(--overlay-shadow, var(--shadow-pop));
   isolation: isolate;
 }
-/* Frost: overlays turn milky white and take a fine ice grain, like the
-   rendered panels. The grain is sparse white specks from fractal noise. */
+/* Frost: overlays turn milky white, like the rendered panels: a smooth
+   haze over a strong blur, with no grain. */
 html.glass {
   --frost-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.6 -0.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --frost-grain-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 -0.2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 html.glass.glass-frosty .glass-overlay {
   background-color: color-mix(in srgb, rgb(250 252 255) calc(var(--glass-frost, 0) * 45%), var(--raised));
-  background-image: var(--frost-grain);
-  background-size: 180px 180px;
+  --overlay-blur: calc(24px + var(--glass-frost, 0) * 16px);
 }
 html.glass.glass-frosty.dark .glass-overlay {
-  background-image: var(--frost-grain-dark);
   background-color: color-mix(in srgb, rgb(150 160 175 / 0.5) calc(var(--glass-frost, 0) * 30%), var(--raised));
 }
 html.glass .glass-overlay[role="dialog"],

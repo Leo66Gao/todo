@@ -71,7 +71,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <path d="M4 8.4l2.6 2.6L12 5.4" fill="none" stroke="var(--on-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span className="text-sm font-semibold tracking-[-0.005em] max-md:font-display max-md:text-[30px] max-md:leading-none max-md:font-normal max-md:tracking-[0.02em]">Todo</span>
+        <span className="text-sm font-semibold tracking-[-0.005em] max-md:font-display max-md:text-[24px] max-md:leading-none max-md:font-bold max-md:tracking-[-0.02em]">Todo</span>
         <Tooltip label="Hide sidebar" shortcut={["⌘", "\\"]}>
           <IconButton label="Hide sidebar" size="sm" className="ml-auto max-lg:hidden" onClick={() => ui.toggleSidebar()}>
             <PanelLeft className="size-4" />
@@ -284,11 +284,8 @@ function SubjectItem({
           icon={
             <span className="flex size-4 items-center justify-center max-md:w-5">
               <span
-                className="size-2 rounded-full max-md:size-[9px]"
-                style={{
-                  background: argbToCss(project.colorValue),
-                  boxShadow: `0 0 0 3px color-mix(in srgb, ${argbToCss(project.colorValue)} 18%, transparent)`,
-                }}
+                className="size-2 rounded-full max-md:size-[9px] max-md:shadow-[0_0_0_3px_color-mix(in_srgb,var(--dot)_18%,transparent)]"
+                style={{ background: argbToCss(project.colorValue), ["--dot" as string]: argbToCss(project.colorValue) }}
               />
             </span>
           }

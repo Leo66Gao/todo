@@ -212,7 +212,7 @@ const TaskRowView = memo(function TaskRowView({
   }
   if (minutes > 0 && settings.showDuration) {
     meta.push(
-      <span key="dur" className="flex items-center gap-1 font-mono text-[12px]">
+      <span key="dur" className="flex items-center gap-1 max-md:font-mono max-md:text-[12px]">
         <Timer className="size-3" />
         {formatDuration(minutes)}
       </span>,
@@ -272,12 +272,22 @@ const TaskRowView = memo(function TaskRowView({
       className={cn(
         // Each task is its own rounded card on the page.
         "relative transition-opacity duration-200",
-        plain && "rounded-ctl",
+        plain ? "rounded-ctl" : cn("card", compact ? "mb-1.5 rounded-[14px]" : "mb-2 max-md:mb-2.5 max-md:rounded-[18px]"),
         done && !completing && "opacity-70",
         dragging && "z-10 opacity-40",
       )}
     >
 
+      {/* Assignments carry a blue edge; their milestones a fainter one. */}
+      {!plain && (isAssignment || isMilestone) && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0 z-[1] rounded-[inherit]",
+            isAssignment ? "shadow-[inset_0_0_0_1.25px_var(--accent-line)]" : "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-line)_55%,transparent)]",
+          )}
+        />
+      )}
       <div className="relative overflow-hidden rounded-[inherit]">
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div

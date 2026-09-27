@@ -51,6 +51,7 @@ import { startTaskFocus } from "@/lib/focus";
 import { workMinutes } from "@/features/tasks/meta";
 import { toast, ToastHost } from "@/ui/toast";
 import { GlassLayer } from "@/glass/GlassLayer";
+import { GlassLens, LensDefs } from "@/ui/lens";
 import { restoreGlassPrefs, useGlassOn } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
@@ -105,6 +106,7 @@ export function Shell() {
   return (
     <MotionConfig reducedMotion="user">
       <GlassLayer />
+      <LensDefs />
       <TooltipProvider delayDuration={500} skipDelayDuration={200}>
         <Workspace />
         <TaskEditorHost />
@@ -137,7 +139,8 @@ function Workspace() {
   const glass = useGlassOn();
   const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
   const slabGlass = useGlass({ level: 1, kind: "slab" });
-  const paper = route.view === "notes" || route.view === "note";
+  // Notes sit on the same glass as every other page (editing brings its own solid page).
+  const paper = false;
   const [dragging, setDragging] = useState<Task | null>(null);
   // Mouse drags start after a small move; on touch screens a long press starts
   // a drag so ordinary swipes keep scrolling.
@@ -392,7 +395,7 @@ export function PageHeader({
       {leading}
       <div className="flex min-w-0 items-baseline gap-2.5 max-md:flex-col-reverse max-md:gap-0">
         {title !== "" && (
-          <h1 className="-my-[0.08em] max-w-full truncate font-display text-[28px] leading-[1.2] font-normal tracking-[0.02em] max-md:text-[40px] max-md:leading-[1.15]">
+          <h1 className="max-w-full truncate font-display text-xl font-semibold tracking-[-0.015em] max-md:text-[32px] max-md:leading-[1.2] max-md:font-bold max-md:tracking-[-0.025em]">
             {title}
           </h1>
         )}
@@ -403,7 +406,7 @@ export function PageHeader({
           </span>
         )}
       </div>
-      <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-2 max-md:[&>button]:size-11 max-md:[&>button]:rounded-full max-md:[&>button]:border max-md:[&>button]:border-line max-md:[&>button]:bg-card max-md:[&>button]:text-ink-2 max-md:[&>button]:shadow-card">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-2 max-md:[&>button]:size-11 max-md:[&>button]:rounded-full max-md:[&>button]:lens-chip max-md:[&>button]:text-ink">
         {actions}
       </div>
     </header>
@@ -436,9 +439,10 @@ export function Stepper({
   nextShortcut?: string[];
 }) {
   return (
-    <div className="mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full max-md:border max-md:border-line max-md:bg-card max-md:shadow-card">
+    <div className="relative mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full">
+      <GlassLens radius={22} bezel={12} className="md:hidden" />
       <Tooltip label={prev} shortcut={prevShortcut}>
-        <IconButton label={prev} onClick={onPrev} className="max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
+        <IconButton label={prev} onClick={onPrev} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronLeft className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
@@ -447,12 +451,12 @@ export function Stepper({
         size="sm"
         disabled={atPresent}
         onClick={onPresent}
-        className={cn("max-md:h-8 max-md:rounded-full max-md:px-2 max-md:text-[14px] max-md:text-ink", atPresent && "max-md:hidden")}
+        className={cn("relative max-md:h-8 max-md:rounded-full max-md:px-2 max-md:text-[14px] max-md:text-ink", atPresent && "max-md:hidden")}
       >
         {present}
       </Button>
       <Tooltip label={next} shortcut={nextShortcut}>
-        <IconButton label={next} onClick={onNext} className="max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
+        <IconButton label={next} onClick={onNext} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronRight className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
