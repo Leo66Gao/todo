@@ -25,16 +25,13 @@ export interface GlassPrefs {
   blur: number;
   /** Milky haze in the glass: 0 clear … 1 fully frosted. */
   frost: number;
-  /** Corner radius of the glass panels, in CSS px; controls scale with it. */
-  radius: number;
   /** Light text in light mode, for darker backgrounds. */
   lightText: boolean;
   /** Highlights follow the pointer (desktop). */
   pointerLight: boolean;
 }
 
-const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", blur: 0.75, frost: 0.4, radius: 22, lightText: false, pointerLight: true };
-export const RADIUS_RANGE = [10, 34] as const;
+const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", blur: 0.75, frost: 0.4, lightText: false, pointerLight: true };
 const KEY = "glass";
 
 interface GlassState extends GlassPrefs {
@@ -46,17 +43,18 @@ interface GlassState extends GlassPrefs {
 export const useGlassPrefs = create<GlassState>(() => ({ ...DEFAULTS, image: null, hasImage: false }));
 
 function persist() {
-  const { enabled, background, blur, frost, radius, lightText, pointerLight } = useGlassPrefs.getState();
-  setLocal(KEY, { enabled, background, blur, frost, radius, lightText, pointerLight });
+  const { enabled, background, blur, frost, lightText, pointerLight } = useGlassPrefs.getState();
+  setLocal(KEY, { enabled, background, blur, frost, lightText, pointerLight });
 }
 
 export function restoreGlassPrefs() {
+  // A saved `radius` (once a setting) is ignored: panels share one fixed radius.
   const { finish, ...saved } = getLocal<Partial<GlassPrefs> & { finish?: string }>(KEY, {});
   // The earlier three-step setting maps onto the blur slider.
   const fromFinish = finish === "clear" ? 0.25 : finish === "frosted" ? 0.9 : undefined;
   useGlassPrefs.setState({ ...DEFAULTS, ...(fromFinish != null && { blur: fromFinish }), ...saved });
   const state = useGlassPrefs.getState();
-  for (const key of ["blur", "frost", "radius"] as const) {
+  for (const key of ["blur", "frost"] as const) {
     if (typeof state[key] !== "number" || !Number.isFinite(state[key])) useGlassPrefs.setState({ [key]: DEFAULTS[key] });
   }
   // Backgrounds retired since they were chosen fall back to the default.

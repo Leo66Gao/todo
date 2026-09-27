@@ -35,7 +35,7 @@ import { ensureMonths, modeOf, setCalendarMode, useGoogleEvents } from "@/lib/go
 import { LEAD_OPTIONS, requestReminderPermission, setReminderPrefs, useReminderPrefs, type ReminderPrefs } from "@/lib/reminders";
 import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
-import { RADIUS_RANGE, setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
+import { setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
 
 const FIELD_NAMES: Record<FieldId, string> = {
   type: "Task type",
@@ -151,7 +151,6 @@ function AppearanceSection() {
   const glass = useGlassPrefs((s) => s.enabled);
   const blur = useGlassPrefs((s) => s.blur);
   const frost = useGlassPrefs((s) => s.frost);
-  const radius = useGlassPrefs((s) => s.radius);
   const lightText = useGlassPrefs((s) => s.lightText);
   const pointerLight = useGlassPrefs((s) => s.pointerLight);
   return (
@@ -197,18 +196,6 @@ function AppearanceSection() {
             </Item>
             <Item title="Frost" detail="A frosted texture, like sandblasted glass.">
               <RangeSlider value={frost} onChange={(v) => setGlassPrefs({ frost: v })} label="Frost" from="Clear" to="Frosted" />
-            </Item>
-            <Item title="Corners" detail="Roundness of panels, controls and menus.">
-              <RangeSlider
-                value={radius}
-                min={RADIUS_RANGE[0]}
-                max={RADIUS_RANGE[1]}
-                step={1}
-                onChange={(v) => setGlassPrefs({ radius: v })}
-                label="Corner radius"
-                from="Tight"
-                to="Round"
-              />
             </Item>
             <Item title="Text in light mode" detail="Light text reads better over darker backgrounds.">
               <Segmented

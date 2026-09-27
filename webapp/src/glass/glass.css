@@ -124,9 +124,10 @@ html.glass:not(.glass-css) [data-glass] {
 html.glass [data-shell] {
   padding: 10px;
 }
-/* One radius setting shapes everything: panels take it as is, and controls,
+/* One fixed radius shapes everything: panels take it as is, and controls,
    menus and dialogs scale with it. */
 html.glass {
+  --glass-radius: 24px;
   --radius-ctl: max(6px, calc(var(--glass-radius, 22px) * 0.38));
   --radius-pop: calc(var(--glass-radius, 22px) * 0.56);
   --radius-modal: calc(var(--glass-radius, 22px) * 0.78);

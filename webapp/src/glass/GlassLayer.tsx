@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
-import { noteScroll, refreshGlassShapes } from "./registry";
+import { noteScroll } from "./registry";
 import { reportGlassTop } from "@/lib/native";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
@@ -27,13 +27,6 @@ export function useGlassDocumentClasses() {
   useEffect(() => {
     document.documentElement.classList.toggle("glass-light-text", enabled && lightText);
   }, [enabled, lightText]);
-
-  const radius = useGlassPrefs((s) => s.radius);
-  useEffect(() => {
-    document.documentElement.style.setProperty("--glass-radius", `${radius}px`);
-    // Let the new radii reach the DOM before the renderer re-reads them.
-    requestAnimationFrame(refreshGlassShapes);
-  }, [radius]);
 }
 
 /**
