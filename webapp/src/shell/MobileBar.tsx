@@ -62,7 +62,7 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
   return (
     <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-4 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
       <div className="pointer-events-auto relative grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
-        <GlassLens radius={29} bezel={22} />
+        <GlassLens radius={29} bezel={22} className="lens-bar" />
         {TABS.map((tab) => (
           <TabButton
             key={tab.view}

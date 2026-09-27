@@ -454,9 +454,9 @@ export function Stepper({
   const phone = useMedia("(max-width: 767px)");
   return (
     <div className="relative mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full">
-      <GlassLens radius={22} bezel={15} className="md:hidden" />
+      <GlassLens radius={22} bezel={15} className="lens-soft md:hidden" />
       <Tooltip label={prev} shortcut={prevShortcut}>
-        <IconButton label={prev} onClick={onPrev} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
+        <IconButton label={prev} onClick={() => { haptic(); onPrev(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink max-md:transition-colors max-md:duration-300 max-md:active:bg-fill-strong max-md:active:duration-0">
           <ChevronLeft className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
@@ -485,7 +485,7 @@ export function Stepper({
         </Button>
       )}
       <Tooltip label={next} shortcut={nextShortcut}>
-        <IconButton label={next} onClick={onNext} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
+        <IconButton label={next} onClick={() => { haptic(); onNext(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink max-md:transition-colors max-md:duration-300 max-md:active:bg-fill-strong max-md:active:duration-0">
           <ChevronRight className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>

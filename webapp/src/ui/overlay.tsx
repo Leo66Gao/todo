@@ -175,6 +175,9 @@ export function Tooltip({
   children: ReactNode;
   side?: "top" | "bottom" | "left" | "right";
 }) {
+  // Touch screens have no hover: a tip would only flash up on each tap.
+  const touch = useMedia("(hover: none)");
+  if (touch) return <>{children}</>;
   return (
     <RTooltip.Root>
       <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
