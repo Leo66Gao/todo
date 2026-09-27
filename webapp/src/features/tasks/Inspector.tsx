@@ -127,8 +127,10 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
   const setStart = (time: { hour: number; minute: number } | null) =>
     patchTask(task.id, { startTime: time ? withClock(task.date, time) : null });
 
+  // An assignment's page lists only the fields that have a value (edit adds the rest).
+  const page = variant === "page";
   const properties: ReactNode[] = [];
-  if (settings.showTaskType) {
+  if (settings.showTaskType && !page) {
     properties.push(
       <Property key="type" label="Type">
         <Menu
@@ -158,7 +160,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
       </Property>,
     );
   }
-  if (settings.showTime) {
+  if (settings.showTime && (!page || task.startTime)) {
     properties.push(
       <Property key="time" label="Time">
         <TimeField
@@ -170,7 +172,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
       </Property>,
     );
   }
-  if (settings.showDuration) {
+  if (settings.showDuration && (!page || task.durationMinutes > 0)) {
     const options = isAssignment
       ? Array.from({ length: 10 }, (_, i) => (i + 1) * 60)
       : [0, 15, 30, 45, 60, 90, 120, 150, 180];
@@ -191,7 +193,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
       </Property>,
     );
   }
-  if (settings.showDifficulty) {
+  if (settings.showDifficulty && (!page || hasExplicitDifficulty(task))) {
     const selected = hasExplicitDifficulty(task);
     const chooseDifficulty = (level: number | null) => {
       const extra = { ...task.extra };
@@ -223,7 +225,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
       </Property>,
     );
   }
-  if (settings.showPriority) {
+  if (settings.showPriority && (!page || task.priority !== "none")) {
     properties.push(
       <Property key="priority" label="Priority">
         <Menu
@@ -245,7 +247,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
       </Property>,
     );
   }
-  if (settings.showSubject && projects.length > 0) {
+  if (settings.showSubject && projects.length > 0 && (!page || task.projectId)) {
     properties.push(
       <Property key="subject" label="Subject">
         <SubjectField
@@ -258,7 +260,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
       </Property>,
     );
   }
-  if (settings.showLabels && settings.labels.length > 0) {
+  if (settings.showLabels && settings.labels.length > 0 && (!page || settings.labels.some((l) => l.name === task.category))) {
     const label = settings.labels.find((l) => l.name === task.category);
     properties.push(
       <Property key="label" label="Label">
@@ -423,7 +425,7 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
       aria-label="Title"
       className={cn(
         "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
-        large ? "font-display text-[34px] leading-[1.08] font-normal tracking-[-0.01em] max-md:text-[36px]" : "text-lg font-semibold tracking-[-0.01em]",
+        large ? "font-display text-[34px] leading-[1.08] font-normal tracking-[0.02em] max-md:text-[36px]" : "text-lg font-semibold tracking-[-0.01em]",
         task.isDone && "text-ink-3 line-through decoration-ink-4",
       )}
     />

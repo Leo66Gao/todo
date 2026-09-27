@@ -71,7 +71,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <path d="M4 8.4l2.6 2.6L12 5.4" fill="none" stroke="var(--on-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span className="text-sm font-semibold tracking-[-0.005em] max-md:font-display max-md:text-[30px] max-md:leading-none max-md:font-normal max-md:tracking-[-0.01em]">Todo</span>
+        <span className="text-sm font-semibold tracking-[-0.005em] max-md:font-display max-md:text-[30px] max-md:leading-none max-md:font-normal max-md:tracking-[0.02em]">Todo</span>
         <Tooltip label="Hide sidebar" shortcut={["⌘", "\\"]}>
           <IconButton label="Hide sidebar" size="sm" className="ml-auto max-lg:hidden" onClick={() => ui.toggleSidebar()}>
             <PanelLeft className="size-4" />

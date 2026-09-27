@@ -107,6 +107,12 @@ export function advanceFocus(now = Date.now()): boolean {
   return moved;
 }
 
+/** Time left in the whole planned session, breaks included (or just this round). */
+export function totalLeft(s: FocusSession, now = Date.now()) {
+  const later = s.plan ? s.plan.blocks.slice(s.plan.index + 1).reduce((sum, b) => sum + b.ms, 0) : 0;
+  return timeLeft(s, now) + later;
+}
+
 /** Which round of focus this is, and how many there are. */
 export function focusRound(s: FocusSession) {
   if (!s.plan) return null;

@@ -392,7 +392,7 @@ export function PageHeader({
       {leading}
       <div className="flex min-w-0 items-baseline gap-2.5 max-md:flex-col-reverse max-md:gap-0">
         {title !== "" && (
-          <h1 className="-my-[0.08em] max-w-full truncate font-display text-[28px] leading-[1.2] font-normal tracking-[-0.01em] max-md:text-[40px] max-md:leading-[1.15]">
+          <h1 className="-my-[0.08em] max-w-full truncate font-display text-[28px] leading-[1.2] font-normal tracking-[0.02em] max-md:text-[40px] max-md:leading-[1.15]">
             {title}
           </h1>
         )}

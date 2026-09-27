@@ -562,7 +562,7 @@ function Agenda({
     <aside className="scroll-area min-h-0 w-[340px] shrink-0 max-xl:w-full max-xl:flex-1 max-md:pb-bar">
       <div className="flex min-w-0 items-center gap-3 px-2 pt-2 pb-2.5 max-md:px-1 max-md:pt-5 max-md:pb-3">
         <div className="min-w-0 flex-1 max-md:flex max-md:items-baseline max-md:justify-between max-md:gap-3">
-          <h2 className="truncate text-base font-semibold max-md:font-display max-md:text-[26px] max-md:leading-[1.2] max-md:font-normal max-md:tracking-[-0.01em]">
+          <h2 className="truncate text-base font-semibold max-md:font-display max-md:text-[26px] max-md:leading-[1.2] max-md:font-normal max-md:tracking-[0.02em]">
             <span className="md:hidden">{near ? relative : format(day, "EEEE")}</span>
             <span className="max-md:hidden">{near ? relative : format(day, "EEEE d MMMM")}</span>
           </h2>

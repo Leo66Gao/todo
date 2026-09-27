@@ -8,6 +8,7 @@ import {
   announceEnd,
   extendFocus,
   focusRound,
+  totalLeft,
   pauseFocus,
   resumeFocus,
   setFocusExpanded,
@@ -147,6 +148,11 @@ export function FocusTimer() {
             <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-fill-strong">
               <div className="h-full rounded-full bg-ink" style={{ width: `${Math.min(100, progress * 100)}%`, transition: "width 1s linear" }} />
             </div>
+            {session.plan && !finished && (
+              <p className="mt-3 text-sm text-ink-2">
+                <span className="font-medium text-ink tnum">{clock(totalLeft(session, now))}</span> left in total, breaks included
+              </p>
+            )}
             {finished ? (
               <div className="mt-6 flex w-full flex-col gap-2">
                 {!isBreak && task && !task.isDone && (

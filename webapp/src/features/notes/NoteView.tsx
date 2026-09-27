@@ -298,7 +298,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               }
             }}
             placeholder="Untitled note"
-            className="field-sizing-content block w-full resize-none bg-transparent font-display text-[30px] leading-[1.1] font-normal tracking-[-0.01em] outline-none placeholder:text-ink-4 max-md:text-[34px]"
+            className="field-sizing-content block w-full resize-none bg-transparent font-display text-[30px] leading-[1.1] font-normal tracking-[0.02em] outline-none placeholder:text-ink-4 max-md:text-[34px]"
           />
           <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
       <Menu

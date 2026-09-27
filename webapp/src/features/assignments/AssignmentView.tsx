@@ -168,7 +168,12 @@ function StatusCard({ task }: { task: Task }) {
 function Figure({ value, label, danger }: { value: string; label: string; danger?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col items-center text-center">
-      <Numeral value={value} className={cn("max-w-full truncate text-[22px] leading-none font-semibold tracking-[-0.03em]", danger && "text-danger")} />
+      <div className="flex h-6 max-w-full items-end">
+        <Numeral
+          value={value}
+          className={cn("truncate leading-none font-medium tracking-[-0.02em]", /\d/.test(value) ? "text-[22px]" : "text-[17px]", danger && "text-danger")}
+        />
+      </div>
       <div className="mt-1.5 max-w-full truncate text-[11.5px] text-ink-3">{label}</div>
     </div>
   );

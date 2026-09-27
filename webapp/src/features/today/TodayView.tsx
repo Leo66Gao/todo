@@ -91,10 +91,13 @@ export function TodayView() {
         )}
         <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
           <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-bar">
-            {/* On phones the strip floats over the list, which scrolls past its rounded corners. */}
+            {/* On phones the strip floats over the list, which scrolls past its lower corners. */}
             {phone && (
-              <div className="sticky top-0 z-10 rounded-[26px] border border-line bg-card p-1.5">
-                <DayStrip day={day} onPick={setDay} tasks={all} />
+              // The page colour fills behind its top corners; below, the list shows through.
+              <div className="sticky top-0 z-10 bg-[linear-gradient(var(--canvas)_50%,transparent_50%)]">
+                <div className="rounded-[26px] border border-line bg-card p-1.5">
+                  <DayStrip day={day} onPick={setDay} tasks={all} />
+                </div>
               </div>
             )}
             <div className="mt-4 flex items-center gap-5 px-2 text-xs whitespace-nowrap text-ink-3 max-sm:gap-4">

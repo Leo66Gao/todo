@@ -118,7 +118,7 @@ export function NotesView() {
           {groups.length === 0 ? (
             <div className="flex flex-col items-center py-20 text-center max-md:pt-28">
               <NotebookPen className="size-11 text-ink-4" strokeWidth={1.2} />
-              <p className="mt-6 font-display text-[28px] leading-[1.05] tracking-[-0.01em] max-md:text-[32px]">{query ? "No notes match" : "No notes yet"}</p>
+              <p className="mt-6 font-display text-[28px] leading-[1.05] tracking-[0.02em] max-md:text-[32px]">{query ? "No notes match" : "No notes yet"}</p>
               <p className="mt-2.5 max-w-[260px] text-sm leading-normal text-pretty text-ink-2 max-md:text-[15px]">
                 {query ? "Try another word, or clear the search." : "Notes can belong to a subject and sit in folders."}
               </p>
