@@ -585,19 +585,30 @@ html.dark:not(.glass) .float-glass {
    edges (so it reads as curved), a faint inner shade for thickness, and a
    soft shadow. The url() filters do the bending (Chromium). */
 :root {
-  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.5) 0%, rgb(206 211 221 / 0.42) 38%, rgb(196 202 213 / 0.4) 62%, rgb(240 242 246 / 0.55) 100%);
-  --lens-shadow: inset 0 2px 2px -1px rgb(255 255 255 / 1), inset 0 -2px 2px -1px rgb(255 255 255 / 0.9),
-    inset 0 0 0 0.5px rgb(40 50 70 / 0.14), inset 0 0 16px rgb(90 100 120 / 0.18), 0 12px 28px -12px rgb(20 25 40 / 0.35),
-    0 2px 6px -2px rgb(20 25 40 / 0.12);
-  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 1) 0%, rgb(255 255 255 / 0.35) 22%, rgb(255 255 255 / 0) 45%,
-    rgb(255 255 255 / 0) 60%, rgb(255 255 255 / 0.4) 82%, rgb(255 255 255 / 0.95) 100%);
+  --lens-fill: linear-gradient(180deg, rgb(250 251 253 / 0.5) 0%, rgb(228 231 237 / 0.4) 50%, rgb(246 247 250 / 0.5) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.95), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.8),
+    inset 0 0 0 0.5px rgb(40 50 70 / 0.12), inset 0 0 10px rgb(90 100 120 / 0.1), 0 12px 28px -12px rgb(20 25 40 / 0.3),
+    0 2px 6px -2px rgb(20 25 40 / 0.1);
+  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 1) 0%, rgb(255 255 255 / 0.25) 12%, rgb(255 255 255 / 0) 28%,
+    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.25) 90%, rgb(255 255 255 / 0.9) 100%);
 }
 .dark {
-  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.16) 0%, rgb(255 255 255 / 0.05) 45%, rgb(255 255 255 / 0.04) 60%, rgb(255 255 255 / 0.12) 100%);
-  --lens-shadow: inset 0 1.5px 1.5px -1px rgb(255 255 255 / 0.6), inset 0 -1.5px 1.5px -1px rgb(255 255 255 / 0.35),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.1), inset 0 0 14px rgb(255 255 255 / 0.05), 0 12px 30px -10px rgb(0 0 0 / 0.75);
-  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 0.75) 0%, rgb(255 255 255 / 0.18) 22%, rgb(255 255 255 / 0) 45%,
-    rgb(255 255 255 / 0) 60%, rgb(255 255 255 / 0.16) 82%, rgb(255 255 255 / 0.5) 100%);
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0.05) 50%, rgb(255 255 255 / 0.08) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.5), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.3),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.1), inset 0 0 10px rgb(255 255 255 / 0.03), 0 12px 30px -10px rgb(0 0 0 / 0.75);
+  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 0.7) 0%, rgb(255 255 255 / 0.12) 12%, rgb(255 255 255 / 0) 28%,
+    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.12) 90%, rgb(255 255 255 / 0.45) 100%);
+}
+/* The selected tab's bubble: a brighter lens of its own. */
+.lens-pill {
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.38));
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 1), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.8),
+    inset 0 0 0 0.5px rgb(40 50 70 / 0.08), 0 4px 12px -4px rgb(20 25 40 / 0.2);
+}
+.dark .lens-pill {
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.12));
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.55), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.3),
+    0 4px 12px -4px rgb(0 0 0 / 0.5);
 }
 /* The caught light: a thin ring, brightest at the top and bottom. */
 .lens-surface::before,
@@ -606,7 +617,7 @@ html.dark:not(.glass) .float-glass {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 1.5px;
+  padding: 1px;
   background: var(--lens-rim);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
@@ -631,7 +642,7 @@ html.dark:not(.glass) .float-glass {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    padding: 1.5px;
+    padding: 1px;
     background: var(--lens-rim);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
@@ -650,7 +661,7 @@ html.dark:not(.glass) .float-glass {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    padding: 1.5px;
+    padding: 1px;
     background: var(--lens-rim);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;

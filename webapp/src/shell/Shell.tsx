@@ -380,7 +380,7 @@ export function PageHeader({
     // aligned to the title's baseline.
     <header
       className={cn(
-        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:items-end max-md:px-5 max-md:pt-[calc(max(env(safe-area-inset-top),12px)+6px)] max-md:pb-4",
+        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:items-center max-md:px-5 max-md:pt-[calc(max(env(safe-area-inset-top),12px)+6px)] max-md:pb-4",
         className,
       )}
     >

@@ -110,7 +110,9 @@ function TabButton({ label, icon, active, onClick }: { label: string; icon: Reac
       )}
     >
       {active && (
-        <motion.span layoutId="tab-pill" transition={springs.snappy} className="absolute inset-0 rounded-full bg-ink/[0.07] dark:bg-white/[0.12]" />
+        <motion.span layoutId="tab-pill" transition={springs.snappy} className="absolute inset-0 rounded-full">
+          <GlassLens radius={24} bezel={14} className="lens-pill" />
+        </motion.span>
       )}
       <span className={cn("relative flex [&>svg]:size-[23px]", active ? "[&>svg]:stroke-[2.1]" : "[&>svg]:stroke-[1.75]")}>{icon}</span>
     </button>
