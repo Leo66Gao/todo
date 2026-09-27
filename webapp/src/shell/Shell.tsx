@@ -16,7 +16,7 @@ import {
   type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Menu as MenuIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Menu as MenuIcon } from "lucide-react";
 import type { Task } from "@/lib/model";
 import { restoreAppearance, useAppearance } from "@/lib/appearance";
 import { addDays, formatClock, relativeDay, sameDay, today } from "@/lib/time";
@@ -41,9 +41,9 @@ import { NoteView } from "@/features/notes/NoteView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
-import { IconButton, Spinner } from "@/ui/controls";
+import { Button, IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
-import { AskHost, TooltipProvider } from "@/ui/overlay";
+import { AskHost, Tooltip, TooltipProvider } from "@/ui/overlay";
 import { FormulaHost } from "@/ui/FormulaDialog";
 import { SourcesHost } from "@/features/sources/SourcesSheet";
 import { FocusTimer } from "@/features/focus/FocusTimer";
@@ -381,6 +381,56 @@ export function PageHeader({
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</div>
     </header>
+  );
+}
+
+/**
+ * Back, a jump to the present, and forward. On phones the three share one
+ * white capsule, and the jump only shows when it would go somewhere.
+ */
+export function Stepper({
+  prev,
+  next,
+  onPrev,
+  onNext,
+  present,
+  atPresent,
+  onPresent,
+  prevShortcut,
+  nextShortcut,
+}: {
+  prev: string;
+  next: string;
+  onPrev: () => void;
+  onNext: () => void;
+  present: string;
+  atPresent: boolean;
+  onPresent: () => void;
+  prevShortcut?: string[];
+  nextShortcut?: string[];
+}) {
+  return (
+    <div className="mr-1 flex items-center max-md:mr-0 max-md:h-9 max-md:rounded-full max-md:bg-card max-md:px-0.5 max-md:shadow-card">
+      <Tooltip label={prev} shortcut={prevShortcut}>
+        <IconButton label={prev} onClick={onPrev} className="max-md:size-8 max-md:rounded-full max-md:text-ink-2">
+          <ChevronLeft className="size-4 max-md:size-[18px]" />
+        </IconButton>
+      </Tooltip>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={atPresent}
+        onClick={onPresent}
+        className={cn("max-md:h-8 max-md:rounded-full max-md:px-2 max-md:text-[14px] max-md:text-ink", atPresent && "max-md:hidden")}
+      >
+        {present}
+      </Button>
+      <Tooltip label={next} shortcut={nextShortcut}>
+        <IconButton label={next} onClick={onNext} className="max-md:size-8 max-md:rounded-full max-md:text-ink-2">
+          <ChevronRight className="size-4 max-md:size-[18px]" />
+        </IconButton>
+      </Tooltip>
+    </div>
   );
 }
 

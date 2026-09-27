@@ -3,22 +3,22 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Tokens. A calm grey-white page (like iOS grouped lists) with content in
+ * Tokens. A near-white neutral page (like iOS grouped lists) with content in
  * white, well-rounded cards; black cards on a darker page in dark mode. A
- * neutral, slightly cool greyscale does almost all of the work; ink
+ * neutral greyscale does almost all of the work; ink
  * (near-black) is the primary action colour, as in the original app, and a
  * single calm cobalt marks "now", selection and assignments.
  */
 :root {
-  --canvas: #f2f2f7;
-  --sidebar: #f2f2f7;
+  --canvas: #f8f8f7;
+  --sidebar: #f8f8f7;
   --card: #ffffff;
   --raised: #ffffff;
-  --fill: #eeeef2;
+  --fill: #efefee;
   --row-hover: color-mix(in srgb, var(--fill) 60%, transparent);
-  --fill-strong: #e4e4ea;
-  --line: #e7e7ec;
-  --line-strong: #d9d9df;
+  --fill-strong: #e6e6e4;
+  --line: #ebebe9;
+  --line-strong: #dcdcda;
   --ink: #1d1d20;
   --ink-2: #5f5f67;
   --ink-3: #8e8e96;

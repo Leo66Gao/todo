@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   appId: "com.example.todo_app",
   appName: "Todo",
   webDir: "out",
-  backgroundColor: "#f2f2f7",
+  backgroundColor: "#f8f8f7",
   android: {
     // Only the app's own pages load in the web view.
     allowMixedContent: false,
@@ -16,7 +16,7 @@ const config: CapacitorConfig = {
     // Edge to edge: the page draws behind the status and navigation bars and
     // pads itself with env(safe-area-inset-*).
     SystemBars: { insetsHandling: "css", initialViewportFitValueHint: "cover" },
-    SplashScreen: { launchAutoHide: false, backgroundColor: "#f2f2f7", showSpinner: false },
+    SplashScreen: { launchAutoHide: false, backgroundColor: "#f8f8f7", showSpinner: false },
     Keyboard: { resize: "native", resizeOnFullScreen: true },
     // Google sign-in runs natively; the Firebase web SDK then signs in with
     // the returned credential, so sync works exactly as on the web.

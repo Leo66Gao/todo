@@ -3,17 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { addDays, formatDuration, relativeDay, sameDay, today } from "@/lib/time";
 import { useEvents } from "@/lib/googleEvents";
 import { EventRow } from "@/features/events/EventSheet";
-import { PageHeader } from "@/shell/Shell";
+import { PageHeader, Stepper } from "@/shell/Shell";
 import { ui, useUI } from "@/shell/ui";
 import { overdueTasks, tasksForDay, useAllTasks, workMinutes } from "@/features/tasks/meta";
 import { Section, TaskList } from "@/features/tasks/TaskList";
 import { moveTask } from "@/features/tasks/actions";
 import { rescheduleTask } from "@/store/workspace";
-import { Button, IconButton } from "@/ui/controls";
+import { Button } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Tooltip } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
@@ -56,21 +56,17 @@ export function TodayView() {
         detail={format(day, isToday ? "EEEE d MMMM" : "d MMMM yyyy")}
         actions={
           <>
-            <div className="mr-1 flex items-center">
-              <Tooltip label="Previous day" shortcut={["←"]}>
-                <IconButton label="Previous day" onClick={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1))}>
-                  <ChevronLeft className="size-4" />
-                </IconButton>
-              </Tooltip>
-              <Button variant="ghost" size="sm" disabled={isToday} onClick={() => setDay(today())}>
-                Today
-              </Button>
-              <Tooltip label="Next day" shortcut={["→"]}>
-                <IconButton label="Next day" onClick={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1))}>
-                  <ChevronRight className="size-4" />
-                </IconButton>
-              </Tooltip>
-            </div>
+            <Stepper
+              prev="Previous day"
+              next="Next day"
+              prevShortcut={["←"]}
+              nextShortcut={["→"]}
+              onPrev={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1))}
+              onNext={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1))}
+              present="Today"
+              atPresent={isToday}
+              onPresent={() => setDay(today())}
+            />
             <Tooltip label="New task" shortcut={["N"]}>
               <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: day })}>
                 <span className="max-sm:hidden">New task</span>
