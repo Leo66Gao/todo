@@ -51,17 +51,17 @@ math { font-size: 1.08em; }
 
 async function printableHtml(title: string, content: string) {
   const ops = deltaFromContent(content);
-  const formulas = new Map<string, string>();
+  const formulas = new Map<string, string | null>();
   for (const line of deltaLines(ops)) {
     for (const s of line.segments) {
       if (s.formula == null || formulas.has(s.formula)) continue;
       const display = s.formula.startsWith(DISPLAY);
       const tex = display ? s.formula.slice(DISPLAY.length) : s.formula;
-      formulas.set(s.formula, (await katexMathml(tex, display)) ?? tex);
+      formulas.set(s.formula, await katexMathml(tex, display));
     }
   }
   const body = deltaToHtml(ops, {
-    formula: (tex, display) => formulas.get(display ? DISPLAY + tex : tex) ?? "",
+    formula: (tex, display) => formulas.get(display ? DISPLAY + tex : tex) ?? null,
   });
   const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   return `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title><style>${PRINT_CSS}</style></head><body><h1 class="title">${safeTitle}</h1>${body}</body></html>`;

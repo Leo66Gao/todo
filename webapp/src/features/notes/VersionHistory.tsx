@@ -39,7 +39,7 @@ export function VersionHistory({ noteId, open, onOpenChange }: { noteId: string;
     if (!version) return "";
     return deltaToHtml(deltaFromContent(version.content), {
       formula: (tex, display) =>
-        katex ? katex.renderToString(tex, { displayMode: display, throwOnError: false, strict: "ignore" }) : tex,
+        katex ? katex.renderToString(tex, { displayMode: display, throwOnError: false, strict: "ignore" }) : null,
     });
   }, [version, katex]);
 

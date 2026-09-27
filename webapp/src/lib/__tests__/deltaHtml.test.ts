@@ -28,3 +28,10 @@ it("splits text into lines with their block formats", () => {
     ["c", null],
   ]);
 });
+
+it("escapes formula source while a renderer is unavailable", () => {
+  const attack = '<img src=x onerror="alert(1)">';
+  const html = deltaToHtml([{ insert: { formula: attack } }, { insert: "\n" }], { formula: () => null });
+  expect(html).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
+  expect(html).not.toContain("<img");
+});

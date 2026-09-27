@@ -59,8 +59,8 @@ export function exportLink(href: unknown): string | null {
 }
 
 export interface HtmlOptions {
-  /** Renders a formula (TeX, with or without the display prefix). */
-  formula: (tex: string, display: boolean) => string;
+  /** Renders a formula as trusted HTML, or null to show escaped TeX. */
+  formula: (tex: string, display: boolean) => string | null;
 }
 
 function inline(segments: Segment[], opts: HtmlOptions): string {
@@ -68,7 +68,8 @@ function inline(segments: Segment[], opts: HtmlOptions): string {
     .map((s) => {
       if (s.formula != null) {
         const display = s.formula.startsWith(DISPLAY);
-        return opts.formula(display ? s.formula.slice(DISPLAY.length) : s.formula, display);
+        const tex = display ? s.formula.slice(DISPLAY.length) : s.formula;
+        return opts.formula(tex, display) ?? escape(tex);
       }
       let html = escape(s.text ?? "");
       const a = s.attrs;

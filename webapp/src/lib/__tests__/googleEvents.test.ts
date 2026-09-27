@@ -23,6 +23,19 @@ it("puts a multi-day event on each of its days, and not the day after", () => {
   expect(eventsOnDay([trip], new Date(2026, 8, 30)).allDay).toHaveLength(0);
 });
 
+it("includes late events on the 25-hour daylight saving day", () => {
+  const previous = process.env.TZ;
+  process.env.TZ = "Europe/Helsinki";
+  try {
+    const start = new Date(2026, 9, 25, 23, 30);
+    const late = { ...decodeEvent({ id: "late", start: { dateTime: start.toISOString() } }, cal)!, end: new Date(start.getTime() + 30 * 60_000) };
+    expect(eventsOnDay([late], new Date(2026, 9, 25)).timed).toHaveLength(1);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});
+
 const project = (id: string, title: string): Project => ({ id, title, colorValue: 0 }) as Project;
 const subjects = [
   project("phys", "Physics HL"),
@@ -49,7 +62,56 @@ it("gives each event one stable task id", () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.resetModules();
+});
+
+it("moves an edited event into its new month instead of leaving it in the old cache", async () => {
+  const events = await import("../googleEvents");
+  const { calendarClient } = await import("@/store/workspace");
+  vi.spyOn(calendarClient(), "patchCalendarEvent").mockResolvedValue({ id: "moved" });
+  const original = events.decodeEvent({ id: "moved", summary: "Meeting", start: { date: "2026-09-30" }, end: { date: "2026-10-01" } }, cal)!;
+  events.useGoogleEvents.setState({ uid: "u", months: { "2026-9": [original], "2026-10": [] } });
+
+  const start = new Date(2026, 9, 2);
+  const end = new Date(2026, 9, 3);
+  await events.updateEvent(original, { start, end });
+
+  expect(events.useGoogleEvents.getState().months["2026-9"]).toEqual([]);
+  expect(events.useGoogleEvents.getState().months["2026-10"]).toEqual([expect.objectContaining({ key: original.key, start, end })]);
+});
+
+it("does not apply an old account's calendar list after switching accounts", async () => {
+  const items = new Map<string, string>();
+  vi.stubGlobal("window", {
+    localStorage: {
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => void items.set(k, v),
+      removeItem: (k: string) => void items.delete(k),
+    },
+  });
+  vi.stubGlobal("document", { addEventListener: () => {}, visibilityState: "visible" });
+  const ws = await import("@/store/workspace");
+  const events = await import("../googleEvents");
+  const calendar = ws.calendarClient();
+  vi.spyOn(calendar, "isConnected", "get").mockReturnValue(true);
+  let finishOld!: (value: { id: string; summary: string }[]) => void;
+  const oldList = new Promise<{ id: string; summary: string }[]>((resolve) => { finishOld = resolve; });
+  vi.spyOn(calendar, "listCalendars")
+    .mockImplementationOnce(() => oldList)
+    .mockResolvedValue([{ id: "new-calendar", summary: "New account" }]);
+  vi.spyOn(calendar, "listEvents").mockResolvedValue([]);
+
+  ws.useWorkspace.setState({ user: { uid: "old", email: null, displayName: null, photoURL: null }, calendarConnected: true });
+  events.ensureMonths(new Date(2026, 8, 1), new Date(2026, 9, 1));
+  ws.useWorkspace.setState({ user: { uid: "new", email: null, displayName: null, photoURL: null } });
+  events.ensureMonths(new Date(2026, 8, 1), new Date(2026, 9, 1));
+  await vi.waitFor(() => expect(events.useGoogleEvents.getState().calendars.map((c) => c.id)).toEqual(["new-calendar"]));
+  finishOld([{ id: "old-calendar", summary: "Old account" }]);
+  await Promise.resolve();
+
+  expect(events.useGoogleEvents.getState().uid).toBe("new");
+  expect(events.useGoogleEvents.getState().calendars.map((c) => c.id)).toEqual(["new-calendar"]);
 });
 
 it("imports an assignment once, keeps a deleted one deleted, and follows a moved deadline", async () => {

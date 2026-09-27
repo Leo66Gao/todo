@@ -184,13 +184,16 @@ const wanted = new Map<string, number>();
 const inflight = new Map<string, Promise<void>>();
 let calendarsFetchedAt = 0;
 
-async function ensureCalendars() {
+async function ensureCalendars(uid: string | null) {
+  if (!uid || get().uid !== uid) return;
   if (Date.now() - calendarsFetchedAt < 30 * 60_000 && get().calendars.length) return;
   try {
     const raw = await calendarClient().listCalendars();
+    if (get().uid !== uid) return;
     calendarsFetchedAt = Date.now();
     set({ calendars: raw.map(toCalendar).sort(byImportance), listMissing: false });
   } catch (error) {
+    if (get().uid !== uid) return;
     if (error instanceof ApiError && error.status === 403) {
       // Connected before this app could list calendars: the main one still works.
       calendarsFetchedAt = Date.now();
@@ -214,12 +217,15 @@ const byImportance = (a: GCalendar, b: GCalendar) => Number(b.primary) - Number(
 function loadMonth(key: string, force = false): Promise<void> {
   if (!connected()) return Promise.resolve();
   if (!force && Date.now() - (get().fetchedAt[key] ?? 0) < STALE_MS) return Promise.resolve();
-  const running = inflight.get(key);
-  if (running) return running;
   const uid = get().uid;
+  if (!uid) return Promise.resolve();
+  const jobKey = `${uid}:${key}`;
+  const running = inflight.get(jobKey);
+  if (running) return running;
   const job = (async () => {
     try {
-      await ensureCalendars();
+      await ensureCalendars(uid);
+      if (get().uid !== uid) return;
       const from = monthStart(key);
       const to = new Date(from.getFullYear(), from.getMonth() + 1, 1);
       const calendars = get().calendars.filter((c) => modeOf(c) !== "hide");
@@ -234,10 +240,10 @@ function loadMonth(key: string, force = false): Promise<void> {
     } catch (error) {
       if (get().uid === uid) set({ error: error instanceof Error ? error.message : String(error) });
     } finally {
-      inflight.delete(key);
+      inflight.delete(jobKey);
     }
   })();
-  inflight.set(key, job);
+  inflight.set(jobKey, job);
   return job;
 }
 
@@ -337,7 +343,7 @@ export function useEvents(from: Date, to: Date): GEvent[] {
 /** Events on one day, split into all-day and timed. */
 export function eventsOnDay(events: GEvent[], day: Date) {
   const from = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
-  const to = from + 86_400_000;
+  const to = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
   const on = events.filter((e) => e.start.getTime() < to && e.end.getTime() > from);
   return { allDay: on.filter((e) => e.allDay), timed: on.filter((e) => !e.allDay) };
 }
@@ -352,11 +358,12 @@ const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 function replaceEverywhere(key: string, next: GEvent | null) {
   const months: Record<string, GEvent[]> = {};
   for (const [m, list] of Object.entries(get().months)) {
-    months[m] = next ? list.map((e) => (e.key === key ? next : e)) : list.filter((e) => e.key !== key);
+    months[m] = list.filter((e) => e.key !== key);
   }
-  if (next && !Object.values(months).some((list) => list.some((e) => e.key === key))) {
-    const m = monthKey(next.start);
-    months[m] = [...(months[m] ?? []), next];
+  if (next) {
+    for (const m of monthKeysBetween(next.start, next.end)) {
+      months[m] = [...(months[m] ?? []), next];
+    }
   }
   set({ months });
 }
