@@ -313,6 +313,7 @@ const TaskRowView = memo(function TaskRowView({
         </motion.div>
       <ContextMenu items={() => taskMenu(task, navigate)} disabled={phone}>
         <motion.div
+          data-hswipe
           {...dragProps}
           {...swipe.handlers}
           onTouchStart={(e: React.TouchEvent) => {

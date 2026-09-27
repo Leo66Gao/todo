@@ -254,6 +254,7 @@ function MonthCard({
             dragElastic={0.22}
             dragSnapToOrigin
             onDragEnd={onDragEnd}
+            data-hswipe
             className={cn("grid h-full grid-cols-7 gap-1 max-md:gap-x-0 max-md:gap-y-0.5", phone && "touch-pan-y")}
             style={{ gridTemplateRows: `repeat(${weeks}, minmax(0, 1fr))` }}
           >

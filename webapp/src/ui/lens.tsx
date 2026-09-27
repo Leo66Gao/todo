@@ -107,25 +107,48 @@ export function GlassLens({ radius, bezel = 20, className }: { radius: number; b
   const ref = useRef<HTMLSpanElement>(null);
   const id = `lens-${useId().replace(/:/g, "")}`;
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  // While the glass is changing size (a capsule widening), drawing a new
+  // refraction map every frame would drop frames: it stays plain frosted until
+  // the size has held still for a moment.
+  const [settling, setSettling] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    let timer = 0;
+    let first = true;
+    let last = "";
     const measure = () => {
       const w = Math.round(el.offsetWidth);
       const h = Math.round(el.offsetHeight);
-      setSize((s) => (s && s.w === w && s.h === h ? s : w > 0 && h > 0 ? { w, h } : s));
+      if (w <= 0 || h <= 0 || `${w}x${h}` === last) return;
+      last = `${w}x${h}`;
+      const commit = () => {
+        setSettling(false);
+        setSize((s) => (s && s.w === w && s.h === h ? s : { w, h }));
+      };
+      window.clearTimeout(timer);
+      if (first) {
+        first = false;
+        commit();
+      } else {
+        setSettling(true);
+        timer = window.setTimeout(commit, 90);
+      }
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
   }, []);
   return (
     <span
       ref={ref}
       aria-hidden
       className={cn("lens-surface pointer-events-none absolute inset-0 rounded-[inherit]", className)}
-      style={size ? { backdropFilter: `blur(1.5px) saturate(1.9) brightness(1.04) url(#${id})` } : undefined}
+      style={size ? { backdropFilter: `blur(1.5px) saturate(1.9) brightness(1.04)${settling ? "" : ` url(#${id})`}` } : undefined}
     >
       {size && <LensFilter id={id} w={size.w} h={size.h} radius={Math.min(radius, size.h / 2)} bezel={bezel} scale={48} />}
     </span>

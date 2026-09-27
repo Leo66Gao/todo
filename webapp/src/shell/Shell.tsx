@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { animate, AnimatePresence, motion, MotionConfig, useMotionValue } from "motion/react";
 import {
   DndContext,
@@ -41,6 +41,7 @@ import { NoteView } from "@/features/notes/NoteView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
+import { useMedia } from "@/ui/useMedia";
 import { Button, IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { AskHost, Tooltip, TooltipProvider } from "@/ui/overlay";
@@ -139,7 +140,7 @@ function Workspace() {
   const navigate = useNavigate();
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
-  const drawerSwipe = useDrawerSwipe(() => ui.set({ sidebarOpen: false }));
+  const drawerSwipe = useDrawerSwipe(drawer, useCallback((open: boolean) => ui.set({ sidebarOpen: open }), []));
   const glass = useGlassOn();
   const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
   const slabGlass = useGlass({ level: 1, kind: "slab" });
@@ -295,8 +296,8 @@ function Workspace() {
                 data-overlay
                 data-surface="drawer"
                 className="glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal lg:hidden max-md:top-[max(8px,env(safe-area-inset-top))] max-md:bottom-[max(8px,env(safe-area-inset-bottom))] max-md:left-2 max-md:w-[318px] max-md:max-w-[calc(100vw-56px)] max-md:overflow-hidden max-md:rounded-[30px] max-md:border max-md:border-line"
-                initial={{ x: -330 }}
-                animate={{ x: 0 }}
+                initial={drawerSwipe.pulling ? false : { x: -330 }}
+                animate={drawerSwipe.pulling ? undefined : { x: 0 }}
                 exit={{ x: -330 }}
                 transition={springs.panel}
                 // Swipes back off to the left to close.
@@ -450,6 +451,7 @@ export function Stepper({
   prevShortcut?: string[];
   nextShortcut?: string[];
 }) {
+  const phone = useMedia("(max-width: 767px)");
   return (
     <div className="relative mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full">
       <GlassLens radius={22} bezel={15} className="md:hidden" />
@@ -458,15 +460,30 @@ export function Stepper({
           <ChevronLeft className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={atPresent}
-        onClick={onPresent}
-        className={cn("relative max-md:h-8 max-md:rounded-full max-md:px-2 max-md:text-[14px] max-md:text-ink", atPresent && "max-md:hidden")}
-      >
-        {present}
-      </Button>
+      {phone ? (
+        // The capsule widens to make room for the jump back, and closes up
+        // again once you're there.
+        <AnimatePresence initial={false}>
+          {!atPresent && (
+            <motion.button
+              key="present"
+              type="button"
+              onClick={onPresent}
+              initial={{ width: 0, opacity: 0, filter: "blur(4px)" }}
+              animate={{ width: "auto", opacity: 1, filter: "blur(0px)" }}
+              exit={{ width: 0, opacity: 0, filter: "blur(4px)" }}
+              transition={{ width: springs.pill, opacity: { duration: 0.18 }, filter: { duration: 0.18 } }}
+              className="relative h-8 overflow-hidden rounded-full text-[14px] font-medium whitespace-nowrap text-ink"
+            >
+              <span className="block px-2">{present}</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+      ) : (
+        <Button variant="ghost" size="sm" disabled={atPresent} onClick={onPresent} className="relative">
+          {present}
+        </Button>
+      )}
       <Tooltip label={next} shortcut={nextShortcut}>
         <IconButton label={next} onClick={onNext} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronRight className="size-4 max-md:size-[18px]" />
@@ -615,9 +632,84 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
  * Swiping the phone menu to the left drags it along and closes it past a
  * short distance (or on a flick); vertical movement is left to scrolling.
  */
-function useDrawerSwipe(close: () => void) {
-  const x = useMotionValue(-330);
+/**
+ * The phone drawer follows the finger both ways. A long rightward swipe from
+ * anywhere (not starting on something that swipes sideways itself, like a
+ * task row or the month grid) pulls it in; a long leftward swipe on it puts it
+ * away. Short or slow flicks spring back, so it never opens by accident.
+ */
+const DRAWER_W = 330;
+const OPEN_AT = 150;
+const CLOSE_AT = 130;
+
+function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
+  const x = useMotionValue(-DRAWER_W);
+  const [pulling, setPulling] = useState(false);
   const start = useRef<{ x: number; y: number; t: number; axis: "x" | "y" | null } | null>(null);
+
+  // Pulling it in: listens on the whole window, for touches that start while
+  // the drawer is shut (it opens mid-gesture, so this mustn't depend on it).
+  const isOpen = useRef(open);
+  useEffect(() => {
+    isOpen.current = open;
+  }, [open]);
+  useEffect(() => {
+    if (!matchMedia("(max-width: 767px)").matches) return;
+    let s: { x: number; y: number; t: number; axis: "x" | "y" | null } | null = null;
+    const down = (e: TouchEvent) => {
+      const t = e.touches[0];
+      const target = e.target as Element | null;
+      s =
+        !isOpen.current && e.touches.length === 1 && !target?.closest("[data-hswipe], [data-overlay], input, textarea, [contenteditable=true], .ql-editor")
+          ? { x: t.clientX, y: t.clientY, t: performance.now(), axis: null }
+          : null;
+    };
+    const move = (e: TouchEvent) => {
+      if (!s) return;
+      const t = e.touches[0];
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      if (!s.axis) {
+        if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+        s.axis = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+        if (s.axis === "y") {
+          s = null;
+          return;
+        }
+        x.set(-DRAWER_W);
+        setPulling(true);
+        setOpen(true);
+      }
+      x.set(Math.min(0, -DRAWER_W + dx * 0.9));
+    };
+    const up = (e: TouchEvent) => {
+      const cur = s;
+      s = null;
+      if (!cur || cur.axis !== "x") return;
+      const dx = (e.changedTouches[0]?.clientX ?? cur.x) - cur.x;
+      const speed = dx / Math.max(1, performance.now() - cur.t);
+      if (dx > OPEN_AT || (dx > 90 && speed > 0.9)) {
+        haptic();
+        void animate(x, 0, springs.panel).then(() => setPulling(false));
+      } else {
+        void animate(x, -DRAWER_W, springs.panel).then(() => {
+          setOpen(false);
+          setPulling(false);
+        });
+      }
+    };
+    window.addEventListener("touchstart", down, { passive: true });
+    window.addEventListener("touchmove", move, { passive: true });
+    window.addEventListener("touchend", up, { passive: true });
+    window.addEventListener("touchcancel", up, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", down);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", up);
+      window.removeEventListener("touchcancel", up);
+    };
+  }, [setOpen, x]);
+
   const handlers = {
     onTouchStart(e: React.TouchEvent) {
       const t = e.touches[0];
@@ -630,8 +722,8 @@ function useDrawerSwipe(close: () => void) {
       const dx = t.clientX - s.x;
       const dy = t.clientY - s.y;
       if (!s.axis) {
-        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-        s.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+        s.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
       }
       if (s.axis === "x") x.set(Math.min(0, dx));
     },
@@ -641,9 +733,9 @@ function useDrawerSwipe(close: () => void) {
       if (!s || s.axis !== "x") return;
       const dx = (e.changedTouches[0]?.clientX ?? s.x) - s.x;
       const speed = dx / Math.max(1, performance.now() - s.t);
-      if (dx < -70 || speed < -0.5) close();
+      if (dx < -CLOSE_AT || (dx < -90 && speed < -0.9)) setOpen(false);
       else void animate(x, 0, springs.panel);
     },
   };
-  return { x, handlers };
+  return { x, handlers, pulling };
 }
