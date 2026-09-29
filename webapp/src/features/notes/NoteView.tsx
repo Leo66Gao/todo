@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type QuillType from "quill";
-import { BookMarked, Check, ChevronDown, ChevronLeft, FileText, Folder, MoreHorizontal, PenLine } from "lucide-react";
+import { BookMarked, Check, ChevronDown, ChevronLeft, FileText, Folder, Moon, MoreHorizontal, PenLine, Sun } from "lucide-react";
+import { useAppearance } from "@/lib/appearance";
 import { argbToCss } from "@/lib/dart";
 import { isEmptyContent } from "@/lib/delta";
 import { encodeNote, recordFits, uuid, type StudyNote } from "@/lib/model";
@@ -80,6 +81,19 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   const phone = useMedia("(max-width: 767px)");
   const paged = !phone && editing;
   const readOnly = !phone && !editing;
+  const appMode = useAppearance((s) => s.themeMode);
+  const systemDark = useMedia("(prefers-color-scheme: dark)");
+  const [pageMode, setPageMode] = useState<"follow" | "light" | "dark">(() => {
+    const saved = getLocal<string>("notes.pageMode", "follow");
+    return saved === "light" || saved === "dark" ? saved : "follow";
+  });
+  const pageTheme = pageMode === "follow"
+    ? appMode === "dark" || (appMode === "system" && systemDark) ? "dark" : "light"
+    : pageMode;
+  const choosePageMode = (mode: typeof pageMode) => {
+    setPageMode(mode);
+    setLocal("notes.pageMode", mode);
+  };
   const setEditing = (on: boolean) => {
     setEditingMode(on);
     setLocal("notes.mode", on ? "edit" : "view");
@@ -293,6 +307,22 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               )}
             </Tooltip>
             )}
+            {paged && (
+              <Menu
+                align="end"
+                trigger={
+                  <Button size="sm" icon={pageTheme === "dark" ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}>
+                    Page: {pageMode === "follow" ? "Auto" : pageMode === "dark" ? "Dark" : "Light"}
+                  </Button>
+                }
+                items={[
+                  { heading: "Page appearance" },
+                  { label: "Follow app", checked: pageMode === "follow", onSelect: () => choosePageMode("follow") },
+                  { label: "Light page", checked: pageMode === "light", onSelect: () => choosePageMode("light") },
+                  { label: "Dark page", checked: pageMode === "dark", onSelect: () => choosePageMode("dark") },
+                ]}
+              />
+            )}
             <NoteAiButton quill={quill} note={note} />
             <Menu
               align="end"
@@ -317,7 +347,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
           </>
         }
       />
-      <div className={cn("scroll-area flex-1 pb-32", paged && "note-desk")}>
+      <div className={cn("scroll-area flex-1 pb-32", paged && "note-desk")} data-page-theme={paged ? pageTheme : undefined}>
         <article
           className={cn(
             "mx-auto w-full",

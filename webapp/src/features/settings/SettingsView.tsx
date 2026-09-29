@@ -9,7 +9,8 @@ import { restrictToVerticalAxis } from "./restrict";
 import { ChevronRight, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { setThemeMode, useAppearance } from "@/lib/appearance";
-import { firebaseConfigured, googleWebClientId } from "@/lib/firebase";
+import { firebaseConfigured } from "@/lib/firebase";
+import { getBool } from "@/lib/prefs";
 import { DEFAULT_FIELD_ORDER, FIELD_VISIBILITY_KEY, uuid, type FieldId, type TaskLabel } from "@/lib/model";
 import { PageHeader } from "@/shell/Shell";
 import { ui } from "@/shell/ui";
@@ -426,21 +427,29 @@ function LabelsSection() {
 function CalendarSection() {
   const user = useWorkspace((s) => s.user);
   const connected = useWorkspace((s) => s.calendarConnected);
+  const busy = useWorkspace((s) => s.authBusy);
   const error = useWorkspace((s) => s.syncError);
+  const reconnect = user && getBool(`calendar.enabled.${user.uid}`) === true;
   if (!firebaseConfigured) return null;
   return (
     <Group title="Google Calendar" description="Open tasks appear as events in your main calendar, and your calendars’ events appear here.">
       <Item
         title={connected ? "Connected" : "Not connected"}
-        detail={!user ? "Sign in first to connect your calendar." : connected ? user.email : "You’ll be sent to Google to allow access, then brought back here."}
+        detail={!user
+          ? "Sign in first to connect your calendar."
+          : connected
+            ? user.email
+            : reconnect
+              ? "Calendar access needs renewing. Choose Connect to resume; this page stays open."
+              : "Choose Connect to allow access. This page stays open."}
       >
         {connected ? (
           <Button size="sm" onClick={() => disconnectCalendar()}>
             Disconnect
           </Button>
         ) : (
-          <Button size="sm" disabled={!user || !googleWebClientId} onClick={() => void connectCalendar()}>
-            Connect
+          <Button size="sm" disabled={!user || busy} onClick={() => void connectCalendar()}>
+            {busy ? "Connecting…" : "Connect"}
           </Button>
         )}
       </Item>

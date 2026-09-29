@@ -11,7 +11,7 @@ import {
   GoogleAuthProvider,
   getRedirectResult,
   onAuthStateChanged,
-  reauthenticateWithRedirect,
+  reauthenticateWithPopup,
   signInWithCredential,
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -690,7 +690,8 @@ function startCalendarRetry() {
 async function keepCalendarAlive() {
   const user = get().user;
   if (!user || !calendarEnabled) return;
-  if (!get().calendarConnected) {
+  refreshCalendarFlag();
+  if (!get().calendarConnected && isNative()) {
     const email = await calendar.authorize({ interactive: false, email: user.email, uid: user.uid });
     if (get().user?.uid !== user.uid) return;
     if (email && email === user.email) refreshCalendarFlag();
@@ -751,19 +752,14 @@ async function enableCalendarAfterConnect(uid: string) {
   await scheduleCalendarFlush();
 }
 
-/**
- * Connects Google Calendar. Browsers block pop-ups opened after async work,
- * so — like the Flutter web build — the page hands off to Google's OAuth
- * redirect and the connection is completed when it comes back.
- */
+/** Connects Google Calendar only after the user presses Connect. */
 export async function connectCalendar() {
   const fb = firebase();
   const user = firebaseUser;
   if (!fb || !user || get().authBusy) return;
-  set({ syncError: null });
+  set({ authBusy: true, syncError: null });
   if (isNative()) {
-    // Android grants the Calendar scope in place (no redirect).
-    set({ authBusy: true });
+    // Android grants the Calendar scope in place.
     try {
       const email = await calendar.authorize({ interactive: true, email: user.email, uid: user.uid });
       if (!email) throw new Error(calendar.lastError ?? "Calendar connection was cancelled.");
@@ -780,17 +776,33 @@ export async function connectCalendar() {
     }
     return;
   }
-  prefs.setString(CALENDAR_REDIRECT_KEY, user.uid);
   const provider = new GoogleAuthProvider();
   for (const scope of CALENDAR_SCOPES) provider.addScope(scope);
   try {
-    await reauthenticateWithRedirect(user, provider);
+    // Called directly from the Connect button, so Safari opens the account
+    // chooser in a small window without navigating this page away.
+    const result = await reauthenticateWithPopup(user, provider);
+    if (get().user?.uid !== user.uid) return;
+    const token = GoogleAuthProvider.credentialFromResult(result)?.accessToken;
+    if (!token || !result.user.email) throw new Error("Google did not return Calendar access.");
+    calendar.connectWithAccessToken(result.user.email, token, user.uid);
+    if (!(await calendar.verifyAccess())) {
+      throw new Error(calendar.lastError ?? "Google Calendar could not be reached.");
+    }
+    await enableCalendarAfterConnect(user.uid);
   } catch (error) {
-    prefs.remove(CALENDAR_REDIRECT_KEY);
-    set({ syncError: `Calendar connection failed: ${String(error)}` });
+    calendar.clearSession();
+    const message = String(error);
+    if (!message.includes("popup-closed-by-user") && !message.includes("cancelled-popup-request")) {
+      set({ syncError: `Calendar connection failed: ${message}` });
+    }
+  } finally {
+    set({ authBusy: false });
+    refreshCalendarFlag();
   }
 }
 
+/** Finishes a redirect that started in an older build of the app. */
 async function resumeCalendarRedirect() {
   const fb = firebase();
   const pendingUid = prefs.getString(CALENDAR_REDIRECT_KEY);

@@ -8,9 +8,10 @@ afterEach(() => {
   vi.resetModules();
 });
 
-it("rejects a cached Calendar token for another Google account", async () => {
+it("rejects another account's cached token without opening Google account UI", async () => {
   vi.useFakeTimers();
   vi.stubEnv("NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID", "test-client");
+  const requestAccessToken = vi.fn();
   const items = new Map<string, string>();
   const storage = {
     getItem: (key: string) => items.get(key) ?? null,
@@ -22,9 +23,7 @@ it("rejects a cached Calendar token for another Google account", async () => {
     google: {
       accounts: {
         oauth2: {
-          initTokenClient: (config: { callback: (response: { access_token: string; expires_in: number }) => void }) => ({
-            requestAccessToken: () => config.callback({ access_token: "replacement-token", expires_in: 3600 }),
-          }),
+          initTokenClient: () => ({ requestAccessToken }),
         },
       },
     },
@@ -47,8 +46,32 @@ it("rejects a cached Calendar token for another Google account", async () => {
 
   const calendar = new GoogleCalendar();
   expect(await calendar.authorize({ interactive: false, email: "owner@example.com", uid: "user-1" }))
-    .toBe("owner@example.com");
-  expect(calendar.isConnected).toBe(true);
-  expect(JSON.parse(prefs.getString("calendar.webSession.user-1")!).token).toBe("replacement-token");
-  expect(fetchMock).toHaveBeenCalledTimes(2);
+    .toBeNull();
+  expect(calendar.isConnected).toBe(false);
+  expect(prefs.getString("calendar.webSession.user-1")).toBeNull();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(requestAccessToken).not.toHaveBeenCalled();
+});
+
+it("pauses Calendar after token expiry without opening Google account UI", async () => {
+  vi.useFakeTimers();
+  vi.stubEnv("NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID", "test-client");
+  const requestAccessToken = vi.fn();
+  const items = new Map<string, string>();
+  vi.stubGlobal("window", {
+    localStorage: {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => { items.set(key, value); },
+      removeItem: (key: string) => { items.delete(key); },
+    },
+    google: { accounts: { oauth2: { initTokenClient: () => ({ requestAccessToken }) } } },
+  });
+  const { GoogleCalendar } = await import("../calendar");
+  const calendar = new GoogleCalendar();
+  calendar.connectWithAccessToken("owner@example.com", "old-token", "user-1");
+  vi.advanceTimersByTime(54 * 60_000);
+
+  expect(calendar.isConnected).toBe(false);
+  await expect(calendar.listCalendars()).rejects.toMatchObject({ status: 401 });
+  expect(requestAccessToken).not.toHaveBeenCalled();
 });

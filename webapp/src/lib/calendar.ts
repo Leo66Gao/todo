@@ -1,9 +1,8 @@
 // Google Calendar access for the web app — a port of the Flutter app's
-// GoogleCalendarService (web path). Access tokens are short-lived; they are
-// cached per account under the same key Flutter web used and silently
-// refreshed through Google Identity Services (`prompt: none`).
+// GoogleCalendarService (web path). Access tokens are short-lived and cached
+// per account under the same key Flutter web used. Browser renewal requires
+// a user action; Android can renew without showing the Google account UI.
 
-import { googleWebClientId } from "./firebase";
 import { GoogleAuthorization, isNative } from "./native";
 import { parseDartDate, toDartIso } from "./dart";
 import * as prefs from "./prefs";
@@ -15,98 +14,16 @@ export const CALENDAR_SCOPES = [CALENDAR_SCOPE, CALENDAR_LIST_SCOPE];
 const BASE = "https://www.googleapis.com/calendar/v3";
 const API = `${BASE}/calendars/primary/events`;
 
-interface TokenResponse {
-  access_token?: string;
-  expires_in?: number;
-  error?: string;
-  error_description?: string;
-}
-
-interface GisTokenClient {
-  requestAccessToken(overrides?: Record<string, unknown>): void;
-}
-
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        oauth2?: {
-          initTokenClient(config: Record<string, unknown>): GisTokenClient;
-        };
-      };
-    };
-  }
-}
-
-let gisLoading: Promise<void> | null = null;
-function loadGis(): Promise<void> {
-  if (window.google?.accounts?.oauth2) return Promise.resolve();
-  gisLoading ??= new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => {
-      gisLoading = null;
-      reject(new Error("Google Identity Services failed to load."));
-    };
-    document.head.appendChild(script);
-  });
-  return gisLoading;
-}
-
-async function requestToken(
+async function requestNativeToken(
   interactive: boolean,
   loginHint: string | null,
 ): Promise<{ accessToken: string; expiry: Date } | null> {
-  if (isNative()) {
-    const { accessToken } = await GoogleAuthorization.authorize({
-      scopes: [...CALENDAR_SCOPES, "email"],
-      email: loginHint,
-      interactive,
-    });
-    return accessToken ? { accessToken, expiry: new Date(Date.now() + 55 * 60000) } : null;
-  }
-  if (!googleWebClientId) return null;
-  await loadGis();
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (value: { accessToken: string; expiry: Date } | null, error?: Error) => {
-      if (settled) return;
-      settled = true;
-      if (error) reject(error);
-      else resolve(value);
-    };
-    const client = window.google!.accounts!.oauth2!.initTokenClient({
-      client_id: googleWebClientId,
-      // `email` lets the token be checked against the signed-in account.
-      scope: `${CALENDAR_SCOPES.join(" ")} email`,
-      include_granted_scopes: true,
-      prompt: interactive ? "" : "none",
-      login_hint: loginHint ?? undefined,
-      callback: (response: TokenResponse) => {
-        if (response.error) {
-          const detail = response.error_description
-            ? `${response.error}: ${response.error_description}`
-            : response.error;
-          finish(null, new Error(`Google auth error: ${detail}`));
-          return;
-        }
-        if (!response.access_token) {
-          finish(null);
-          return;
-        }
-        finish({
-          accessToken: response.access_token,
-          expiry: new Date(Date.now() + (response.expires_in ?? 3300) * 1000),
-        });
-      },
-      error_callback: (error: { type?: string } | null) =>
-        error ? finish(null, new Error(`Google Identity error: ${error.type}`)) : finish(null),
-    });
-    client.requestAccessToken();
-    setTimeout(() => finish(null), interactive ? 120000 : 8000);
+  const { accessToken } = await GoogleAuthorization.authorize({
+    scopes: [...CALENDAR_SCOPES, "email"],
+    email: loginHint,
+    interactive,
   });
+  return accessToken ? { accessToken, expiry: new Date(Date.now() + 55 * 60000) } : null;
 }
 
 /**
@@ -203,7 +120,7 @@ export class GoogleCalendar {
   private sessionUid: string | null = null;
 
   get isConnected() {
-    return this.token != null && this.email != null;
+    return this.token != null && this.email != null && (isNative() || (this.expiry?.getTime() ?? 0) > Date.now() + 2 * 60000);
   }
 
   private sessionKey(uid: string) {
@@ -242,7 +159,9 @@ export class GoogleCalendar {
         this.clearSession();
         this.sessionUid = opts.uid;
       }
-      const token = await requestToken(opts.interactive, expectedEmail ?? this.email);
+      // Web browsers cannot refresh a Google API token without user-facing
+      // account UI. Only the explicit Connect action obtains a new web token.
+      const token = isNative() ? await requestNativeToken(opts.interactive, expectedEmail ?? this.email) : null;
       if (!token) return null;
       const email = expectedEmail ?? this.email;
       if (!email) throw new Error("Google Calendar did not return an account email.");
@@ -307,8 +226,12 @@ export class GoogleCalendar {
   private async currentToken(): Promise<string | null> {
     const needsRefresh = !this.token || !this.expiry || this.expiry.getTime() - 2 * 60000 <= Date.now();
     if (!needsRefresh) return this.token;
+    if (!isNative()) {
+      this.clearSession();
+      return null;
+    }
     try {
-      const refreshed = await requestToken(false, this.email);
+      const refreshed = await requestNativeToken(false, this.email);
       if (
         refreshed &&
         this.email &&

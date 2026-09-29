@@ -690,12 +690,13 @@ html.dark:not(.glass) .float-glass {
 .note-desk {
   background: #e8e8e6;
 }
-.dark .note-desk {
+.note-desk[data-page-theme="dark"] {
   background: #111113;
 }
 .note-page {
   background: #fff;
   color: #1b1c1f;
+  color-scheme: light;
   border-radius: 4px;
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.05), 0 2px 6px rgb(0 0 0 / 0.05), 0 18px 40px -16px rgb(0 0 0 / 0.22);
   min-height: min(1056px, 100%);
@@ -709,10 +710,17 @@ html.dark:not(.glass) .float-glass {
   --fill-strong: rgb(0 0 0 / 0.085);
   --row-hover: rgb(0 0 0 / 0.035);
   --canvas: #fff;
+  --card: #fff;
+  --raised: #fff;
+  --on-ink: #fff;
+  --accent: #2f5fd0;
+  --accent-soft: rgb(47 95 208 / 0.09);
+  --accent-line: rgb(47 95 208 / 0.28);
 }
-.dark .note-page {
+.note-desk[data-page-theme="dark"] .note-page {
   background: #1d1d20;
   color: #ececef;
+  color-scheme: dark;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 18px 40px -16px rgb(0 0 0 / 0.7);
   --ink: #ececef;
   --ink-2: #a3a3ab;
@@ -724,6 +732,12 @@ html.dark:not(.glass) .float-glass {
   --fill-strong: rgb(255 255 255 / 0.1);
   --row-hover: rgb(255 255 255 / 0.04);
   --canvas: #1d1d20;
+  --card: #222226;
+  --raised: #29292e;
+  --on-ink: #161618;
+  --accent: #7097f2;
+  --accent-soft: rgb(112 151 242 / 0.13);
+  --accent-line: rgb(112 151 242 / 0.38);
 }
 .note-page .ql-editor {
   font-size: 16px;
@@ -741,7 +755,7 @@ html.dark:not(.glass) .float-glass {
   backdrop-filter: blur(20px) saturate(1.8);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.06), 0 6px 18px -8px rgb(0 0 0 / 0.18);
 }
-.dark .note-toolbar {
+.note-desk[data-page-theme="dark"] .note-toolbar {
   background: rgb(40 40 44 / 0.72);
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08), 0 6px 18px -8px rgb(0 0 0 / 0.6);
 }
