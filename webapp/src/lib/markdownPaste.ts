@@ -18,6 +18,19 @@ export function looksLikeMarkdown(text: string): boolean {
   );
 }
 
+/** Clipboard HTML may contain formatting even when its plain text is raw Markdown. */
+export function shouldParseMarkdownPaste(text: string, html: string): boolean {
+  const literalSyntax =
+    /\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`\n]+`|(?<![\w*])\*[^*\s][^*]*?\*(?![\w*])|(?<![\w_])_[^_\s][^_]*?_(?![\w_])|\\\(|\\\[|\$\$|(?<![\w$\\])\$[^\s$][^$\n]*?[^\s\\]\$(?!\d)|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)/.test(text) ||
+    /^\s{0,3}(#{1,6}\s|```)/m.test(text);
+  if (!literalSyntax && !looksLikeMarkdown(text)) return false;
+  const richHtml = /<(h[1-6]|ul|ol|li|strong|b|em|i|table|annotation|math)\b/i.test(html);
+  if (!richHtml) return true;
+  // Prefer the source text when visible Markdown or TeX delimiters remain in
+  // it. Pasting the HTML here would leave those delimiters in the note.
+  return literalSyntax;
+}
+
 /** Inline Markdown (and inline maths) within one line. */
 export function inlineOps(text: string, base: Attrs = {}): DeltaOp[] {
   const out: DeltaOp[] = [];

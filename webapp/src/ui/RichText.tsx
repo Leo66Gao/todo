@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import "katex/dist/katex.min.css";
 import { contentFromDelta, deltaFromContent, safeLink, withAutoLinks, type DeltaOp } from "@/lib/delta";
-import { DISPLAY, looksLikeMarkdown, markdownToDelta } from "@/lib/markdownPaste";
+import { DISPLAY, markdownToDelta, shouldParseMarkdownPaste } from "@/lib/markdownPaste";
 import { cn } from "./cn";
 import { formulaDialog } from "./FormulaDialog";
 import { promptDialog } from "./overlay";
@@ -516,9 +516,7 @@ function installMathAndMarkdown(quill: QuillType, Delta: DeltaCtor, onFormula: (
     (e) => {
       const text = e.clipboardData?.getData("text/plain");
       const html = e.clipboardData?.getData("text/html") ?? "";
-      if (!text || !looksLikeMarkdown(text)) return;
-      // Rich HTML (from a web page or a doc) pastes as it is; Markdown or code-editor HTML is converted.
-      if (html && /<(h[1-6]|ul|ol|li|strong|b|em|i|table|annotation|math)\b/i.test(html)) return;
+      if (!text || !shouldParseMarkdownPaste(text, html)) return;
       e.preventDefault();
       e.stopImmediatePropagation();
       const range = quill.getSelection(true);

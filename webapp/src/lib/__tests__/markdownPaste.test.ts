@@ -1,5 +1,38 @@
 import { expect, it } from "vitest";
-import { DISPLAY, inlineOps, looksLikeMarkdown, markdownToDelta } from "../markdownPaste";
+import { DISPLAY, inlineOps, looksLikeMarkdown, markdownToDelta, shouldParseMarkdownPaste } from "../markdownPaste";
+
+it("formats an AI study list pasted with both Markdown text and rich clipboard HTML", () => {
+  const text = [
+    "**Derivative meaning + power rule**",
+    "",
+    "1. **Chain rule**",
+    "2. **Product + quotient**",
+    "3. **\\(e^x,\\ln x,\\sin x,\\cos x\\)**",
+    "4. **Tangents/normals**",
+    "5. **Stationary points +\u00a0\\(f''\\)**",
+    "6. **Optimisation**",
+    "7. **Basic integration**",
+    "8. **Definite integrals + areas**",
+    "9. **Kinematics**",
+  ].join("\n");
+  expect(shouldParseMarkdownPaste(text, "<p><strong>Derivative meaning + power rule</strong></p><ol><li>Chain rule</li></ol>"))
+    .toBe(true);
+  const ops = markdownToDelta(text);
+  expect(ops).toContainEqual({ insert: "Derivative meaning + power rule", attributes: { bold: true } });
+  expect(ops).toContainEqual({ insert: "Chain rule", attributes: { bold: true } });
+  expect(ops).toContainEqual({ insert: { formula: "e^x,\\ln x,\\sin x,\\cos x" }, attributes: { bold: true } });
+  expect(ops).toContainEqual({ insert: { formula: "f''" }, attributes: { bold: true } });
+  expect(ops.filter((op) => op.attributes?.list === "ordered")).toHaveLength(9);
+  expect(ops.some((op) => typeof op.insert === "string" && op.insert.includes("**"))).toBe(false);
+});
+
+it("keeps already rendered rich HTML when its plain text has no Markdown delimiters", () => {
+  expect(shouldParseMarkdownPaste("1. Chain rule", "<ol><li><strong>Chain rule</strong></li></ol>")).toBe(false);
+  expect(shouldParseMarkdownPaste("1. **Chain rule**", "<ol><li><strong>Chain rule</strong></li></ol>")).toBe(true);
+  expect(shouldParseMarkdownPaste("*important*", "<p><em>important</em></p>")).toBe(true);
+  expect(shouldParseMarkdownPaste("# Heading", "<h1># Heading</h1>")).toBe(true);
+  expect(shouldParseMarkdownPaste("ordinary text", "<p>ordinary text</p>")).toBe(false);
+});
 
 it("turns a typical chat answer into rich text with formulas", () => {
   const md = [
