@@ -31,6 +31,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+// In the Android app, the launch screen gives way to the page's own spinner
+// at its first frame, so it shows while the app itself loads (the app hides
+// the launch screen too, in case this runs before the native bridge is ready).
+const splashBoot = `try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.nativePromise){requestAnimationFrame(function(){requestAnimationFrame(function(){C.nativePromise("SplashScreen","hide",{fadeOutDuration:120}).catch(function(){})})})}}catch(e){}`;
+
 // Applies the saved appearance (and Liquid Glass, which phones don't use)
 // before first paint so it never flashes.
 const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||'"system"');var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);var g=JSON.parse(localStorage.getItem("todo.web.glass")||"{}");var c=window.Capacitor,ph=(c&&c.isNativePlatform&&c.isNativePlatform())||matchMedia("(max-width: 767px)").matches;if(g.enabled&&!ph){document.documentElement.classList.add("glass","glass-bg-"+(g.background||"harbour"))}}catch(e){}`;
@@ -40,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${ui.variable} ${title.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
+        <script dangerouslySetInnerHTML={{ __html: splashBoot }} />
       </head>
       <body>
         <Suspense>

@@ -534,18 +534,31 @@ function installMathAndMarkdown(quill: QuillType, Delta: DeltaCtor, onFormula: (
     true,
   );
 
-  // Android keyboards (Gboard's clipboard chip, for one) put copied text in
-  // as typing, with no paste event. A multi-line Markdown block typed in one
-  // go can only be a paste, so it's converted the same way.
+  // Android keyboards put copied text in as typing, with no paste event
+  // (Gboard's clipboard chip, Samsung's clipboard panel). A multi-line or long
+  // Markdown block arriving in one go can only be a paste, so it's converted
+  // the same way: stopped and replaced where the keyboard allows it, else
+  // swapped for the formatted version as soon as it lands.
   quill.root.addEventListener(
     "beforeinput",
     (e) => {
-      if (e.inputType !== "insertText" && e.inputType !== "insertReplacementText") return;
-      const text = e.data ?? e.dataTransfer?.getData("text/plain") ?? "";
-      if (!e.cancelable || !text.includes("\n") || !shouldParseMarkdownPaste(text, "")) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      insertMarkdown(text);
+      if (e.inputType !== "insertText" && e.inputType !== "insertReplacementText" && e.inputType !== "insertCompositionText") return;
+      const text = (e.data ?? e.dataTransfer?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n");
+      if ((!text.includes("\n") && text.length < 24) || !shouldParseMarkdownPaste(text, "")) return;
+      if (e.cancelable && e.inputType !== "insertCompositionText") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        insertMarkdown(text);
+        return;
+      }
+      const from = Math.max(0, (quill.getSelection()?.index ?? 0) - text.length);
+      window.setTimeout(() => {
+        quill.update("user");
+        const at = quill.getText().indexOf(text, from);
+        if (at < 0) return;
+        quill.setSelection(at, text.length, "silent");
+        insertMarkdown(text);
+      }, 0);
     },
     true,
   );
