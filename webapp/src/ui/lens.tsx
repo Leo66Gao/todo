@@ -103,7 +103,18 @@ export function LensDefs() {
  * Glass that sizes itself to its parent (which must be positioned and
  * rounded): for bars whose width varies, like the tab bar.
  */
-export function GlassLens({ radius, bezel = 20, className }: { radius: number; bezel?: number; className?: string }) {
+export function GlassLens({
+  radius,
+  bezel = 20,
+  frost = 1.5,
+  className,
+}: {
+  radius: number;
+  bezel?: number;
+  /** Blur behind the glass, in px. */
+  frost?: number;
+  className?: string;
+}) {
   const ref = useRef<HTMLSpanElement>(null);
   const id = `lens-${useId().replace(/:/g, "")}`;
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -148,7 +159,7 @@ export function GlassLens({ radius, bezel = 20, className }: { radius: number; b
       ref={ref}
       aria-hidden
       className={cn("lens-surface pointer-events-none absolute inset-0 rounded-[inherit]", className)}
-      style={size ? { backdropFilter: `blur(1.5px) saturate(1.9) brightness(1.04)${settling ? "" : ` url(#${id})`}` } : undefined}
+      style={size ? { backdropFilter: `blur(${frost}px) saturate(1.9) brightness(1.04)${settling ? "" : ` url(#${id})`}` } : undefined}
     >
       {size && <LensFilter id={id} w={size.w} h={size.h} radius={Math.min(radius, size.h / 2)} bezel={bezel} scale={48} />}
     </span>

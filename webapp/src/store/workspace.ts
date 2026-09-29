@@ -113,6 +113,12 @@ const CORE_SETTINGS = new Set(["settings:workspace", "settings:tags", "settings:
 let recordDecodeError: string | null = null;
 let authQueue: Promise<void> = Promise.resolve();
 let started = false;
+/**
+ * The account the app opened with from its device cache, before Firebase had
+ * confirmed who is signed in (see initialize).
+ */
+let optimisticUid: string | null = null;
+const LAST_ACCOUNT = "lastAccount";
 
 const calendar = new GoogleCalendar();
 /** The signed-in account's Google Calendar client (events are read through it too). */
@@ -338,7 +344,6 @@ export function startWorkspace() {
 
 async function initialize() {
   try {
-    applyRecords(readGuestRecords());
     const fb = firebase();
     if (fb) {
       cloud = new CloudSync(fb.db);
@@ -350,6 +355,24 @@ async function initialize() {
       };
       cloud.onStatus = (status, error) =>
         set({ cloudStatus: status, cloudError: error ?? recordDecodeError });
+    }
+    // Opening instantly: Firebase takes a moment to confirm who is signed in
+    // (and longer offline), so the last account's device copy is shown right
+    // away. Edits are queued for it as usual; if someone else turns out to be
+    // signed in, the workspace switches over as it always has.
+    const last = prefs.getLocal<Account | null>(LAST_ACCOUNT, null);
+    if (fb && cloud && last?.uid && prefs.getString("legacyOwner") != null && prefs.getString(`cloud.${last.uid}`) != null) {
+      optimisticUid = last.uid;
+      const records = await cloud.connect(last.uid);
+      set({ user: last });
+      applyRecords(records);
+      set({ isLoading: false });
+    } else {
+      applyRecords(readGuestRecords());
+      // Never signed in on this device: the local workspace is all there is.
+      if (prefs.getString("legacyOwner") == null) set({ isLoading: false });
+    }
+    if (fb) {
       await new Promise<void>((resolve) => {
         let first = true;
         onAuthStateChanged(fb.auth, (user) => {
@@ -374,7 +397,21 @@ async function initialize() {
 }
 
 async function switchAccount(user: User | null) {
-  if (get().user?.uid === user?.uid) return;
+  const hinted = optimisticUid;
+  optimisticUid = null;
+  if (hinted && user?.uid === hinted) {
+    // Already showing this account from the device copy: just finish signing in.
+    firebaseUser = user;
+    set({ user: toAccount(user) });
+    prefs.setLocal(LAST_ACCOUNT, toAccount(user));
+    void restoreCalendarForAccount(user).catch((error) => set({ cloudError: String(error) }));
+    const importAvailable = prefs.getString("legacyOwner") === user.uid && prefs.getBool(`legacyImported.${user.uid}`) !== true;
+    set({ importAvailable });
+    if (importAvailable) void importLocalData();
+    refreshCalendarFlag();
+    return;
+  }
+  if (!hinted && get().user?.uid === user?.uid) return;
   set({ isLoading: true });
   await cloud!.disconnect();
   stopCalendarRetry();
@@ -408,14 +445,17 @@ async function switchAccount(user: User | null) {
     side: {},
   });
   if (!user) {
+    prefs.setLocal(LAST_ACCOUNT, null);
     applyRecords(readGuestRecords());
     set({ cloudStatus: "Local only", importAvailable: false });
   } else {
     const records = await cloud!.connect(user.uid);
     firebaseUser = user;
     set({ user: toAccount(user) });
+    prefs.setLocal(LAST_ACCOUNT, toAccount(user));
     applyRecords(records);
-    await restoreCalendarForAccount(user);
+    // Google Calendar reconnects in the background; the workspace is ready now.
+    void restoreCalendarForAccount(user).catch((error) => set({ cloudError: String(error) }));
     const importAvailable =
       legacyOwner === user.uid && prefs.getBool(`legacyImported.${user.uid}`) !== true;
     set({ importAvailable });

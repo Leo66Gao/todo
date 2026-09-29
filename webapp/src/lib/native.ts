@@ -103,7 +103,21 @@ export async function startNative() {
     }
   });
 
-  const { SplashScreen } = await import("@capacitor/splash-screen");
+  // Never keep the splash longer than this, even if loading stalls.
+  window.setTimeout(hideSplash, 4000);
+}
+
+let splashHidden = false;
+
+/**
+ * Lifts the launch screen once the workspace is on screen, so the app opens
+ * straight into itself rather than into a loading spinner.
+ */
+export function hideSplash() {
+  if (splashHidden || !isNative()) return;
+  splashHidden = true;
   // After the first frame, so the app appears fully drawn.
-  requestAnimationFrame(() => requestAnimationFrame(() => void SplashScreen.hide({ fadeOutDuration: 180 })));
+  void import("@capacitor/splash-screen").then(({ SplashScreen }) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => void SplashScreen.hide({ fadeOutDuration: 150 }))),
+  );
 }

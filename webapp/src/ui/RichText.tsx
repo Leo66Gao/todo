@@ -511,6 +511,16 @@ function installMathAndMarkdown(quill: QuillType, Delta: DeltaCtor, onFormula: (
     return new Delta().insert({ formula: display && !tex.startsWith(DISPLAY) ? DISPLAY + tex : tex }) as never;
   });
 
+  const insertMarkdown = (text: string) => {
+    const range = quill.getSelection(true);
+    const ops = markdownToDelta(text);
+    const last = ops[ops.length - 1];
+    if (last?.insert === "\n" && !last.attributes) ops.pop();
+    const change = new Delta().retain(range.index).delete(range.length).concat(new Delta(ops));
+    quill.updateContents(change as never, "user");
+    quill.setSelection(range.index + new Delta(ops).length(), 0, "silent");
+  };
+
   quill.root.addEventListener(
     "paste",
     (e) => {
@@ -519,13 +529,23 @@ function installMathAndMarkdown(quill: QuillType, Delta: DeltaCtor, onFormula: (
       if (!text || !shouldParseMarkdownPaste(text, html)) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      const range = quill.getSelection(true);
-      const ops = markdownToDelta(text);
-      const last = ops[ops.length - 1];
-      if (last?.insert === "\n" && !last.attributes) ops.pop();
-      const change = new Delta().retain(range.index).delete(range.length).concat(new Delta(ops));
-      quill.updateContents(change as never, "user");
-      quill.setSelection(range.index + new Delta(ops).length(), 0, "silent");
+      insertMarkdown(text);
+    },
+    true,
+  );
+
+  // Android keyboards (Gboard's clipboard chip, for one) put copied text in
+  // as typing, with no paste event. A multi-line Markdown block typed in one
+  // go can only be a paste, so it's converted the same way.
+  quill.root.addEventListener(
+    "beforeinput",
+    (e) => {
+      if (e.inputType !== "insertText" && e.inputType !== "insertReplacementText") return;
+      const text = e.data ?? e.dataTransfer?.getData("text/plain") ?? "";
+      if (!e.cancelable || !text.includes("\n") || !shouldParseMarkdownPaste(text, "")) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      insertMarkdown(text);
     },
     true,
   );

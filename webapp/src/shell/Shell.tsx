@@ -56,7 +56,7 @@ import { GlassLens, LensDefs } from "@/ui/lens";
 import { restoreGlassPrefs, useGlassOn } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
-import { haptic, startNative } from "@/lib/native";
+import { haptic, hideSplash, startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileTabBar } from "./MobileBar";
@@ -99,6 +99,10 @@ export function Shell() {
     return () => media.removeEventListener("change", apply);
   }, [themeMode, mounted]);
 
+  useEffect(() => {
+    if (mounted && !isLoading) hideSplash();
+  }, [mounted, isLoading]);
+
   if (!mounted || isLoading) {
     return (
       <div className="flex h-dvh items-center justify-center">
@@ -140,8 +144,12 @@ function Workspace() {
   const navigate = useNavigate();
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
+  // The shut drawer is hidden once it has slid away (and shown before it moves).
+  const [drawerShown, setDrawerShown] = useState(false);
   const drawerSwipe = useDrawerSwipe(drawer, useCallback((open: boolean) => ui.set({ sidebarOpen: open }), []));
+  if ((drawer || drawerSwipe.pulling) && !drawerShown) setDrawerShown(true);
   const glass = useGlassOn();
+  const wide = useMedia("(min-width: 1024px)");
   const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
   const slabGlass = useGlass({ level: 1, kind: "slab" });
   // Notes sit on the same glass as every other page (editing brings its own solid page).
@@ -276,39 +284,46 @@ function Workspace() {
           className="relative shrink-0 overflow-hidden border-r border-line max-lg:hidden"
           style={{ borderRightWidth: collapsed || glass ? 0 : 1 }}
         >
-          <div className="h-full w-[248px]">
-            <Sidebar />
-          </div>
+          {/* Only built where it shows: on phones it would re-render unseen. */}
+          <div className="h-full w-[248px]">{wide && <Sidebar />}</div>
         </motion.aside>
 
-        {/* Drawer on narrow windows */}
+        {/* Drawer on narrow windows. It stays built while shut (off screen and
+            hidden), so opening it only has to slide, not assemble the sidebar. */}
         <AnimatePresence>
           {drawer && (
-            <>
-              <motion.div
-                className="fixed inset-0 z-30 bg-scrim lg:hidden"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => ui.set({ sidebarOpen: false })}
-              />
-              <motion.aside
-                data-overlay
-                data-surface="drawer"
-                className="glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal lg:hidden max-md:top-[max(8px,env(safe-area-inset-top))] max-md:bottom-[max(8px,env(safe-area-inset-bottom))] max-md:left-2 max-md:w-[318px] max-md:max-w-[calc(100vw-56px)] max-md:overflow-hidden max-md:rounded-[30px] max-md:border max-md:border-line"
-                initial={drawerSwipe.pulling ? false : { x: -330 }}
-                animate={drawerSwipe.pulling ? undefined : { x: 0 }}
-                exit={{ x: -330 }}
-                transition={springs.panel}
-                // Swipes back off to the left to close.
-                {...drawerSwipe.handlers}
-                style={{ x: drawerSwipe.x, touchAction: "pan-y" }}
-              >
-                <Sidebar onNavigate={() => ui.set({ sidebarOpen: false })} />
-              </motion.aside>
-            </>
+            <motion.div
+              className="fixed inset-0 z-30 bg-scrim lg:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => ui.set({ sidebarOpen: false })}
+            />
           )}
         </AnimatePresence>
+        {!wide && (
+          <motion.aside
+            data-overlay={drawer || undefined}
+            data-surface="drawer"
+            aria-hidden={!drawer}
+            inert={!drawer}
+            className={cn(
+              "glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal will-change-transform lg:hidden max-md:top-[max(8px,env(safe-area-inset-top))] max-md:bottom-[max(8px,env(safe-area-inset-bottom))] max-md:left-2 max-md:w-[318px] max-md:max-w-[calc(100vw-56px)] max-md:overflow-hidden max-md:rounded-[30px] max-md:border max-md:border-line",
+              !drawerShown && "invisible",
+            )}
+            initial={false}
+            animate={drawerSwipe.pulling ? undefined : { x: drawer ? 0 : -330 }}
+            transition={springs.panel}
+            onAnimationComplete={() => {
+              if (!ui.get().sidebarOpen) setDrawerShown(false);
+            }}
+            // Swipes back off to the left to close.
+            {...drawerSwipe.handlers}
+            style={{ x: drawerSwipe.x, touchAction: "pan-y" }}
+          >
+            <Sidebar onNavigate={() => ui.set({ sidebarOpen: false })} />
+          </motion.aside>
+        )}
 
         <main className="relative flex min-w-0 flex-1 flex-col">
           {/* Notes read best on paper: a plain, solid panel instead of glass. */}
@@ -514,6 +529,12 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
       if (mod && e.key === "\\") {
         e.preventDefault();
         ui.toggleSidebar();
+        return;
+      }
+      // Escape (and the phone's Back button) puts the drawer away, even from
+      // its search field.
+      if (e.key === "Escape" && ui.get().sidebarOpen && !document.querySelector('[role="dialog"], [role="menu"]')) {
+        ui.set({ sidebarOpen: false });
         return;
       }
       if (isTyping(e.target) || e.defaultPrevented) return;

@@ -58,7 +58,9 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
   const drawer = useUI((s) => s.sidebarOpen);
   const hidden = useUI((s) => s.sidebarOpen || s.editor != null || s.inspectorId != null);
   const current = TABS.find((t) => t.view === route.view || t.also?.includes(route.view));
-  const canAdd = HAS_ADD.includes(route.view) && !hidden;
+  // The button keeps its place while hidden (it only fades), so the bar's
+  // width, and with it the glass, doesn't change as the menu slides in.
+  const canAdd = HAS_ADD.includes(route.view);
   return (
     <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-4 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
       <div className="pointer-events-auto relative grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
@@ -87,7 +89,10 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
             type="button"
             aria-label={route.view === "notes" ? "New note" : "New task"}
             initial={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
-            animate={{ width: 58, marginLeft: 10, opacity: 1, scale: 1 }}
+            animate={{ width: 58, marginLeft: 10, opacity: hidden ? 0 : 1, scale: hidden ? 0.7 : 1 }}
+            aria-hidden={hidden || undefined}
+            tabIndex={hidden ? -1 : undefined}
+            style={{ pointerEvents: hidden ? "none" : undefined }}
             exit={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
             whileTap={{ scale: 0.88, transition: springs.press }}
             transition={springs.panel}
@@ -120,7 +125,7 @@ function TabButton({ label, icon, active, onClick }: { label: string; icon: Reac
     >
       {active && (
         <motion.span layoutId="tab-pill" transition={springs.pill} className="absolute inset-0 rounded-full">
-          <GlassLens radius={24} bezel={14} className="lens-pill" />
+          <GlassLens radius={24} bezel={14} frost={0.75} className="lens-pill" />
         </motion.span>
       )}
       {/* The icon lifts a little as it becomes the current tab. */}

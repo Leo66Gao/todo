@@ -606,23 +606,26 @@ html.dark:not(.glass) .float-glass {
 .dark {
   --lens-fill-soft: linear-gradient(180deg, rgb(255 255 255 / 0.06) 0%, rgb(255 255 255 / 0.025) 50%, rgb(255 255 255 / 0.05) 100%);
 }
+.dark {
+  --lens-fill-round: linear-gradient(180deg, rgb(255 255 255 / 0.07) 0%, rgb(255 255 255 / 0.035) 50%, rgb(255 255 255 / 0.056) 100%);
+}
 .lens-soft {
   --lens-fill: var(--lens-fill-soft);
 }
-/* The tab bar in the dark: clear almost to the rim, so it reads black, not grey. */
+/* In the dark, the tab bar and the add button are a little clearer than
+   other glass (the bar most), so they don't read as grey slabs. */
 .dark .lens-bar {
-  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.06) 0%, rgb(255 255 255 / 0.012) 10%, rgb(255 255 255 / 0.012) 90%, rgb(255 255 255 / 0.045) 100%);
-  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.28), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 12px 30px -10px rgb(0 0 0 / 0.75);
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.05) 0%, rgb(255 255 255 / 0.025) 50%, rgb(255 255 255 / 0.04) 100%);
 }
-/* The selected tab's bubble: a brighter lens of its own. */
+/* The selected tab's bubble: the same glass as the buttons (bright at the
+   top and bottom), frosted half as much. */
 .lens-pill {
-  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.38));
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.32) 0%, rgb(240 242 246 / 0.2) 50%, rgb(255 255 255 / 0.3) 100%);
   --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 1), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.8),
     inset 0 0 0 0.5px rgb(40 50 70 / 0.08), 0 4px 12px -4px rgb(20 25 40 / 0.2);
 }
 .dark .lens-pill {
-  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.12));
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.11) 0%, rgb(255 255 255 / 0.055) 50%, rgb(255 255 255 / 0.09) 100%);
   --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.32), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
     0 4px 12px -4px rgb(0 0 0 / 0.5);
 }
@@ -668,7 +671,7 @@ html.dark:not(.glass) .float-glass {
 }
 @utility lens-round {
   position: relative;
-  background: var(--lens-fill);
+  background: var(--lens-fill-round, var(--lens-fill));
   box-shadow: var(--lens-shadow);
   -webkit-backdrop-filter: blur(10px) saturate(1.9);
   backdrop-filter: blur(1px) saturate(1.9) brightness(1.04) url(#lens-c58);
