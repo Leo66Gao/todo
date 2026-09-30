@@ -213,7 +213,9 @@ export function Slider({
       step={step}
       onValueChange={([v]) => onChange(v)}
       aria-label={label}
-      className="group relative flex h-5 w-full touch-none select-none items-center"
+      // Its own sideways drag: page swipes (like the menu's) leave it alone.
+      data-hswipe
+      className="group relative flex h-5 w-full touch-none select-none items-center max-md:h-9"
     >
       <RSlider.Track className="relative h-[3px] grow overflow-hidden rounded-full bg-fill-strong">
         <RSlider.Range className={cn("absolute h-full rounded-full", dormant ? "bg-transparent" : "bg-ink")} />

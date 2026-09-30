@@ -71,6 +71,28 @@ it("shares one upload pass between callers", async () => {
   expect(firestore.transactions).toBe(1);
 });
 
+it("groups note typing into one upload, and sends task changes within a second", async () => {
+  vi.useFakeTimers();
+  try {
+    stubStorage();
+    const sync = await signedInSync();
+    for (let i = 0; i < 12; i++) {
+      await sync.writeChanges({ "note:n": JSON.stringify({ text: "x".repeat(i) }) });
+      await vi.advanceTimersByTimeAsync(600);
+    }
+    expect(firestore.transactions).toBe(0);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(firestore.transactions).toBe(1);
+    expect(sync.hasPending).toBe(false);
+
+    await sync.writeChanges({ "task:a": "{}" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(firestore.transactions).toBe(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 const task = (id: string, hour: number) =>
   JSON.stringify({
     id,

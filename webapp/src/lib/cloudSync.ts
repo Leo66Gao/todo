@@ -31,6 +31,17 @@ import * as prefs from "./prefs";
 type Records = Record<string, string>;
 type Pending = Record<string, string | null>;
 
+/**
+ * Uploads are grouped rather than sent on every save: each change is on the
+ * device at once (and survives the app closing), then goes up within a
+ * second, or within 20 seconds for note text, which changes as you type and
+ * would otherwise cost a read and a write per pause. Anything waiting goes up
+ * straight away when the app is put away or the page is left.
+ */
+const UPLOAD_SOON_MS = 1000;
+const UPLOAD_NOTES_MS = 20000;
+const isTypingRecord = (key: string) => key.startsWith("note:") || key.startsWith("settings:versions:");
+
 const MAX_CHARS = 690000;
 const MAX_BYTES = 900000;
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
@@ -56,6 +67,12 @@ export class CloudSync {
   private inflight: Promise<void> | null = null;
   private lastFlushError: string | null = null;
   private generation = 0;
+  private uploadTimer: ReturnType<typeof setTimeout> | null = null;
+  private uploadDue = 0;
+  private readonly uploadNowIfHidden = () => {
+    if (document.visibilityState === "hidden") void this.flush();
+  };
+  private readonly uploadOnLeave = () => void this.flush();
   private unsubscribe: Unsubscribe | null = null;
   private retry: ReturnType<typeof setInterval> | null = null;
   private resub: ReturnType<typeof setTimeout> | null = null;
@@ -109,8 +126,15 @@ export class CloudSync {
       this.persist();
     }
     this.listen(generation);
-    this.retry = setInterval(() => void this.flush(), 15000);
-    if (typeof window !== "undefined") window.addEventListener("online", this.reconnected);
+    // Retries what failed; changes still in their grouping window wait for it.
+    this.retry = setInterval(() => {
+      if (!this.uploadTimer) void this.flush();
+    }, 15000);
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", this.reconnected);
+      document.addEventListener("visibilitychange", this.uploadNowIfHidden);
+      window.addEventListener("pagehide", this.uploadOnLeave);
+    }
     void this.flush();
     return { ...this.records };
   }
@@ -240,7 +264,7 @@ export class CloudSync {
       failure = error;
     }
     this.onStatus?.("Changes waiting to sync", null);
-    void this.flush();
+    this.scheduleUpload(keys.every(isTypingRecord) ? UPLOAD_NOTES_MS : UPLOAD_SOON_MS);
     if (failure) throw failure;
     if (!stored) throw new Error("This browser is blocking device storage.");
   }
@@ -324,7 +348,18 @@ export class CloudSync {
     }
   }
 
+  /** Uploads within `delay`, or sooner if an earlier upload is already due. */
+  private scheduleUpload(delay: number) {
+    const due = Date.now() + delay;
+    if (this.uploadTimer && this.uploadDue <= due) return;
+    if (this.uploadTimer) clearTimeout(this.uploadTimer);
+    this.uploadDue = due;
+    this.uploadTimer = setTimeout(() => void this.flush(), delay);
+  }
+
   flush(): Promise<void> {
+    if (this.uploadTimer) clearTimeout(this.uploadTimer);
+    this.uploadTimer = null;
     if (!this.uid || (!this.hasPending && !this.inflight)) return Promise.resolve();
     if (!this.inflight) {
       const pass: Promise<void> = this.runFlush().finally(() => {
@@ -508,7 +543,13 @@ export class CloudSync {
   async disconnect(): Promise<void> {
     this.generation++;
     if (this.retry) clearInterval(this.retry);
-    if (typeof window !== "undefined") window.removeEventListener("online", this.reconnected);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", this.reconnected);
+      document.removeEventListener("visibilitychange", this.uploadNowIfHidden);
+      window.removeEventListener("pagehide", this.uploadOnLeave);
+    }
+    if (this.uploadTimer) clearTimeout(this.uploadTimer);
+    this.uploadTimer = null;
     if (this.resub) clearTimeout(this.resub);
     this.unsubscribe?.();
     this.unsubscribe = null;

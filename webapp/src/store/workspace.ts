@@ -497,6 +497,8 @@ export async function signOut() {
   if (!fb || get().authBusy) return;
   set({ authBusy: true });
   try {
+    // Note edits wait a few seconds before uploading; send them first.
+    await cloud?.flush().catch(() => {});
     calendar.clearSession();
     await nativeSignOut();
     await firebaseSignOut(fb.auth);

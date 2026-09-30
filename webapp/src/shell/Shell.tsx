@@ -660,6 +660,17 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
  * away. Short or slow flicks spring back, so it never opens by accident.
  */
 const DRAWER_W = 330;
+
+/** The nearest ancestor that scrolls sideways (a toolbar, a chip row), if any. */
+function sideScroller(el: Element | null): Element | null {
+  for (let node = el; node && node !== document.body; node = node.parentElement) {
+    if (node.scrollWidth > node.clientWidth + 1) {
+      const overflow = getComputedStyle(node).overflowX;
+      if (overflow === "auto" || overflow === "scroll") return node;
+    }
+  }
+  return null;
+}
 const OPEN_AT = 150;
 const CLOSE_AT = 130;
 
@@ -680,8 +691,14 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       const target = e.target as Element | null;
+      // Only on the page itself: not over a sheet, dialog or menu (they sit on
+      // top), nor on anything that moves sideways by itself.
+      const layered = document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]');
+      const own =
+        target?.closest('[data-hswipe], [data-overlay], [role="slider"], input, textarea, select, [contenteditable=true], .ql-editor') ??
+        sideScroller(target);
       s =
-        !isOpen.current && e.touches.length === 1 && !target?.closest("[data-hswipe], [data-overlay], input, textarea, [contenteditable=true], .ql-editor")
+        !isOpen.current && !layered && !own && e.touches.length === 1 && !ui.get().editor && !ui.get().inspectorId
           ? { x: t.clientX, y: t.clientY, t: performance.now(), axis: null }
           : null;
     };
