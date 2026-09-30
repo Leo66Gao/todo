@@ -10,7 +10,7 @@ import { useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { ApiError, type RawCalendar, type RawEvent } from "./calendar";
 import { getLocal, setLocal, getBool } from "./prefs";
-import { calendarClient, useWorkspace } from "@/store/workspace";
+import { calendarClient, captureWorkspaceSession, useWorkspace } from "@/store/workspace";
 
 export type CalendarMode = "show" | "hide" | "assignments";
 
@@ -183,10 +183,20 @@ const connected = () => useWorkspace.getState().calendarConnected && calendarCli
 const wanted = new Map<string, number>();
 const inflight = new Map<string, Promise<void>>();
 let calendarsFetchedAt = 0;
+let calendarsInFlight: { uid: string; promise: Promise<void> } | null = null;
 
 async function ensureCalendars(uid: string | null) {
   if (!uid || get().uid !== uid) return;
   if (Date.now() - calendarsFetchedAt < 30 * 60_000 && get().calendars.length) return;
+  if (calendarsInFlight?.uid === uid) return calendarsInFlight.promise;
+  const promise = fetchCalendars(uid);
+  const job = { uid, promise };
+  calendarsInFlight = job;
+  try { await promise; }
+  finally { if (calendarsInFlight === job) calendarsInFlight = null; }
+}
+
+async function fetchCalendars(uid: string) {
   try {
     const raw = await calendarClient().listCalendars();
     if (get().uid !== uid) return;
@@ -379,6 +389,8 @@ export interface EventPatch {
 
 /** Changes an event in Google Calendar (shown at once; undone if Google refuses). */
 export async function updateEvent(event: GEvent, patch: EventPatch): Promise<void> {
+  const currentSession = captureWorkspaceSession();
+  const uid = get().uid;
   const next: GEvent = {
     ...event,
     title: patch.title ?? event.title,
@@ -399,21 +411,25 @@ export async function updateEvent(event: GEvent, patch: EventPatch): Promise<voi
   replaceEverywhere(event.key, next);
   try {
     await calendarClient().patchCalendarEvent(event.calendarId, event.id, body);
+    if (!currentSession() || get().uid !== uid) return;
     saveCache();
   } catch (error) {
-    replaceEverywhere(event.key, event);
+    if (currentSession() && get().uid === uid) replaceEverywhere(event.key, event);
     throw error;
   }
 }
 
 /** Deletes an event from Google Calendar (undone if Google refuses). */
 export async function deleteEvent(event: GEvent): Promise<void> {
+  const currentSession = captureWorkspaceSession();
+  const uid = get().uid;
   replaceEverywhere(event.key, null);
   try {
     await calendarClient().removeCalendarEvent(event.calendarId, event.id);
+    if (!currentSession() || get().uid !== uid) return;
     saveCache();
   } catch (error) {
-    replaceEverywhere(event.key, event);
+    if (currentSession() && get().uid === uid) replaceEverywhere(event.key, event);
     throw error;
   }
 }

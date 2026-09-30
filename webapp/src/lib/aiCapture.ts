@@ -14,7 +14,7 @@ import { PRIORITIES, type Priority } from "./dart";
 import { chatJson, AiError, useAiKey } from "./ai";
 import { uuid, type Subtask, type Task } from "./model";
 import { startOfDay, today } from "./time";
-import { addTask, deleteTask, newTask, updateTask, useWorkspace } from "@/store/workspace";
+import { addTask, captureWorkspaceSession, deleteTask, newTask, updateTask, useWorkspace } from "@/store/workspace";
 import { toast } from "@/ui/toast";
 
 /** Tasks the AI is still working on (rows show a shimmer). */
@@ -50,19 +50,37 @@ function context() {
 const clampDate = (s?: string | null) => {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   const d = new Date(`${s}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : startOfDay(d);
+  return Number.isNaN(d.getTime()) || format(d, "yyyy-MM-dd") !== s ? null : startOfDay(d);
 };
+
+/** The model's JSON is external input; a prompt is not a schema. */
+export function parseAiTask(value: unknown): AiTask {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new AiError("DeepSeek returned an invalid task. Try again.");
+  const raw = value as Record<string, unknown>;
+  const text = (key: string, max = 1000) => typeof raw[key] === "string" ? (raw[key] as string).trim().slice(0, max) : undefined;
+  return {
+    title: text("title"), type: raw.type === "assignment" || raw.type === "todo" ? raw.type : undefined,
+    date: text("date", 10), time: raw.time === null ? null : text("time", 5),
+    minutes: typeof raw.minutes === "number" && Number.isFinite(raw.minutes) ? raw.minutes : undefined,
+    difficulty: typeof raw.difficulty === "number" && Number.isFinite(raw.difficulty) ? raw.difficulty : undefined,
+    priority: text("priority", 30), subject: text("subject"), notes: text("notes", 12000),
+    subtasks: Array.isArray(raw.subtasks) ? raw.subtasks.slice(0, 50).flatMap((s) => {
+      if (!s || typeof s !== "object" || typeof s.title !== "string") return [];
+      return [{ title: s.title.trim().slice(0, 1000), date: typeof s.date === "string" ? s.date : null }];
+    }) : [],
+  };
+}
 
 /** Applies an AI answer over a task. */
 function apply(base: Task, ai: AiTask): Task {
   const { projects } = useWorkspace.getState();
   const date = clampDate(ai.date) ?? base.date;
   let startTime: Date | null = base.startTime;
-  if (ai.time && /^\d{1,2}:\d{2}$/.test(ai.time)) {
+  if (ai.time && /^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(ai.time)) {
     const [h, m] = ai.time.split(":").map(Number);
     startTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, m);
   } else if (ai.time === null) startTime = null;
-  const minutes = ai.minutes && ai.minutes > 0 && ai.minutes < 24 * 60 ? Math.round(ai.minutes / 5) * 5 : base.durationMinutes;
+  const minutes = ai.minutes && ai.minutes > 0 && ai.minutes < 24 * 60 ? Math.max(5, Math.round(ai.minutes / 5) * 5) : base.durationMinutes;
   const priority = PRIORITIES.includes(ai.priority as Priority) ? (ai.priority as Priority) : base.priority;
   const project = ai.subject ? projects.find((p) => p.title.toLowerCase() === ai.subject!.toLowerCase()) : undefined;
   const difficulty = ai.difficulty && ai.difficulty >= 1 && ai.difficulty <= 5 ? Math.round(ai.difficulty) : null;
@@ -91,6 +109,34 @@ function apply(base: Task, ai: AiTask): Task {
   };
 }
 
+/** Keep every field the person changed while the answer was being prepared. */
+export function mergeAiTask(original: Task, current: Task, answer: unknown): Task {
+  const proposed = apply(original, parseAiTask(answer));
+  const next = { ...current };
+  const fields = ["title", "type", "date", "startTime", "durationMinutes", "remainingMinutes", "priority", "difficulty", "projectId", "notes", "subtasks"] as const;
+  for (const field of fields) {
+    if (JSON.stringify(current[field]) === JSON.stringify(original[field])) {
+      Object.assign(next, { [field]: proposed[field] });
+    }
+  }
+  // A time inferred for the original date must not undo a manual date change.
+  if (next.startTime && next.date.getTime() !== proposed.date.getTime() && current.startTime === original.startTime) {
+    next.startTime = new Date(next.date.getFullYear(), next.date.getMonth(), next.date.getDate(), next.startTime.getHours(), next.startTime.getMinutes());
+  }
+  if (next.difficulty === proposed.difficulty && current.difficulty === original.difficulty) {
+    next.extra = { ...current.extra, ...(proposed.extra?.difficultySelected ? { difficultySelected: true } : {}) };
+  }
+  return next;
+}
+
+function taskOperation(id: string) {
+  const session = captureWorkspaceSession();
+  const controller = new AbortController();
+  const valid = () => session() && current(id) != null;
+  const unsubscribe = useWorkspace.subscribe(() => { if (!valid()) controller.abort(); });
+  return { valid, controller, unsubscribe };
+}
+
 const current = (id: string) => useWorkspace.getState().tasks.find((t) => t.id === id);
 
 function fail(error: unknown) {
@@ -108,22 +154,24 @@ export function smartAdd(text: string, base: Partial<Task>) {
   }
   const task = newTask({ ...base, title: text.trim(), date: base.date ?? today() });
   addTask(task);
+  const operation = taskOperation(task.id);
   pending(task.id, true);
   void (async () => {
     try {
-      const ai = await chatJson<AiTask>([
+      const ai = await chatJson<unknown>([
         {
           role: "system",
           content: `${context()}\nTurn the student's note into one task. Reply as JSON {title, type, date, time, minutes, priority, difficulty, subject}. title: short, cleaned, without the date/time/length words. Leave out what isn't said (null).`,
         },
         { role: "user", content: text },
-      ]);
+      ], operation.controller.signal);
       const now = current(task.id);
       // Edited meanwhile: the person's changes win.
-      if (now && now.title === task.title) updateTask(apply(now, ai));
+      if (operation.valid() && now) updateTask(mergeAiTask(task, now, ai));
     } catch (error) {
-      fail(error);
+      if (operation.valid() && !operation.controller.signal.aborted) fail(error);
     } finally {
+      operation.unsubscribe();
       pending(task.id, false);
     }
   })();
@@ -131,13 +179,17 @@ export function smartAdd(text: string, base: Partial<Task>) {
 }
 
 /** Reads the text in a photo on the device. */
-async function readPhoto(file: File): Promise<string> {
+async function readPhoto(file: File, signal: AbortSignal): Promise<string> {
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("eng");
+  const cancel = () => void worker.terminate();
+  signal.addEventListener("abort", cancel, { once: true });
   try {
+    signal.throwIfAborted();
     const { data } = await worker.recognize(file);
     return data.text;
   } finally {
+    signal.removeEventListener("abort", cancel);
     void worker.terminate();
   }
 }
@@ -153,10 +205,12 @@ export function tasksFromPhoto(file: File, base: Partial<Task>) {
   }
   const holder = newTask({ ...base, title: "Reading photo…", date: base.date ?? today() });
   addTask(holder);
+  const operation = taskOperation(holder.id);
   pending(holder.id, true);
   void (async () => {
     try {
-      const text = (await readPhoto(file)).trim();
+      const text = (await readPhoto(file, operation.controller.signal)).trim();
+      if (!operation.valid()) return;
       if (text.length < 4) throw new AiError("No text found in that photo. Try a sharper, closer shot.");
       const ai = await chatJson<{ tasks?: AiTask[] }>([
         {
@@ -164,17 +218,21 @@ export function tasksFromPhoto(file: File, base: Partial<Task>) {
           content: `${context()}\nThe text below was read from a photo (a whiteboard, an assignment sheet, a syllabus) and may have OCR errors. Reply as JSON {tasks: [{title, type, date, time, minutes, priority, difficulty, subject, notes, subtasks: [{title, date}]}]}. One assignment sheet = one assignment, with its steps as subtasks and any interim deadlines as subtask dates; a list of separate jobs = separate tasks (at most 12). notes: one or two useful lines from the sheet (requirements, word count), else "".`,
         },
         { role: "user", content: text.slice(0, 12000) },
-      ]);
-      const list = (ai.tasks ?? []).filter((t) => t.title?.trim());
+      ], operation.controller.signal);
+      if (!operation.valid()) return;
+      const list = (Array.isArray(ai.tasks) ? ai.tasks : []).slice(0, 12).map(parseAiTask).filter((t) => t.title);
       if (list.length === 0) throw new AiError("Couldn’t find any tasks in that photo.");
       const now = current(holder.id);
-      if (now) updateTask(apply({ ...now, title: "" }, list[0]));
+      if (!now) return;
+      updateTask(mergeAiTask(holder, now, list[0]));
       for (const extra of list.slice(1)) addTask(apply(newTask({ ...base, title: "", date: base.date ?? today() }), extra));
       toast(list.length === 1 ? "Added from your photo" : `Added ${list.length} tasks from your photo`);
     } catch (error) {
+      if (!operation.valid() || operation.controller.signal.aborted) return;
       if (current(holder.id)?.title === "Reading photo…") deleteTask(holder.id);
       fail(error);
     } finally {
+      operation.unsubscribe();
       pending(holder.id, false);
     }
   })();

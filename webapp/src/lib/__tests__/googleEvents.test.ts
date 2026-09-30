@@ -5,6 +5,25 @@ import type { Project } from "../model";
 
 const cal: GCalendar = { id: "school", name: "ManageBac", color: "#3a7", primary: false, writable: false, googleSelected: true };
 
+it.each(["update", "delete"])("does not roll an event back into another account after a failed %s", async (operation) => {
+  const events = await import("../googleEvents");
+  const { calendarClient, useWorkspace } = await import("@/store/workspace");
+  let reject!: (error: Error) => void;
+  const method = operation === "update" ? "patchCalendarEvent" : "removeCalendarEvent";
+  vi.spyOn(calendarClient(), method).mockImplementation(() => new Promise<never>((_resolve, fail) => { reject = fail; }));
+  useWorkspace.setState({ user: { uid: "A", email: null, photoURL: null, displayName: null } });
+  const event = decodeEvent({ id: "private", summary: "Account A", start: { date: "2026-09-28" }, end: { date: "2026-09-29" } }, cal)!;
+  events.useGoogleEvents.setState({ uid: "A", months: { "2026-9": [event] } });
+  const request = (operation === "update" ? events.updateEvent(event, { title: "Changed" }) : events.deleteEvent(event)).catch(() => {});
+  useWorkspace.setState({ user: { uid: "B", email: null, photoURL: null, displayName: null } });
+  events.useGoogleEvents.setState({ uid: "B", months: {} });
+  reject(new Error("Network failed"));
+  await request;
+  expect(events.useGoogleEvents.getState().months).toEqual({});
+  vi.restoreAllMocks();
+  useWorkspace.setState({ user: null });
+});
+
 it("reads timed and all-day events, and skips this app's own task events", () => {
   const timed = decodeEvent({ id: "a", summary: "Chem lab", start: { dateTime: "2026-09-28T10:00:00+03:00" }, end: { dateTime: "2026-09-28T11:30:00+03:00" } }, cal)!;
   expect(timed.allDay).toBe(false);

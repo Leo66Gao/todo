@@ -317,11 +317,19 @@ export class GoogleCalendar {
   // Reading and editing your own calendars' events (these throw ApiError).
 
   async listCalendars(): Promise<RawCalendar[]> {
-    const data = await this.request(
-      "GET",
-      `${BASE}/users/me/calendarList?fields=items(id,summary,summaryOverride,backgroundColor,primary,accessRole,selected)`,
-    );
-    return (data?.items ?? []) as RawCalendar[];
+    const calendars: RawCalendar[] = [];
+    let pageToken: string | undefined;
+    do {
+      const params = new URLSearchParams({
+        maxResults: "250",
+        fields: "nextPageToken,items(id,summary,summaryOverride,backgroundColor,primary,accessRole,selected)",
+      });
+      if (pageToken) params.set("pageToken", pageToken);
+      const data = await this.request("GET", `${BASE}/users/me/calendarList?${params}`);
+      calendars.push(...((data?.items ?? []) as RawCalendar[]));
+      pageToken = data?.nextPageToken;
+    } while (pageToken);
+    return calendars;
   }
 
   async listEvents(calendarId: string, timeMin: Date, timeMax: Date): Promise<RawEvent[]> {

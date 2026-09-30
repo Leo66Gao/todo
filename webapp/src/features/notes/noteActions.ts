@@ -6,7 +6,7 @@ import { contentFromDelta } from "@/lib/delta";
 import { encodeNote, recordFits, uuid } from "@/lib/model";
 import { versionsKey, withVersion, type Version } from "@/lib/versions";
 import type { Route } from "@/shell/nav";
-import { addNote, deleteNote, readSide, updateNote, useWorkspace, writeSide } from "@/store/workspace";
+import { addNote, captureWorkspaceSession, deleteNote, readSide, updateNote, useWorkspace, writeSide } from "@/store/workspace";
 import { confirmDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 
@@ -28,9 +28,11 @@ export function createNote(navigate: (r: Route) => void, opts: { subjectId?: str
 
 /** Makes a note from a Word document and opens it. */
 export async function importNote(file: File, navigate: (r: Route) => void, subjectId: string | null) {
+  const currentSession = captureWorkspaceSession();
   try {
     const { docxToContent } = await import("@/lib/noteFiles");
     const { title, ops } = await docxToContent(file);
+    if (!currentSession()) return;
     const now = new Date();
     const note: StudyNote = {
       id: uuid(),
@@ -50,6 +52,7 @@ export async function importNote(file: File, navigate: (r: Route) => void, subje
     navigate({ view: "note", id: note.id });
     toast(`Imported “${title}”`);
   } catch {
+    if (!currentSession()) return;
     toast("This file couldn’t be read. Choose a Word document (.docx).");
   }
 }

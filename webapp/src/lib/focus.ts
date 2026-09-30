@@ -168,13 +168,14 @@ async function requestAlerts() {
   }
 }
 
-const MAX_ROUNDS = 40;
+export const MAX_FOCUS_NOTIFICATIONS = 40;
+export const isFocusNotification = (id: number) => id >= FOCUS_NOTIFICATION_ID && id < FOCUS_NOTIFICATION_ID + MAX_FOCUS_NOTIFICATIONS;
 
 async function scheduleEnd(session: FocusSession | null) {
   if (!isNative()) return;
   const { LocalNotifications } = await import("@capacitor/local-notifications");
   await LocalNotifications.cancel({
-    notifications: Array.from({ length: MAX_ROUNDS }, (_, i) => ({ id: FOCUS_NOTIFICATION_ID + i })),
+    notifications: Array.from({ length: MAX_FOCUS_NOTIFICATIONS }, (_, i) => ({ id: FOCUS_NOTIFICATION_ID + i })),
   }).catch(() => {});
   if (!session?.endsAt || session.endsAt <= Date.now()) return;
   if ((await LocalNotifications.checkPermissions()).display !== "granted") return;
@@ -184,7 +185,7 @@ async function scheduleEnd(session: FocusSession | null) {
   const index = session.plan?.index ?? 0;
   let at = session.endsAt;
   ends.push({ at, kind: session.kind, last: !session.plan || index === blocks.length - 1 });
-  for (let i = index + 1; i < blocks.length && ends.length < MAX_ROUNDS; i++) {
+  for (let i = index + 1; i < blocks.length && ends.length < MAX_FOCUS_NOTIFICATIONS; i++) {
     at += blocks[i].ms;
     ends.push({ at, kind: blocks[i].kind, last: i === blocks.length - 1 });
   }

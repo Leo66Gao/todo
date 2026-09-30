@@ -102,6 +102,18 @@ export const useWorkspace = create<WorkspaceState>(() => ({
 const get = () => useWorkspace.getState();
 const set = (patch: Partial<WorkspaceState>) => useWorkspace.setState(patch);
 
+// Background work belongs to the session that started it, even if the same
+// account signs back in after signing out.
+let sessionGeneration = 0;
+useWorkspace.subscribe((state, previous) => {
+  if (state.user?.uid !== previous.user?.uid) sessionGeneration++;
+});
+export function captureWorkspaceSession(): () => boolean {
+  const generation = sessionGeneration;
+  const uid = get().user?.uid;
+  return () => generation === sessionGeneration && get().user?.uid === uid;
+}
+
 // ---------------------------------------------------------------------------
 // Internal (non-rendered) state
 

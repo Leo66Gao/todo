@@ -1,5 +1,16 @@
 import { afterEach, expect, it, vi } from "vitest";
 
+it("loads every calendar-list page", async () => {
+  const { GoogleCalendar } = await import("../calendar");
+  const client = new GoogleCalendar();
+  client.connectWithAccessToken("owner@example.com", "fake", "owner");
+  const request = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "one" }], nextPageToken: "next-page" })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: "two" }] })));
+  vi.stubGlobal("fetch", request);
+  expect((await client.listCalendars()).map((c) => c.id)).toEqual(["one", "two"]);
+  expect(new URL(request.mock.calls[1][0]).searchParams.get("pageToken")).toBe("next-page");
+});
+
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();

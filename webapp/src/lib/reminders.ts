@@ -5,7 +5,7 @@
 // exist for the next two weeks and brings the scheduled ones in line.
 
 import { create } from "zustand";
-import { FOCUS_NOTIFICATION_ID } from "./focus";
+import { isFocusNotification } from "./focus";
 import { isNative } from "./native";
 import { getLocal, setLocal } from "./prefs";
 import { sameDay, startOfDay } from "./time";
@@ -126,7 +126,7 @@ async function apply(planned: PlannedReminder[]) {
     });
     const pending = await LocalNotifications.getPending();
     // The focus timer's notification isn't a reminder: leave it alone.
-    scheduled = new Map(pending.notifications.filter((n) => n.id !== FOCUS_NOTIFICATION_ID).map((n) => [n.id, ""]));
+    scheduled = new Map(pending.notifications.filter((n) => !isFocusNotification(n.id)).map((n) => [n.id, ""]));
   }
   const wanted = new Map(planned.map((r) => [r.id, r]));
   const cancel = [...scheduled.keys()].filter((id) => wanted.get(id) == null || fingerprint(wanted.get(id)!) !== scheduled.get(id));
@@ -166,6 +166,7 @@ export async function onReminderOpened(open: (taskId: string | null, day: Date) 
   if (!isNative()) return;
   const { LocalNotifications } = await import("@capacitor/local-notifications");
   await LocalNotifications.addListener("localNotificationActionPerformed", ({ notification }) => {
+    if (isFocusNotification(notification.id) || notification.extra?.focus) return;
     const extra = (notification.extra ?? {}) as { taskId?: string | null; day?: string };
     const [y, m, d] = (extra.day ?? "").split("-").map(Number);
     open(extra.taskId ?? null, y ? new Date(y, m - 1, d) : new Date());
