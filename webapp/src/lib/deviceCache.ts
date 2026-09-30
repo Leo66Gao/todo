@@ -14,6 +14,7 @@ export interface DeviceCache {
   retryReason?: string | null;
   retryError?: string | null;
   lastUploadedAt?: number | null;
+  lastDownloadedAt?: number | null;
 }
 
 export const emptyDeviceCache = (): DeviceCache => ({ records: {}, pending: {}, bases: {}, pendingIds: {}, lastSync: null });
@@ -138,7 +139,7 @@ export class WorkspaceCache {
     const previous = this.previous.get(uid) ?? emptyDeviceCache();
     const tx = db.transaction(["accounts", "records", "outbox"], "readwrite", { durability: "strict" });
     const done = completed(tx);
-    tx.objectStore("accounts").put({ uid, lastSync: state.lastSync, retryAt: state.retryAt, retryReason: state.retryReason, retryError: state.retryError, lastUploadedAt: state.lastUploadedAt });
+    tx.objectStore("accounts").put({ uid, lastSync: state.lastSync, retryAt: state.retryAt, retryReason: state.retryReason, retryError: state.retryError, lastUploadedAt: state.lastUploadedAt, lastDownloadedAt: state.lastDownloadedAt });
     const records = tx.objectStore("records");
     const outbox = tx.objectStore("outbox");
     const recovered: Record<string, { payload: string; operationId: string }> = {};

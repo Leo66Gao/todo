@@ -205,6 +205,7 @@ export class CloudSync {
         this.retryAt = data.retryAt ?? null;
         this.retryReason = data.retryReason ?? null;
         this.lastUploadedAt = data.lastUploadedAt ?? null;
+        this.lastDownloadedAt = data.lastDownloadedAt ?? null;
         this.lastFlushError = data.retryError ?? null;
     }
     if (Object.keys(this.pending).some((k) => !(k in this.pendingIds))) {
@@ -311,7 +312,7 @@ export class CloudSync {
           deliveredInitialRecords = true;
           this.onRecords?.({ ...this.records });
         }
-        if (recordsChanged || watermarkChanged) {
+        if (recordsChanged || watermarkChanged || (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites)) {
           this.remember();
         }
         const status = this.hasPending
@@ -348,7 +349,7 @@ export class CloudSync {
       bases: this.bases,
       pendingIds: this.pendingIds,
       lastSync: this.lastSyncMillis,
-      retryAt: this.retryAt, retryReason: this.retryReason, retryError: this.lastFlushError, lastUploadedAt: this.lastUploadedAt,
+      retryAt: this.retryAt, retryReason: this.retryReason, retryError: this.lastFlushError, lastUploadedAt: this.lastUploadedAt, lastDownloadedAt: this.lastDownloadedAt,
     });
     if (generation === this.generation) this.storageError = null;
   }

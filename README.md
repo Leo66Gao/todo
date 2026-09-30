@@ -85,6 +85,8 @@ automatic sync (daily quotas until the next Pacific midnight reset), while edits
 remain on the device. Oversized records stay local without blocking other uploads.
 The `records.updatedAt` index in `firestore.indexes.json` keeps incremental sync
 from scanning entire record collections in Firestore Enterprise.
+Settings → Account → Sync details shows pending uploads, confirmed cloud
+activity, conflict copies, quota retry time, and the separate Calendar queue.
 
 Data created before the first sign-in is offered for import automatically the
 first time an account signs in on that device.

@@ -37,6 +37,7 @@ import { LEAD_OPTIONS, requestReminderPermission, setReminderPrefs, useReminderP
 import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
 import { setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
+import { SyncDetails } from "./SyncDetails";
 
 const FIELD_NAMES: Record<FieldId, string> = {
   type: "Task type",
@@ -101,6 +102,7 @@ function Item({ title, detail, children, className }: { title: ReactNode; detail
 }
 
 function AccountSection() {
+  const [showSync, setShowSync] = useState(false);
   const user = useWorkspace((s) => s.user);
   const busy = useWorkspace((s) => s.authBusy);
   const status = useWorkspace((s) => s.cloudStatus);
@@ -122,10 +124,12 @@ function AccountSection() {
               </span>
             }
           >
+            <Button size="sm" variant="ghost" aria-expanded={showSync} onClick={() => setShowSync(!showSync)}>Sync details</Button>
             <Button size="sm" disabled={busy} onClick={() => void signOut()}>
               Sign out
             </Button>
           </Item>
+          {showSync && <SyncDetails />}
           {importAvailable && (
             <Item title="Import data from this device" detail="Adds anything you created here before signing in. Nothing already synced is replaced.">
               <Button size="sm" onClick={() => void importLocalData()}>
@@ -136,12 +140,14 @@ function AccountSection() {
         </>
       ) : (
         <Item title="Not signed in" detail="Sign in with the same Google account on every device to keep them in sync.">
+          <Button size="sm" variant="ghost" aria-expanded={showSync} onClick={() => setShowSync(!showSync)}>Sync details</Button>
           <Button size="sm" variant="primary" disabled={busy} onClick={() => void signInWithGoogle()}>
             {busy ? <Spinner className="size-3.5 border-on-ink/40 border-t-on-ink" /> : null}
             Sign in with Google
           </Button>
         </Item>
       )}
+      {!user && showSync && <SyncDetails />}
       {error && <div className="px-4 py-2.5 text-xs text-danger">{error}</div>}
     </Group>
   );

@@ -70,6 +70,7 @@ export interface WorkspaceState {
   cloudError: string | null;
   syncError: string | null;
   calendarConnected: boolean;
+  calendarPending: number;
   importAvailable: boolean;
   tasks: Task[];
   projects: Project[];
@@ -91,6 +92,7 @@ export const useWorkspace = create<WorkspaceState>(() => ({
   cloudError: null,
   syncError: null,
   calendarConnected: false,
+  calendarPending: 0,
   importAvailable: false,
   tasks: [],
   projects: [],
@@ -485,6 +487,8 @@ async function switchAccount(user: User | null) {
   baseline = {};
   set({
     user: null,
+    authBusy: false,
+    calendarPending: 0,
     cloudError: null,
     tasks: [],
     projects: [],
@@ -627,7 +631,11 @@ function markExported(uid: string, taskId: string, fingerprint: string | null) {
   else exported[taskId] = fingerprint;
   prefs.setLocal(exportedKey(uid), exported);
 }
-const persistOutbox = (uid: string) => prefs.setString(outboxKey(uid), JSON.stringify(outbox));
+const persistOutbox = (uid: string) => {
+  const stored = prefs.setString(outboxKey(uid), JSON.stringify(outbox));
+  if (get().user?.uid === uid) set({ calendarPending: Object.keys(outbox).length });
+  return stored;
+};
 
 function storeCalendarAction(uid: string, action: CalendarAction) {
   if (calendarOwnerUid !== uid || get().user?.uid !== uid) return;
@@ -804,6 +812,7 @@ async function restoreCalendarForAccount(user: User) {
     }
   }
   if (!calendarEnabled) return;
+  if (get().user?.uid === user.uid) set({ calendarPending: Object.keys(outbox).length });
   if (!navigator.onLine) {
     // Offline, Google can't be asked: open straight away and reconnect later.
     window.addEventListener("online", () => void (get().user?.uid === user.uid && restoreCalendarForAccount(user)), { once: true });
