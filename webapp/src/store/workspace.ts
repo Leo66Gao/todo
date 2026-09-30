@@ -19,6 +19,9 @@ import {
 } from "firebase/auth";
 import { CloudSync, type SyncDetails } from "@/lib/cloudSync";
 import { readGuestCache, saveGuestCache } from "@/lib/deviceCache";
+import { acknowledgeDraft, discardRecordDrafts, readDrafts, resolveDraft, type EditorDraft } from "@/lib/editorDrafts";
+import { recoveryRecords } from "@/lib/recordRecovery";
+import { versionsKey, withVersion, type Version } from "@/lib/versions";
 import {
   CALENDAR_SCOPES,
   GoogleCalendar,
@@ -40,6 +43,7 @@ import {
   encodeProject,
   encodeSettings,
   encodeTask,
+  recordFits,
   uuid,
   type Project,
   type StudyNote,
@@ -414,10 +418,12 @@ async function initialize() {
       const records = await cloud.connect(last.uid);
       set({ user: last });
       applyRecords(records);
+      await recoverEditorDrafts();
       set({ isLoading: false });
     } else {
       const cached = await readGuestCache();
       applyRecords(cached?.records ?? readGuestRecords());
+      await recoverEditorDrafts();
       // Never signed in on this device: the local workspace is all there is.
       if (prefs.getString("legacyOwner") == null) set({ isLoading: false });
     }
@@ -502,6 +508,7 @@ async function switchAccount(user: User | null) {
     prefs.setLocal(LAST_ACCOUNT, null);
     const cached = await readGuestCache();
     applyRecords(cached?.records ?? readGuestRecords());
+    await recoverEditorDrafts();
     set({ cloudStatus: "Local only", importAvailable: false });
   } else {
     const records = await cloud!.connect(user.uid);
@@ -509,6 +516,7 @@ async function switchAccount(user: User | null) {
     set({ user: toAccount(user) });
     prefs.setLocal(LAST_ACCOUNT, toAccount(user));
     applyRecords(records);
+    await recoverEditorDrafts();
     // Google Calendar reconnects in the background; the workspace is ready now.
     void restoreCalendarForAccount(user).catch((error) => set({ cloudError: String(error) }));
     const importAvailable =
@@ -1116,6 +1124,7 @@ export function deleteTask(id: string) {
   }
   const task = get().tasks.find((t) => t.id === id);
   if (!task) return;
+  try { discardRecordDrafts(get().user?.uid ?? "", "task", id); } catch { /* Preserve storage errors in the save path. */ }
   if (calendarEnabled) removeTaskFromCalendar(task);
   set({ tasks: get().tasks.filter((t) => t.id !== id) });
   void saveData();
@@ -1286,6 +1295,64 @@ export function updateNote(note: StudyNote) {
   void saveData();
 }
 
+/** Commits an editor draft without replacing a concurrently edited field. */
+export function saveEditorDraft(entry: EditorDraft): { saved: boolean; conflicted: boolean; id: string } {
+  const currentSession = captureWorkspaceSession();
+  if ((get().user?.uid ?? "") !== entry.owner) return { saved: false, conflicted: false, id: entry.recordId };
+  const note = entry.kind === "note" ? get().notes.find((n) => n.id === entry.recordId) : undefined;
+  const task = entry.kind === "task" ? get().tasks.find((t) => t.id === entry.recordId) : undefined;
+  const current = note ? encodeNote(note) : task ? encodeTask(task) : null;
+  const { value, conflicted } = resolveDraft(entry, current);
+  if (!recordFits(value)) return { saved: false, conflicted, id: entry.recordId };
+  let id = entry.recordId;
+  if (conflicted) {
+    const [key, payload] = recoveryRecords(`${entry.kind}:${entry.recordId}`, JSON.stringify(value), entry.operationId)[0];
+    id = key.slice(key.indexOf(":") + 1);
+    if (key.startsWith("note:")) {
+      if (!get().notes.some((n) => n.id === id)) addNote(decodeNote(JSON.parse(payload)));
+    } else if (!get().tasks.some((t) => t.id === id)) addTask(decodeTask(JSON.parse(payload)));
+  } else if (note) {
+    const history = readSide<{ versions?: Version[] }>(versionsKey(note.id), {});
+    const versions = withVersion(history.versions ?? [], note, Date.now());
+    if (versions) writeSide(versionsKey(note.id), { versions });
+    updateNote({ ...note, ...entry.patch, updatedAt: new Date() });
+  } else if (task && entry.patch.notes !== undefined) updateTaskNotes(task.id, entry.patch.notes);
+  // Acknowledge only after the IndexedDB record/outbox is durable. The journal
+  // survives tab close, storage failure, account changes and newer keystrokes.
+  void saveData().then((stored) => {
+    if (stored && currentSession()) {
+      try { acknowledgeDraft(entry); } catch { /* Replaying it is idempotent. */ }
+    }
+  });
+  return { saved: true, conflicted, id };
+}
+
+async function recoverEditorDrafts() {
+  const currentSession = captureWorkspaceSession();
+  let entries: EditorDraft[];
+  try { entries = readDrafts(get().user?.uid ?? ""); }
+  catch { set({ cloudError: "This browser is blocking editor draft recovery. Your saved workspace is still available." }); return; }
+  for (const entry of entries) {
+    if (!currentSession()) return;
+    try {
+      const result = saveEditorDraft(entry);
+      if (!result.saved) {
+        // Oversized drafts remain complete and exportable as small recovery
+        // notes rather than being truncated or silently dropped on restart.
+        const current = entry.kind === "note" ? get().notes.find((n) => n.id === entry.recordId) : get().tasks.find((t) => t.id === entry.recordId);
+        const payload = JSON.stringify(resolveDraft(entry, current ? entry.kind === "note" ? encodeNote(current as StudyNote) : encodeTask(current as Task) : null).value);
+        for (const [key, value] of recoveryRecords(`settings:editorDraft:${entry.kind}:${entry.recordId}`, payload, entry.operationId)) {
+          if (key.startsWith("note:") && !get().notes.some((n) => `note:${n.id}` === key)) addNote(decodeNote(JSON.parse(value)));
+        }
+      }
+      const stored = await saveData();
+      if (stored && currentSession()) { try { acknowledgeDraft(entry); } catch { /* Preserve on failure. */ } }
+    } catch (error) {
+      set({ cloudError: `An editor draft is preserved on this device but could not be recovered: ${String(error)}` });
+    }
+  }
+}
+
 /** A synced side record, parsed (or the fallback when missing or unreadable). */
 const parsedSide = new Map<string, { payload: string; value: unknown }>();
 export function readSide<T>(key: string, fallback: T): T {
@@ -1312,6 +1379,7 @@ export function writeSide(key: string, value: unknown | null) {
 }
 
 export function deleteNote(id: string) {
+  try { discardRecordDrafts(get().user?.uid ?? "", "note", id); } catch { /* The deletion can still be saved. */ }
   // Its version history goes with it.
   const side = { ...get().side };
   delete side[`settings:versions:${id}`];

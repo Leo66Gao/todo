@@ -88,6 +88,12 @@ from scanning entire record collections in Firestore Enterprise.
 Settings → Account → Sync details shows pending uploads, confirmed cloud
 activity, conflict copies, quota retry time, and the separate Calendar queue.
 
+Notes and task notes also keep an account-scoped editor draft on this device
+before their save timer runs. Reloading recovers unfinished drafts; an edited
+field that changed elsewhere is preserved as a conflict copy. Cmd/Ctrl+S confirms
+the device save, while cloud progress remains visible in Sync details. Oversized
+note drafts can still be exported before shortening them.
+
 Data created before the first sign-in is offered for import automatically the
 first time an account signs in on that device.
 

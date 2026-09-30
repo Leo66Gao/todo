@@ -6,13 +6,14 @@ import { BookMarked, Check, ChevronDown, ChevronLeft, FileText, Folder, Moon, Mo
 import { useAppearance } from "@/lib/appearance";
 import { argbToCss } from "@/lib/dart";
 import { isEmptyContent } from "@/lib/delta";
-import { encodeNote, recordFits, uuid, type StudyNote } from "@/lib/model";
+import { changeDraft, storeDraft, type EditorDraft, type DraftField } from "@/lib/editorDrafts";
+import { encodeNote, uuid, type StudyNote } from "@/lib/model";
 import { bibliography, bibliographyHeading, inText, reference } from "@/lib/sources";
 import { countWords, formatCount } from "@/lib/words";
 import { openSources, type CiteTarget } from "@/features/sources/library";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
-import { addFolder, addNote, deleteNote, readSide, updateNote, useWorkspace } from "@/store/workspace";
+import { addFolder, addNote, captureWorkspaceSession, deleteNote, flushWorkspaceSave, readSide, saveEditorDraft, updateNote, useWorkspace } from "@/store/workspace";
 import { Button, IconButton } from "@/ui/controls";
 import { cn } from "@/ui/cn";
 import { Menu, Popover, promptDialog, Tooltip } from "@/ui/overlay";
@@ -20,7 +21,7 @@ import { noteHref, RichText, type EditorAction, type NoteLinks } from "@/ui/Rich
 import { toast } from "@/ui/toast";
 import { getLocal, setLocal } from "@/lib/prefs";
 import { useMedia } from "@/ui/useMedia";
-import { editedLabel, recordVersion, removeNote } from "./noteActions";
+import { editedLabel, removeNote } from "./noteActions";
 import { VersionHistory } from "./VersionHistory";
 import { NoteAiButton } from "./NoteAi";
 
@@ -60,7 +61,10 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   const [title, setTitle] = useState(shownTitle(note.title));
   // Only the fields edited here are written back, so a change that arrives
   // from another device to the other field is never overwritten by a stale draft.
-  const draft = useRef<{ title?: string; content?: string }>({});
+  const draft = useRef<EditorDraft | null>(null);
+  const [editorSession] = useState(() => ({ current: captureWorkspaceSession(), owner: useWorkspace.getState().user?.uid ?? "", journalId: uuid() }));
+  const warned = useRef(false);
+  const draftDurable = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [savedTitle, setSavedTitle] = useState(note.title);
   const [syncedTitle, setSyncedTitle] = useState(note.title);
@@ -193,29 +197,38 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   const subjectFolders = folders.filter((f) => f.subjectId === note.subjectId);
   const folder = folders.find((f) => f.id === note.folderId);
 
-  const persist = () => {
+  const persist = (openCopy = true): boolean => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+    if (!editorSession.current()) return false;
     const pending = draft.current;
-    if (pending.title === undefined && pending.content === undefined) return;
-    const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
-    if (!current) return;
-    const next: StudyNote = {
-      ...current,
-      title: pending.title !== undefined ? pending.title.trim() || "Untitled note" : current.title,
-      content: pending.content ?? current.content,
-      updatedAt: new Date(),
-    };
-    if (!recordFits(encodeNote(next))) {
-      toast("This note is too large to sync. Keep it under 650 KB.");
-      return;
+    if (!pending) return true;
+    const result = saveEditorDraft(pending);
+    if (!result.saved) {
+      toast(draftDurable.current ? "This note is too large to sync. Its draft is kept on this device; shorten it or export it." : "This note is too large and draft storage is unavailable. Keep this page open and export it before leaving.");
+      return false;
     }
-    draft.current = {};
-    // The note as it was, at most every ten minutes.
-    recordVersion(current);
-    updateNote(next);
-    setSavedTitle(next.title);
+    draft.current = null;
+    const next = useWorkspace.getState().notes.find((n) => n.id === result.id);
+    if (next) setSavedTitle(next.title);
     setEditingTitle(false);
+    if (result.conflicted) {
+      toast("The original changed elsewhere. Your edits were kept in a conflict copy.");
+      if (openCopy) navigate({ view: "note", id: result.id });
+    }
+    return true;
+  };
+
+  const remember = (field: DraftField, value: string, basedOn: string) => {
+    if (!editorSession.current()) return;
+    const current = useWorkspace.getState().notes.find((n) => n.id === note.id) ?? note;
+    draft.current = changeDraft(draft.current, editorSession.owner, "note", encodeNote(current), editorSession.journalId, field, value, basedOn);
+    try { storeDraft(draft.current); draftDurable.current = true; }
+    catch {
+      draftDurable.current = false;
+      if (!warned.current) { warned.current = true; toast("Draft storage is unavailable. Keep this page open until the device save finishes."); }
+      persist();
+    }
   };
 
   const schedule = () => {
@@ -224,21 +237,44 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   };
 
   // Save on leave; a note that was never written in is discarded.
+  const mountGeneration = useRef(0);
   useEffect(
-    () => () => {
-      persist();
-      const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
-      if (current && current.title.trim() === "" && isEmptyContent(current.content)) deleteNote(current.id);
+    () => {
+      const generation = ++mountGeneration.current;
+      const currentSession = editorSession.current;
+      const abandoned = () => generation === mountGeneration.current && !draft.current;
+      return () => {
+        persist(false);
+        // React's development effect replay isn't a page leave. Let a replay
+        // renew its generation before discarding an actually abandoned note.
+        queueMicrotask(() => {
+          if (!abandoned() || !currentSession()) return;
+          const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+          if (current && current.title.trim() === "" && isEmptyContent(current.content)) deleteNote(current.id);
+        });
+      };
     },
     [], // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  const persistRef = useRef(persist);
+  useEffect(() => { persistRef.current = persist; });
+  useEffect(() => {
+    const leave = () => { persistRef.current(false); };
+    const hide = () => { if (document.hidden) leave(); };
+    window.addEventListener("pagehide", leave);
+    document.addEventListener("visibilitychange", hide);
+    return () => { window.removeEventListener("pagehide", leave); document.removeEventListener("visibilitychange", hide); };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        persist();
-        toast("Saved");
+        if (!persist()) return;
+        void flushWorkspaceSave().then(() => {
+          if (editorSession.current()) toast("Saved on this device");
+        }).catch(() => { if (editorSession.current()) toast("The device save failed. Your draft is still kept for recovery."); });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -246,8 +282,8 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
   });
 
   const exportDocx = async () => {
+    const current = { ...(useWorkspace.getState().notes.find((n) => n.id === note.id) ?? note), ...draft.current?.patch };
     persist();
-    const current = useWorkspace.getState().notes.find((n) => n.id === note.id) ?? note;
     try {
       const { fileName, noteToDocx, saveFile } = await import("@/lib/noteFiles");
       await saveFile(fileName(current.title, "docx"), await noteToDocx(current.title, current.content));
@@ -256,8 +292,8 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
     }
   };
   const exportPdf = async () => {
+    const current = { ...(useWorkspace.getState().notes.find((n) => n.id === note.id) ?? note), ...draft.current?.patch };
     persist();
-    const current = useWorkspace.getState().notes.find((n) => n.id === note.id) ?? note;
     try {
       const { printNote } = await import("@/lib/noteFiles");
       await printNote(current.title, current.content);
@@ -365,9 +401,10 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               const value = e.target.value.replace(/\n/g, " ");
               setTitle(value);
               setEditingTitle(true);
-              draft.current.title = value;
+              remember("title", value.trim() || "Untitled note", note.title);
               schedule();
             }}
+            onBlur={() => persist()}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -438,8 +475,9 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             onReady={setQuill}
             noteLinks={noteLinks}
             actions={actions}
-            onChange={(content) => {
-              draft.current.content = content;
+            onBlur={() => persist()}
+            onChange={(content, basedOn) => {
+              remember("content", content, basedOn);
               schedule();
             }}
           />

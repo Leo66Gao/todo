@@ -62,7 +62,8 @@ const BLOCKS: Tool[] = [
 
 export interface RichTextProps {
   value: string;
-  onChange: (content: string) => void;
+  onChange: (content: string, basedOn: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   toolbar?: ToolbarKind;
   reading?: boolean;
@@ -100,6 +101,7 @@ export const noteHref = (id: string) => `/note?id=${encodeURIComponent(id)}`;
 export function RichText({
   value,
   onChange,
+  onBlur,
   placeholder,
   toolbar = "none",
   reading,
@@ -115,7 +117,11 @@ export function RichText({
   const host = useRef<HTMLDivElement>(null);
   const quillRef = useRef<QuillType | null>(null);
   const lastEmitted = useRef<string>(value);
+  const accepted = useRef(value);
+  const incoming = useRef<string | null>(null);
   const onChangeRef = useRef(onChange);
+  const onBlurRef = useRef(onBlur);
+  useEffect(() => { onBlurRef.current = onBlur; }, [onBlur]);
   const [formats, setFormats] = useState<Record<string, unknown>>({});
   const [slash, setSlashState] = useState<Slash | null>(null);
   // Read by key handlers, which can run before React renders a new state.
@@ -179,7 +185,7 @@ export function RichText({
         const ops = quill.getContents().ops as DeltaOp[];
         const content = contentFromDelta(withAutoLinks(ops));
         lastEmitted.current = content;
-        onChangeRef.current(content);
+        onChangeRef.current(content, accepted.current);
         setFormats(quill.getFormat() as Record<string, unknown>);
         const next = slashAt(quill, cursorAfter(delta.ops as DeltaOp[]), !!linksRef.current);
         const open = slashRef.current;
@@ -187,6 +193,16 @@ export function RichText({
       });
       quill.on("selection-change", (range) => {
         if (range) setFormats(quill.getFormat(range) as Record<string, unknown>);
+        else {
+          // Save the local draft against its original base before accepting a
+          // remote version that arrived while this editor had focus.
+          onBlurRef.current?.();
+          if (incoming.current != null) {
+            accepted.current = lastEmitted.current = incoming.current;
+            incoming.current = null;
+            quill.setContents(deltaFromContent(accepted.current) as never, "silent");
+          }
+        }
         // Moving away from the "/" closes the menu.
         if (slashRef.current && (!range || slashAt(quill, range.index, !!linksRef.current)?.index !== slashRef.current.index)) setSlash(null);
       });
@@ -219,9 +235,17 @@ export function RichText({
   // Accept remote changes while the user is not editing this field.
   useEffect(() => {
     const quill = quillRef.current;
-    if (!quill || value === lastEmitted.current) return;
-    if (quill.hasFocus()) return;
-    lastEmitted.current = value;
+    if (!quill) return;
+    if (value === lastEmitted.current) {
+      accepted.current = value;
+      incoming.current = null;
+      return;
+    }
+    // The old prop is not a remote change while a local debounce is pending.
+    if (value === accepted.current && incoming.current == null) return;
+    if (quill.hasFocus()) { incoming.current = value; return; }
+    incoming.current = null;
+    accepted.current = lastEmitted.current = value;
     quill.setContents(deltaFromContent(value) as never, "silent");
   }, [value, ready]);
 

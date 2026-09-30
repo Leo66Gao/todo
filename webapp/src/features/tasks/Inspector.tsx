@@ -16,19 +16,21 @@ import {
   X,
 } from "lucide-react";
 import { argbToCss, PRIORITIES, type Priority } from "@/lib/dart";
-import { encodeTask, hasExplicitDifficulty, recordFits, uuid, type Subtask, type Task } from "@/lib/model";
+import { encodeTask, hasExplicitDifficulty, uuid, type Subtask, type Task } from "@/lib/model";
+import { changeDraft, storeDraft, type EditorDraft } from "@/lib/editorDrafts";
 import { dueLabel, formatDuration, relativeDay, startOfDay } from "@/lib/time";
 import { clockOf, withClock } from "@/lib/timeParse";
 import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
 import {
   addSubtaskFull,
+  captureWorkspaceSession,
   deleteSubtask,
   patchTask,
   toggleSubtask,
   toggleTask,
   updateSubtask,
-  updateTaskNotes,
+  saveEditorDraft,
   useWorkspace,
 } from "@/store/workspace";
 import { cn } from "@/ui/cn";
@@ -434,20 +436,32 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
 
 function NotesEditor({ task, page }: { task: Task; page?: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<string | null>(null);
+  const pending = useRef<EditorDraft | null>(null);
+  const [editorSession] = useState(() => ({ current: captureWorkspaceSession(), owner: useWorkspace.getState().user?.uid ?? "", journalId: uuid() }));
+  const warned = useRef(false);
+  const draftDurable = useRef(false);
   const flush = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    const content = pending.current;
-    pending.current = null;
-    if (content == null) return;
-    if (!recordFits(encodeTask({ ...task, notes: content }))) {
-      toast("Notes are too long to sync. Shorten them to save.");
+    if (!editorSession.current() || !pending.current) return;
+    const result = saveEditorDraft(pending.current);
+    if (!result.saved) {
+      toast(draftDurable.current ? "Notes are too long to sync. The draft is kept on this device; shorten it to save." : "Notes are too long and draft storage is unavailable. Keep this page open and shorten them to save.");
       return;
     }
-    updateTaskNotes(task.id, content);
+    pending.current = null;
+    if (result.conflicted) toast("This task changed elsewhere. Your notes were kept in a conflict copy.");
   };
   useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const flushRef = useRef(flush);
+  useEffect(() => { flushRef.current = flush; });
+  useEffect(() => {
+    const leave = () => flushRef.current();
+    const hide = () => { if (document.hidden) leave(); };
+    window.addEventListener("pagehide", leave);
+    document.addEventListener("visibilitychange", hide);
+    return () => { window.removeEventListener("pagehide", leave); document.removeEventListener("visibilitychange", hide); };
+  }, []);
   return (
     <div
       className={cn(
@@ -460,8 +474,17 @@ function NotesEditor({ task, page }: { task: Task; page?: boolean }) {
         placeholder="Write notes, links or a checklist…"
         toolbar="compact"
         minHeight={72}
-        onChange={(content) => {
-          pending.current = content;
+        onBlur={flush}
+        onChange={(content, basedOn) => {
+          if (!editorSession.current()) return;
+          const current = useWorkspace.getState().tasks.find((t) => t.id === task.id) ?? task;
+          pending.current = changeDraft(pending.current, editorSession.owner, "task", encodeTask(current), editorSession.journalId, "notes", content, basedOn);
+          try { storeDraft(pending.current); draftDurable.current = true; }
+          catch {
+            draftDurable.current = false;
+            if (!warned.current) { warned.current = true; toast("Draft storage is unavailable. Keep this page open until the device save finishes."); }
+            flush();
+          }
           if (timer.current) clearTimeout(timer.current);
           timer.current = setTimeout(flush, 600);
         }}
