@@ -24,3 +24,11 @@ it("drops the oldest versions to stay small enough to sync", () => {
   expect(JSON.stringify({ versions: history }).length).toBeLessThanOrEqual(600_000);
   expect(history[0].content).toContain("9x");
 });
+
+it("limits multi-byte history by bytes while preserving whole versions", () => {
+  let history: Version[] = [];
+  for (let i = 0; i < 3; i++) history = withVersion(history, note(`${i}${"字".repeat(150_000)}`), i * VERSION_GAP, true)!;
+  expect(new TextEncoder().encode(JSON.stringify({ versions: history })).length).toBeLessThanOrEqual(650 * 1024);
+  expect(history[0].content).toContain("2字");
+  expect(history[0].content).toContain("字".repeat(150_000));
+});

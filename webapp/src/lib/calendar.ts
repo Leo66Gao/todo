@@ -118,6 +118,7 @@ export class GoogleCalendar {
   private token: string | null = null;
   private expiry: Date | null = null;
   private sessionUid: string | null = null;
+  private generation = 0;
 
   get isConnected() {
     return this.token != null && this.email != null && (isNative() || (this.expiry?.getTime() ?? 0) > Date.now() + 2 * 60000);
@@ -128,6 +129,7 @@ export class GoogleCalendar {
   }
 
   private setError(prefix: string, error: unknown) {
+    if (error instanceof ApiError && error.status === 499) return;
     this.lastError = `${prefix}: ${error instanceof Error ? error.message : String(error)}`;
     this.lastErrorStatus = error instanceof ApiError ? error.status : null;
     if (this.lastErrorStatus === 401) {
@@ -144,6 +146,8 @@ export class GoogleCalendar {
   }
 
   async authorize(opts: { interactive: boolean; email: string | null; uid: string }) {
+    let generation = ++this.generation;
+    const current = () => generation === this.generation;
     this.sessionUid = opts.uid;
     try {
       let expectedEmail = opts.email;
@@ -155,28 +159,34 @@ export class GoogleCalendar {
         } catch {
           // A cached token whose owner cannot be checked must not write events.
         }
-        if (matchingAccount && await this.verifyAccess()) return this.email;
+        if (!current()) return null;
+        if (matchingAccount && await this.verifyAccess()) return current() ? this.email : null;
+        if (!current()) return null;
         this.clearSession();
+        generation = this.generation;
         this.sessionUid = opts.uid;
       }
       // Web browsers cannot refresh a Google API token without user-facing
       // account UI. Only the explicit Connect action obtains a new web token.
       const token = isNative() ? await requestNativeToken(opts.interactive, expectedEmail ?? this.email) : null;
+      if (!current()) return null;
       if (!token) return null;
       const email = expectedEmail ?? this.email;
       if (!email) throw new Error("Google Calendar did not return an account email.");
       if (!sameAccount(await tokenEmail(token.accessToken), email)) {
         throw new Error(`Choose ${email} to connect Google Calendar.`);
       }
+      if (!current()) return null;
       this.apply(email, token.accessToken, token.expiry, opts.uid);
       return email;
     } catch (error) {
-      this.setError(opts.interactive ? "Sign-in failed" : "Silent sign-in failed", error);
+      if (current()) this.setError(opts.interactive ? "Sign-in failed" : "Silent sign-in failed", error);
       return null;
     }
   }
 
   connectWithAccessToken(email: string, accessToken: string, uid: string) {
+    this.generation++;
     this.apply(email, accessToken, new Date(Date.now() + 55 * 60000), uid);
   }
 
@@ -216,6 +226,7 @@ export class GoogleCalendar {
   }
 
   clearSession() {
+    this.generation++;
     this.clearCached();
     this.token = null;
     this.expiry = null;
@@ -224,30 +235,37 @@ export class GoogleCalendar {
   }
 
   private async currentToken(): Promise<string | null> {
+    const generation = this.generation;
+    const email = this.email;
+    const uid = this.sessionUid;
     const needsRefresh = !this.token || !this.expiry || this.expiry.getTime() - 2 * 60000 <= Date.now();
     if (!needsRefresh) return this.token;
     if (!isNative()) {
-      this.clearSession();
+      this.clearCached();
+      this.token = null;
+      this.expiry = null;
+      this.email = null;
       return null;
     }
     try {
-      const refreshed = await requestNativeToken(false, this.email);
+      const refreshed = await requestNativeToken(false, email);
       if (
         refreshed &&
-        this.email &&
-        this.sessionUid &&
-        sameAccount(await tokenEmail(refreshed.accessToken), this.email)
+        email && uid && generation === this.generation &&
+        sameAccount(await tokenEmail(refreshed.accessToken), email) && generation === this.generation
       ) {
-        this.apply(this.email, refreshed.accessToken, refreshed.expiry, this.sessionUid);
+        this.apply(email, refreshed.accessToken, refreshed.expiry, uid);
       }
     } catch {
       // Keep the old token; the request will report 401 if it is dead.
     }
-    return this.token;
+    return generation === this.generation ? this.token : null;
   }
 
   private async request(method: string, url: string, body?: unknown) {
+    const generation = this.generation;
     const token = await this.currentToken();
+    if (generation !== this.generation) throw new ApiError("Calendar account changed during this operation.", 499);
     if (!token) throw new ApiError("No Google Calendar session is available.", 401);
     const response = await fetch(url, {
       method,
@@ -257,6 +275,7 @@ export class GoogleCalendar {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
+    if (generation !== this.generation) throw new ApiError("Calendar account changed during this operation.", 499);
     if (!response.ok) {
       let message = response.statusText;
       try {

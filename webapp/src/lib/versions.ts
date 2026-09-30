@@ -15,7 +15,8 @@ export interface Version {
 export const versionsKey = (noteId: string) => `settings:versions:${noteId}`;
 export const VERSION_GAP = 10 * 60_000;
 const MAX_VERSIONS = 40;
-const MAX_CHARS = 600_000;
+const MAX_BYTES = 600_000;
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
 
 /** The history with this state added, or null when it isn't worth keeping. */
 export function withVersion(
@@ -29,7 +30,9 @@ export function withVersion(
   if (!force && latest && now - latest.at < VERSION_GAP) return null;
   if (isEmptyContent(note.content) && !note.title.trim()) return null;
   const next = [{ at: now, title: note.title, content: note.content }, ...history].slice(0, MAX_VERSIONS);
-  let size = JSON.stringify({ versions: next }).length;
-  while (next.length > 1 && size > MAX_CHARS) size -= JSON.stringify(next.pop()).length + 1;
+  while (next.length > 1 && bytes({ versions: next }) > MAX_BYTES) next.pop();
+  // A valid note can be larger than the history budget. Keep one whole
+  // version if it still fits a record; never truncate its content.
+  if (bytes({ versions: next }) > 650 * 1024) return null;
   return next;
 }

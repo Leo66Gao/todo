@@ -78,6 +78,14 @@ cloud item and saves the other version as a visible “conflict copy” for revi
 Conflicting workspace preferences are preserved in a note. Deletions still
 take precedence over stale edits.
 
+The web app stores records and pending changes atomically in IndexedDB,
+migrating the older localStorage cache after the new copy is durable. Competing
+offline tab edits are preserved as conflict copies. Firestore quota errors pause
+automatic sync (daily quotas until the next Pacific midnight reset), while edits
+remain on the device. Oversized records stay local without blocking other uploads.
+The `records.updatedAt` index in `firestore.indexes.json` keeps incremental sync
+from scanning entire record collections in Firestore Enterprise.
+
 Data created before the first sign-in is offered for import automatically the
 first time an account signs in on that device.
 

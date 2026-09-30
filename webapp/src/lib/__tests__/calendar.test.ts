@@ -12,11 +12,32 @@ it("loads every calendar-list page", async () => {
 });
 
 afterEach(() => {
+  vi.doUnmock("../native");
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.resetModules();
+});
+
+it("never sends account A's event with account B's token after native renewal", async () => {
+  vi.useFakeTimers();
+  let finish!: (token: { accessToken: string }) => void;
+  vi.doMock("../native", () => ({ isNative: () => true, GoogleAuthorization: { authorize: () => new Promise((resolve) => { finish = resolve; }) } }));
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  const { GoogleCalendar } = await import("../calendar");
+  const client = new GoogleCalendar();
+  client.connectWithAccessToken("a@example.test", "fake-A", "A");
+  vi.advanceTimersByTime(54 * 60_000);
+  const pending = client.insertEvent({ title: "Private task A", description: null, startTime: new Date(), durationMinutes: 30, isAllDay: false, taskId: "task-A", ownerUid: "A" });
+  client.clearSession();
+  client.connectWithAccessToken("b@example.test", "fake-B", "B");
+  finish({ accessToken: "renewed-A" });
+  expect(await pending).toBeNull();
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(client.email).toBe("b@example.test");
+  expect(client.isConnected).toBe(true);
 });
 
 it("rejects another account's cached token without opening Google account UI", async () => {
