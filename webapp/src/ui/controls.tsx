@@ -86,7 +86,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
     <kbd
       className={cn(
         "hover-only inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] px-1",
-        "border border-line-strong/70 bg-canvas font-sans text-[10.5px] font-medium text-ink-3",
+        "border border-line-strong/70 bg-card font-sans text-[10.5px] font-medium text-ink-3",
         className,
       )}
     >
@@ -135,7 +135,7 @@ export function Segmented<T extends string>({
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              "relative flex flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)] px-3 font-medium whitespace-nowrap",
+              "relative flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)] px-3 font-medium whitespace-nowrap max-sm:gap-1 max-sm:px-2",
               "transition-colors duration-150",
               size === "sm" ? "text-xs" : "text-sm",
               selected ? "text-ink" : "text-ink-3 hover:text-ink-2",
@@ -213,7 +213,9 @@ export function Slider({
       step={step}
       onValueChange={([v]) => onChange(v)}
       aria-label={label}
-      className="group relative flex h-5 w-full touch-none select-none items-center"
+      // Its own sideways drag: page swipes (like the menu's) leave it alone.
+      data-hswipe
+      className="group relative flex h-5 w-full touch-none select-none items-center max-md:h-9"
     >
       <RSlider.Track className="relative h-[3px] grow overflow-hidden rounded-full bg-fill-strong">
         <RSlider.Range className={cn("absolute h-full rounded-full", dormant ? "bg-transparent" : "bg-ink")} />

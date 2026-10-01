@@ -92,7 +92,16 @@ function Palette() {
     ];
     out.push(...destinations.filter((item) => score(item.title, q) > 0 || (q && item.group.toLowerCase().startsWith(q))));
     const tasks = all
-      .map((t) => ({ t, s: Math.max(score(t.title, q), q.length > 2 && plainText(t.notes).toLowerCase().includes(q) ? 20 : 0) }))
+      .map((t) => ({
+        t,
+        // Titles rank first; a match in the notes or in a subtask's title
+        // (as in the original app's search) still finds the task.
+        s: Math.max(
+          score(t.title, q),
+          q.length > 2 && plainText(t.notes).toLowerCase().includes(q) ? 20 : 0,
+          q.length > 1 && t.subtasks.some((sub) => sub.title.toLowerCase().includes(q)) ? 22 : 0,
+        ),
+      }))
       .filter((x) => x.s > 0 && (q || !x.t.isDone))
       .sort((a, b) => b.s - a.s || Number(a.t.isDone) - Number(b.t.isDone) || a.t.date.getTime() - b.t.date.getTime())
       .slice(0, q ? 7 : 0);

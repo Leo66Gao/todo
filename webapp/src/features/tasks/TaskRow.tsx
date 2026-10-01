@@ -1,23 +1,26 @@
 "use client";
 
-import { memo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowRight, Check, ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
+import { Check, Trash2, ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
-import { addDays, dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
+import { dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
 import { isEmptyContent } from "@/lib/delta";
+import { haptic } from "@/lib/native";
 import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
 import { toggleSubtask, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
+import { useAiPending } from "@/lib/aiCapture";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
-import { editTask, moveTask, openTask, taskMenu } from "./actions";
+import { useMedia } from "@/ui/useMedia";
+import { editTask, openTask, removeTask, taskMenu } from "./actions";
 import { priorityColor, useLabelMap, useProjectMap } from "./meta";
 import { TaskCheck } from "./TaskCheck";
 import { useSwipe } from "./useSwipe";
@@ -36,6 +39,10 @@ export interface TaskRowProps {
   draggable?: boolean;
   trailing?: ReactNode;
   compact?: boolean;
+  /** A plain row, for lists that already sit inside a card. */
+  plain?: boolean;
+  /** Leave out the subject (on that subject's own page). */
+  hideSubject?: boolean;
 }
 
 export function TaskRow(props: TaskRowProps) {
@@ -80,6 +87,8 @@ const TaskRowView = memo(function TaskRowView({
   showDate,
   trailing,
   compact,
+  plain,
+  hideSubject,
   dragRef,
   dragProps,
   dragStyle,
@@ -94,6 +103,7 @@ const TaskRowView = memo(function TaskRowView({
   );
   const projects = useProjectMap();
   const labels = useLabelMap();
+  const phone = useMedia("(max-width: 767px)");
   const [expanded, setExpanded] = useState(false);
   const [completing, setCompleting] = useState(false);
   const lastClick = useRef(0);
@@ -121,11 +131,58 @@ const TaskRowView = memo(function TaskRowView({
     }, 420);
   };
 
-  const swipe = useSwipe(toggle, () => moveTask(task, addDays(task.date, 1)));
+  // Swipe right completes; swipe left deletes (with Undo).
+  const aiBusy = useAiPending((s) => s.ids.includes(task.id));
+  const swipe = useSwipe(toggle, () => removeTask(task));
   const revealLeft = useTransform(swipe.x, (v) => Math.max(0, v));
   const revealRight = useTransform(swipe.x, (v) => Math.max(0, -v));
 
+  // Touch: holding the row opens the editor; holding the checkbox picks the
+  // task up to reorder it (the drag sensor listens there only).
+  const hold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const held = useRef(false);
+  const cancelHold = () => {
+    if (hold.current) clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  const startHold = (e: React.TouchEvent) => {
+    cancelHold();
+    held.current = false;
+    if (e.touches.length !== 1 || (e.target as Element).closest("[data-drag-handle]")) return;
+    const t = e.touches[0];
+    hold.current = {
+      x: t.clientX,
+      y: t.clientY,
+      timer: setTimeout(() => {
+        hold.current = null;
+        held.current = true;
+        haptic("medium");
+        editTask(task, navigate);
+      }, 480),
+    };
+  };
+  const moveHold = (e: React.TouchEvent) => {
+    const h = hold.current;
+    const t = e.touches[0];
+    if (h && t && Math.hypot(t.clientX - h.x, t.clientY - h.y) > 8) cancelHold();
+  };
+  useEffect(() => cancelHold, []);
+
+  // The tap that ends a drag from the checkbox mustn't also tick it.
+  const dragEndedAt = useRef(0);
+  useEffect(() => {
+    if (!dragging) dragEndedAt.current = performance.now();
+  }, [dragging]);
+  const checkToggle = () => {
+    if (dragging || performance.now() - dragEndedAt.current < 350) return;
+    toggle();
+  };
+
   const onClick = (e: React.MouseEvent) => {
+    if (held.current) {
+      held.current = false;
+      return;
+    }
     if (swipe.consumeSwipe()) return;
     if (e.defaultPrevented) return;
     const now = performance.now();
@@ -160,13 +217,13 @@ const TaskRowView = memo(function TaskRowView({
   }
   if (minutes > 0 && settings.showDuration) {
     meta.push(
-      <span key="dur" className="flex items-center gap-1">
+      <span key="dur" className="flex items-center gap-1 max-md:font-mono max-md:text-[12px]">
         <Timer className="size-3" />
         {formatDuration(minutes)}
       </span>,
     );
   }
-  if (project && settings.showSubject) {
+  if (project && settings.showSubject && !hideSubject) {
     meta.push(
       <span key="subject" className="flex min-w-0 items-center gap-1.5">
         <span className="size-[7px] shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
@@ -213,8 +270,30 @@ const TaskRowView = memo(function TaskRowView({
   const dragTouchStart = dragProps?.onTouchStart as ((e: React.TouchEvent) => void) | undefined;
 
   return (
-    <div ref={cardRef} style={dragStyle} data-task-card={done ? "done" : ""} className={cn("relative", dragging && "z-10 opacity-40")}>
-      <div className="relative overflow-hidden rounded-[calc(var(--radius-ctl)_+_1px)]">
+    <div
+      ref={cardRef}
+      style={dragStyle}
+      data-task-card={done ? "done" : ""}
+      className={cn(
+        // Each task is its own rounded card on the page.
+        "relative transition-opacity duration-200",
+        plain ? "rounded-ctl" : cn("md:card", compact ? "md:mb-1.5 md:rounded-[14px]" : "md:mb-2"),
+        done && !completing && "opacity-70",
+        dragging && "z-10 opacity-40",
+      )}
+    >
+
+      {/* Assignments carry a blue edge; their milestones a fainter one. */}
+      {!plain && (isAssignment || isMilestone) && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0 z-[1] rounded-[inherit] max-md:hidden",
+            isAssignment ? "shadow-[inset_0_0_0_1.25px_var(--accent-line)]" : "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent-line)_55%,transparent)]",
+          )}
+        />
+      )}
+      <div className="relative overflow-hidden rounded-[inherit]">
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div
           aria-hidden
@@ -231,19 +310,32 @@ const TaskRowView = memo(function TaskRowView({
           style={{ width: revealRight }}
           className={cn(
             "absolute inset-y-0 right-0 flex items-center justify-end overflow-hidden text-xs font-medium whitespace-nowrap transition-colors duration-150",
-            swipe.armed === "left" ? "bg-ink text-on-ink" : "bg-fill text-ink-3",
+            swipe.armed === "left" ? "bg-danger text-white" : "bg-fill text-ink-3",
           )}
         >
-          Tomorrow
-          <ArrowRight className="mr-3 ml-1 size-4 shrink-0" />
+          Delete
+          <Trash2 className="mr-4 ml-1.5 size-4 shrink-0" />
         </motion.div>
-      <ContextMenu items={() => taskMenu(task, navigate)}>
+      <ContextMenu items={() => taskMenu(task, navigate)} disabled={phone}>
         <motion.div
+          data-hswipe
           {...dragProps}
           {...swipe.handlers}
           onTouchStart={(e: React.TouchEvent) => {
-            dragTouchStart?.(e);
             swipe.handlers.onTouchStart(e);
+            startHold(e);
+          }}
+          onTouchMove={(e: React.TouchEvent) => {
+            swipe.handlers.onTouchMove(e);
+            moveHold(e);
+          }}
+          onTouchEnd={() => {
+            swipe.handlers.onTouchEnd();
+            cancelHold();
+          }}
+          onTouchCancel={() => {
+            swipe.handlers.onTouchCancel();
+            cancelHold();
           }}
           style={{ x: swipe.x }}
           role="button"
@@ -251,37 +343,34 @@ const TaskRowView = memo(function TaskRowView({
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
-            "group relative flex touch-pan-y items-start gap-1.5 rounded-[calc(var(--radius-ctl)_+_1px)] pr-2.5 pl-1 outline-none transition-colors duration-100",
-            compact ? "py-1" : "py-[7px]",
+            "group relative flex touch-pan-y items-center gap-2 rounded-[inherit] max-md:select-none max-md:[-webkit-touch-callout:none] pr-3 pl-2 outline-none transition-colors duration-100 max-md:gap-3 max-md:pr-[18px] max-md:pl-3.5",
+            compact ? "py-1.5" : "py-2.5 max-md:py-3.5",
             // Opaque fills, so the swipe panels underneath stay hidden.
             inspected
-              ? "bg-canvas bg-[image:linear-gradient(var(--accent-soft),var(--accent-soft))]"
+              ? "bg-card bg-[image:linear-gradient(var(--accent-soft),var(--accent-soft))]"
               : selected
-                ? "bg-fill"
-                : "bg-canvas hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
+                ? "bg-card bg-[image:linear-gradient(var(--fill),var(--fill))]"
+                : "bg-card hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))]",
           )}
         >
-          <TaskCheck checked={done} color={check} onToggle={toggle} className="-my-0.5" />
-          <div className="min-w-0 flex-1 pt-[3px]">
-            <div className="flex items-baseline gap-2">
-              <span
-                className={cn(
-                  "relative min-w-0 truncate text-sm font-medium transition-colors duration-200",
-                  done ? "text-ink-3" : "text-ink",
-                )}
-              >
+          <span data-drag-handle className="-my-1 flex shrink-0" onTouchStart={dragTouchStart}>
+            <TaskCheck checked={done} color={check} onToggle={checkToggle} size={phone ? 22 : 18} />
+          </span>
+          <div className="min-w-0 flex-1">
+            {/* Long titles wrap onto a second line rather than being cut short. */}
+            <div
+              className={cn(
+                "text-sm font-medium break-words transition-colors duration-200 [overflow-wrap:anywhere] max-md:text-base max-md:tracking-[-0.01em]",
+                compact ? "line-clamp-1" : "line-clamp-2",
+                done ? "text-ink-3" : "text-ink",
+              )}
+            >
+              <span className={cn("strike", aiBusy && "ai-shimmer")} data-done={done || undefined}>
                 {task.title}
-                <motion.span
-                  aria-hidden
-                  className="absolute top-1/2 left-0 h-px bg-ink-3"
-                  initial={false}
-                  animate={{ width: done ? "100%" : "0%" }}
-                  transition={{ duration: 0.22, ease: [0.3, 0.8, 0.3, 1] }}
-                />
               </span>
             </div>
             {meta.length > 0 && !compact && (
-              <div className="mt-[3px] flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
+              <div className="mt-[3px] flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3 max-md:mt-1">
                 {meta}
               </div>
             )}
@@ -289,8 +378,8 @@ const TaskRowView = memo(function TaskRowView({
           {task.startTime && settings.showTime && (
             <span
               className={cn(
-                "mt-[3px] shrink-0 rounded-[6px] px-1.5 py-px text-xs font-medium tnum",
-                done ? "text-ink-4" : "bg-fill text-ink-2",
+                "shrink-0 rounded-[6px] px-1.5 py-px text-xs font-medium tnum max-md:bg-transparent max-md:px-0 max-md:font-mono max-md:text-[14px] max-md:font-normal",
+                done ? "text-ink-4" : "bg-fill text-ink-2 max-md:text-ink",
               )}
             >
               {formatClock(task.startTime)}
@@ -309,7 +398,7 @@ const TaskRowView = memo(function TaskRowView({
             transition={springs.layout}
             className="overflow-hidden"
           >
-            <div className="pb-1.5 pl-[34px]">
+            <div className="pr-1 pb-2 pl-[38px]">
               {task.subtasks.map((sub) => (
                 <div key={sub.id} className="flex items-center gap-1 rounded-[calc(var(--radius-ctl)_-_1px)] py-0.5 pr-2 hover:bg-fill/70">
                   <TaskCheck

@@ -11,14 +11,19 @@ import {
   GoogleAuthProvider,
   getRedirectResult,
   onAuthStateChanged,
-  reauthenticateWithRedirect,
+  reauthenticateWithPopup,
+  signInWithCredential,
   signInWithPopup,
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
-import { CloudSync } from "@/lib/cloudSync";
+import { CloudSync, type SyncDetails } from "@/lib/cloudSync";
+import { readGuestCache, saveGuestCache } from "@/lib/deviceCache";
+import { acknowledgeDraft, discardRecordDrafts, readDrafts, resolveDraft, type EditorDraft } from "@/lib/editorDrafts";
+import { recoveryRecords } from "@/lib/recordRecovery";
+import { versionsKey, withVersion, type Version } from "@/lib/versions";
 import {
-  CALENDAR_SCOPE,
+  CALENDAR_SCOPES,
   GoogleCalendar,
   calendarActionKey,
   normalizeOutbox,
@@ -38,6 +43,7 @@ import {
   encodeProject,
   encodeSettings,
   encodeTask,
+  recordFits,
   uuid,
   type Project,
   type StudyNote,
@@ -46,6 +52,7 @@ import {
   type Task,
   type WorkspaceSettings,
 } from "@/lib/model";
+import { isNative, nativeGoogleSignIn, nativeSignOut } from "@/lib/native";
 import * as prefs from "@/lib/prefs";
 import { sameDay, startOfDay } from "@/lib/time";
 
@@ -67,6 +74,7 @@ export interface WorkspaceState {
   cloudError: string | null;
   syncError: string | null;
   calendarConnected: boolean;
+  calendarPending: number;
   importAvailable: boolean;
   tasks: Task[];
   projects: Project[];
@@ -74,6 +82,9 @@ export interface WorkspaceState {
   folders: SubjectFolder[];
   tags: string[];
   settings: WorkspaceSettings;
+  /** Other synced records ("settings:…" keys): version history, sources. */
+  side: Record<string, string>;
+  syncDetails: SyncDetails;
 }
 
 export const useWorkspace = create<WorkspaceState>(() => ({
@@ -85,6 +96,7 @@ export const useWorkspace = create<WorkspaceState>(() => ({
   cloudError: null,
   syncError: null,
   calendarConnected: false,
+  calendarPending: 0,
   importAvailable: false,
   tasks: [],
   projects: [],
@@ -92,10 +104,24 @@ export const useWorkspace = create<WorkspaceState>(() => ({
   folders: [],
   tags: [],
   settings: defaultSettings(),
+  side: {},
+  syncDetails: { pending: [], lastDownloadedAt: null, lastUploadedAt: null, retryAt: null, pauseReason: null, error: null, recordsReceived: 0, recordsUploaded: 0 },
 }));
 
 const get = () => useWorkspace.getState();
 const set = (patch: Partial<WorkspaceState>) => useWorkspace.setState(patch);
+
+// Background work belongs to the session that started it, even if the same
+// account signs back in after signing out.
+let sessionGeneration = 0;
+useWorkspace.subscribe((state, previous) => {
+  if (state.user?.uid !== previous.user?.uid) sessionGeneration++;
+});
+export function captureWorkspaceSession(): () => boolean {
+  const generation = sessionGeneration;
+  const uid = get().user?.uid;
+  return () => generation === sessionGeneration && get().user?.uid === uid;
+}
 
 // ---------------------------------------------------------------------------
 // Internal (non-rendered) state
@@ -104,11 +130,20 @@ let cloud: CloudSync | null = null;
 let firebaseUser: User | null = null;
 let baseline: Records = {};
 let unreadable: Records = {};
+const CORE_SETTINGS = new Set(["settings:workspace", "settings:tags", "settings:order"]);
 let recordDecodeError: string | null = null;
 let authQueue: Promise<void> = Promise.resolve();
 let started = false;
+/**
+ * The account the app opened with from its device cache, before Firebase had
+ * confirmed who is signed in (see initialize).
+ */
+let optimisticUid: string | null = null;
+const LAST_ACCOUNT = "lastAccount";
 
 const calendar = new GoogleCalendar();
+/** The signed-in account's Google Calendar client (events are read through it too). */
+export const calendarClient = () => calendar;
 let calendarEnabled = false;
 let calendarOwnerUid: string | null = null;
 let outbox: Record<string, CalendarAction> = {};
@@ -131,6 +166,18 @@ const refreshCalendarFlag = () =>
 // State objects are replaced, never mutated, so an unchanged object keeps its
 // encoding and each save only serializes what was edited.
 const encoded = new WeakMap<object, string>();
+const decodedRecords = new Map<string, { payload: string; value: unknown }>();
+const EMPTY_SETTINGS = defaultSettings();
+function decodeCached<T>(key: string, payload: string, decode: (json: never) => T): T {
+  const previous = decodedRecords.get(key);
+  if (previous?.payload === payload) return previous.value as T;
+  const value = decode(JSON.parse(payload) as never);
+  decodedRecords.set(key, { payload, value });
+  return value;
+}
+function shareList<T>(previous: T[], next: T[]): T[] {
+  return previous.length === next.length && previous.every((value, i) => value === next[i]) ? previous : next;
+}
 function cachedJson<T extends object>(value: T, encode: (v: T) => unknown): string {
   let json = encoded.get(value);
   if (json === undefined) {
@@ -149,28 +196,48 @@ function encodeRecords(state: WorkspaceState = get()): Records {
   out["settings:workspace"] = JSON.stringify(encodeSettings(state.settings));
   out["settings:tags"] = JSON.stringify(state.tags);
   out["settings:order"] = JSON.stringify(state.tasks.map((t) => t.id));
-  return { ...out, ...unreadable };
+  return { ...out, ...state.side, ...unreadable };
 }
 
-function applyRecords(records: Records) {
+/** Every record of the workspace, as stored and synced (for backups). */
+export function workspaceRecords(): Records {
+  return encodeRecords();
+}
+
+/**
+ * Replaces the workspace with merged records (a restored backup) and saves
+ * the difference, so it uploads like any other edit.
+ */
+export function applyRestoredRecords(records: Records): Promise<boolean> {
+  applyRecords(records, false);
+  return saveData();
+}
+
+function applyRecords(records: Records, stored = true) {
   const tasks: Task[] = [];
   const projects: Project[] = [];
   const notes: StudyNote[] = [];
   const folders: SubjectFolder[] = [];
+  const side: Record<string, string> = {};
   unreadable = {};
+  for (const key of decodedRecords.keys()) if (!(key in records)) decodedRecords.delete(key);
   for (const [key, payload] of Object.entries(records)) {
     try {
-      const value = JSON.parse(payload);
       if (key === "settings:order" || key === "settings:tags") {
-        if (!Array.isArray(value) || !value.every((v) => typeof v === "string")) {
-          throw new Error("Bad list");
-        }
+        decodeCached(key, payload, (value) => {
+          if (!Array.isArray(value) || !(value as unknown[]).every((v) => typeof v === "string")) throw new Error("Bad list");
+          return value as string[];
+        });
       }
-      if (key === "settings:workspace") decodeSettings(value);
-      if (key.startsWith("task:")) tasks.push(decodeTask(value));
-      if (key.startsWith("project:")) projects.push(decodeProject(value));
-      if (key.startsWith("note:")) notes.push(decodeNote(value));
-      if (key.startsWith("folder:")) folders.push(decodeFolder(value));
+      if (key === "settings:workspace") decodeCached(key, payload, decodeSettings);
+      if (key.startsWith("task:")) tasks.push(decodeCached(key, payload, decodeTask));
+      if (key.startsWith("project:")) projects.push(decodeCached(key, payload, decodeProject));
+      if (key.startsWith("note:")) notes.push(decodeCached(key, payload, decodeNote));
+      if (key.startsWith("folder:")) folders.push(decodeCached(key, payload, decodeFolder));
+      if (key.startsWith("settings:") && !CORE_SETTINGS.has(key)) {
+        decodeCached(key, payload, (value) => value);
+        side[key] = payload;
+      }
     } catch {
       // Keep the payload so a malformed record is never lost or deleted.
       unreadable[key] = payload;
@@ -186,17 +253,19 @@ function applyRecords(records: Records) {
   const rank = new Map(order.map((id, i) => [id, i]));
   tasks.sort((a, b) => (rank.get(a.id) ?? order.length) - (rank.get(b.id) ?? order.length));
   const next: Partial<WorkspaceState> = {
-    tasks,
-    projects,
-    notes,
-    folders,
-    tags: readable("settings:tags") ? JSON.parse(records["settings:tags"]) : ["General", "Urgent"],
+    tasks: shareList(get().tasks, tasks),
+    projects: shareList(get().projects, projects),
+    notes: shareList(get().notes, notes),
+    folders: shareList(get().folders, folders),
+    tags: shareList(get().tags, readable("settings:tags") ? decodeCached("settings:tags", records["settings:tags"], (json) => json as string[]) : ["General", "Urgent"]),
     settings: readable("settings:workspace")
-      ? decodeSettings(JSON.parse(records["settings:workspace"]))
-      : defaultSettings(),
+      ? decodeCached("settings:workspace", records["settings:workspace"], decodeSettings)
+      : EMPTY_SETTINGS,
+    side: Object.keys(side).length === Object.keys(get().side).length && Object.entries(side).every(([key, value]) => get().side[key] === value) ? get().side : side,
   };
   set(next);
-  baseline = encodeRecords();
+  // Records from storage are the new baseline; restored ones still need saving.
+  if (stored) baseline = encodeRecords();
 }
 
 let saveQueue: Promise<boolean> = Promise.resolve(true);
@@ -213,6 +282,7 @@ function saveData(): Promise<boolean> {
 }
 
 async function writeChanges(): Promise<boolean> {
+  const currentSession = captureWorkspaceSession();
   const next = encodeRecords();
   const changes: Record<string, string | null> = {};
   for (const [key, value] of Object.entries(next)) if (baseline[key] !== value) changes[key] = value;
@@ -222,15 +292,9 @@ async function writeChanges(): Promise<boolean> {
     if (get().user && cloud) {
       await cloud.writeChanges(changes);
     } else {
-      const stored =
-        prefs.setString("activeGuestWorkspace", JSON.stringify(next)) &&
-        // The original tasks key stays in step for older builds.
-        prefs.setStringList(
-          "tasks",
-          get().tasks.map((t) => JSON.stringify(encodeTask(t))),
-        );
-      if (!stored) throw new Error("This browser is blocking device storage.");
+      await saveGuestCache(next);
     }
+    if (!currentSession()) return false;
     // The baseline only moves once the change is stored, so a failed save is retried.
     baseline = next;
     if (saveRetry) clearTimeout(saveRetry);
@@ -238,6 +302,7 @@ async function writeChanges(): Promise<boolean> {
     if (get().cloudError?.startsWith("Could not save")) set({ cloudError: null });
     return true;
   } catch (error) {
+    if (!currentSession()) return false;
     const message = error instanceof Error ? error.message : String(error);
     set({
       cloudError: get().user
@@ -327,18 +392,57 @@ export function startWorkspace() {
 
 async function initialize() {
   try {
-    applyRecords(readGuestRecords());
     const fb = firebase();
     if (fb) {
       cloud = new CloudSync(fb.db);
       set({ cloudAvailable: true });
       cloud.onRecords = (records) => {
         const before = new Map(get().tasks.map((t) => [t.id, t]));
-        applyRecords(records);
+        // An IndexedDB save can still be pending when a listener fires.
+        // Preserve edits made since the last stored state, and leave their
+        // old baseline intact so the save queue still uploads them.
+        const local: Record<string, string | null> = {};
+        if (!get().isLoading && get().user) {
+          const current = encodeRecords();
+          for (const [key, value] of Object.entries(current)) if (baseline[key] !== value) local[key] = value;
+          for (const key of Object.keys(baseline)) if (!(key in current)) local[key] = null;
+        }
+        const merged = { ...records };
+        for (const [key, value] of Object.entries(local)) {
+          if (value == null) delete merged[key];
+          else merged[key] = value;
+        }
+        applyRecords(merged);
+        for (const key of Object.keys(local)) {
+          if (key in records) baseline[key] = records[key];
+          else delete baseline[key];
+        }
         reconcileCalendarChanges(before);
       };
       cloud.onStatus = (status, error) =>
         set({ cloudStatus: status, cloudError: error ?? recordDecodeError });
+      cloud.onDetails = (syncDetails) => set({ syncDetails });
+    }
+    // Opening instantly: Firebase takes a moment to confirm who is signed in
+    // (and longer offline), so the last account's device copy is shown right
+    // away. Edits are queued for it as usual; if someone else turns out to be
+    // signed in, the workspace switches over as it always has.
+    const last = prefs.getLocal<Account | null>(LAST_ACCOUNT, null);
+    if (fb && cloud && last?.uid && prefs.getString("legacyOwner") != null && (prefs.getLocal(`workspace.cached.${last.uid}`, false) || prefs.getString(`cloud.${last.uid}`) != null)) {
+      optimisticUid = last.uid;
+      const records = await cloud.connect(last.uid);
+      set({ user: last });
+      applyRecords(records);
+      await recoverEditorDrafts();
+      set({ isLoading: false });
+    } else {
+      const cached = await readGuestCache();
+      applyRecords(cached?.records ?? readGuestRecords());
+      await recoverEditorDrafts();
+      // Never signed in on this device: the local workspace is all there is.
+      if (prefs.getString("legacyOwner") == null) set({ isLoading: false });
+    }
+    if (fb) {
       await new Promise<void>((resolve) => {
         let first = true;
         onAuthStateChanged(fb.auth, (user) => {
@@ -363,7 +467,21 @@ async function initialize() {
 }
 
 async function switchAccount(user: User | null) {
-  if (get().user?.uid === user?.uid) return;
+  const hinted = optimisticUid;
+  optimisticUid = null;
+  if (hinted && user?.uid === hinted) {
+    // Already showing this account from the device copy: just finish signing in.
+    firebaseUser = user;
+    set({ user: toAccount(user) });
+    prefs.setLocal(LAST_ACCOUNT, toAccount(user));
+    restoreCalendarSafely(user);
+    const importAvailable = prefs.getString("legacyOwner") === user.uid && prefs.getBool(`legacyImported.${user.uid}`) !== true;
+    set({ importAvailable });
+    if (importAvailable) void importLocalData();
+    refreshCalendarFlag();
+    return;
+  }
+  if (!hinted && get().user?.uid === user?.uid) return;
   set({ isLoading: true });
   await cloud!.disconnect();
   stopCalendarRetry();
@@ -378,15 +496,20 @@ async function switchAccount(user: User | null) {
     prefs.setString(`legacyWorkspace.${user.uid}`, JSON.stringify(encodeRecords()));
     prefs.setString("legacyOwner", user.uid);
     prefs.remove("activeGuestWorkspace");
+    await saveGuestCache({});
     legacyOwner = user.uid;
   }
 
   firebaseUser = null;
   unreadable = {};
+  decodedRecords.clear();
+  parsedSide.clear();
   recordDecodeError = null;
   baseline = {};
   set({
     user: null,
+    authBusy: false,
+    calendarPending: 0,
     cloudError: null,
     tasks: [],
     projects: [],
@@ -394,16 +517,23 @@ async function switchAccount(user: User | null) {
     folders: [],
     tags: [],
     settings: defaultSettings(),
+    side: {},
   });
   if (!user) {
-    applyRecords(readGuestRecords());
+    prefs.setLocal(LAST_ACCOUNT, null);
+    const cached = await readGuestCache();
+    applyRecords(cached?.records ?? readGuestRecords());
+    await recoverEditorDrafts();
     set({ cloudStatus: "Local only", importAvailable: false });
   } else {
     const records = await cloud!.connect(user.uid);
     firebaseUser = user;
     set({ user: toAccount(user) });
+    prefs.setLocal(LAST_ACCOUNT, toAccount(user));
     applyRecords(records);
-    await restoreCalendarForAccount(user);
+    await recoverEditorDrafts();
+    // Google Calendar reconnects in the background; the workspace is ready now.
+    restoreCalendarSafely(user);
     const importAvailable =
       legacyOwner === user.uid && prefs.getBool(`legacyImported.${user.uid}`) !== true;
     set({ importAvailable });
@@ -418,7 +548,14 @@ export async function signInWithGoogle() {
   if (!fb || get().authBusy) return;
   set({ authBusy: true, cloudError: null });
   try {
-    await signInWithPopup(fb.auth, new GoogleAuthProvider());
+    if (isNative()) {
+      // Pop-ups don't exist in the app: Android signs in, Firebase takes the token.
+      const idToken = await nativeGoogleSignIn();
+      if (!idToken) throw new Error("Google did not return a sign-in token.");
+      await signInWithCredential(fb.auth, GoogleAuthProvider.credential(idToken));
+    } else {
+      await signInWithPopup(fb.auth, new GoogleAuthProvider());
+    }
   } catch (error) {
     const text = String(error);
     set({
@@ -438,7 +575,10 @@ export async function signOut() {
   if (!fb || get().authBusy) return;
   set({ authBusy: true });
   try {
+    // Note edits wait a few seconds before uploading; send them first.
+    await cloud?.flush().catch(() => {});
     calendar.clearSession();
+    await nativeSignOut();
     await firebaseSignOut(fb.auth);
     await authQueue;
   } catch (error) {
@@ -449,6 +589,7 @@ export async function signOut() {
 }
 
 export async function importLocalData() {
+  const currentSession = captureWorkspaceSession();
   const uid = get().user?.uid;
   if (!uid || !get().importAvailable || !cloud) return;
   try {
@@ -456,9 +597,11 @@ export async function importLocalData() {
     const legacy: Records = raw ? JSON.parse(raw) : {};
     if (get().user?.uid !== uid) return;
     await cloud.importMissing(legacy);
+    if (!currentSession()) return;
     prefs.setBool(`legacyImported.${uid}`, true);
     if (get().user?.uid === uid) set({ importAvailable: false });
   } catch (error) {
+    if (!currentSession()) return;
     set({ cloudError: `Local data is safe. Retry the import from Settings: ${String(error)}` });
   }
 }
@@ -514,7 +657,11 @@ function markExported(uid: string, taskId: string, fingerprint: string | null) {
   else exported[taskId] = fingerprint;
   prefs.setLocal(exportedKey(uid), exported);
 }
-const persistOutbox = (uid: string) => prefs.setString(outboxKey(uid), JSON.stringify(outbox));
+const persistOutbox = (uid: string) => {
+  const stored = prefs.setString(outboxKey(uid), JSON.stringify(outbox));
+  if (get().user?.uid === uid) set({ calendarPending: Object.keys(outbox).length });
+  return stored;
+};
 
 function storeCalendarAction(uid: string, action: CalendarAction) {
   if (calendarOwnerUid !== uid || get().user?.uid !== uid) return;
@@ -668,17 +815,25 @@ function startCalendarRetry() {
 }
 
 async function keepCalendarAlive() {
+  const currentSession = captureWorkspaceSession();
   const user = get().user;
   if (!user || !calendarEnabled) return;
-  if (!get().calendarConnected) {
+  refreshCalendarFlag();
+  if (!get().calendarConnected && isNative()) {
     const email = await calendar.authorize({ interactive: false, email: user.email, uid: user.uid });
-    if (get().user?.uid !== user.uid) return;
+    if (!currentSession() || get().user?.uid !== user.uid) return;
     if (email && email === user.email) refreshCalendarFlag();
   }
   if (get().calendarConnected) void scheduleCalendarFlush();
 }
 
+function restoreCalendarSafely(user: User) {
+  const currentSession = captureWorkspaceSession();
+  void restoreCalendarForAccount(user).catch((error) => { if (currentSession()) set({ cloudError: String(error) }); });
+}
+
 async function restoreCalendarForAccount(user: User) {
+  const currentSession = captureWorkspaceSession();
   calendarOwnerUid = user.uid;
   calendarEnabled = prefs.getBool(`calendar.enabled.${user.uid}`) === true;
   const saved = prefs.getString(outboxKey(user.uid));
@@ -690,8 +845,14 @@ async function restoreCalendarForAccount(user: User) {
     }
   }
   if (!calendarEnabled) return;
+  if (get().user?.uid === user.uid) set({ calendarPending: Object.keys(outbox).length });
+  if (!navigator.onLine) {
+    // Offline, Google can't be asked: open straight away and reconnect later.
+    window.addEventListener("online", () => { if (currentSession() && get().user?.uid === user.uid) restoreCalendarSafely(user); }, { once: true });
+    return;
+  }
   const email = await calendar.authorize({ interactive: false, email: user.email, uid: user.uid });
-  if (get().user?.uid !== user.uid) return;
+  if (!currentSession() || get().user?.uid !== user.uid) return;
   if (email && email !== user.email) calendar.clearSession();
   refreshCalendarFlag();
   startCalendarRetry();
@@ -726,34 +887,71 @@ async function enableCalendarAfterConnect(uid: string) {
   await scheduleCalendarFlush();
 }
 
-/**
- * Connects Google Calendar. Browsers block pop-ups opened after async work,
- * so — like the Flutter web build — the page hands off to Google's OAuth
- * redirect and the connection is completed when it comes back.
- */
+/** Connects Google Calendar only after the user presses Connect. */
 export async function connectCalendar() {
   const fb = firebase();
   const user = firebaseUser;
   if (!fb || !user || get().authBusy) return;
-  set({ syncError: null });
-  prefs.setString(CALENDAR_REDIRECT_KEY, user.uid);
+  const currentSession = captureWorkspaceSession();
+  set({ authBusy: true, syncError: null });
+  if (isNative()) {
+    // Android grants the Calendar scope in place.
+    try {
+      const email = await calendar.authorize({ interactive: true, email: user.email, uid: user.uid });
+      if (!currentSession()) return;
+      if (!email) throw new Error(calendar.lastError ?? "Calendar connection was cancelled.");
+      if (!(await calendar.verifyAccess())) {
+        throw new Error(calendar.lastError ?? "Google Calendar could not be reached.");
+      }
+      if (!currentSession()) return;
+      await enableCalendarAfterConnect(user.uid);
+    } catch (error) {
+      if (!currentSession()) return;
+      calendar.clearSession();
+      set({ syncError: `Calendar connection failed: ${error instanceof Error ? error.message : String(error)}` });
+    } finally {
+      if (currentSession()) { set({ authBusy: false }); refreshCalendarFlag(); }
+    }
+    return;
+  }
   const provider = new GoogleAuthProvider();
-  provider.addScope(CALENDAR_SCOPE);
+  for (const scope of CALENDAR_SCOPES) provider.addScope(scope);
   try {
-    await reauthenticateWithRedirect(user, provider);
+    // Called directly from the Connect button, so Safari opens the account
+    // chooser in a small window without navigating this page away.
+    const result = await reauthenticateWithPopup(user, provider);
+    if (!currentSession()) return;
+    const token = GoogleAuthProvider.credentialFromResult(result)?.accessToken;
+    if (!token || !result.user.email) throw new Error("Google did not return Calendar access.");
+    calendar.connectWithAccessToken(result.user.email, token, user.uid);
+    if (!(await calendar.verifyAccess())) {
+      throw new Error(calendar.lastError ?? "Google Calendar could not be reached.");
+    }
+    if (!currentSession()) return;
+    await enableCalendarAfterConnect(user.uid);
   } catch (error) {
-    prefs.remove(CALENDAR_REDIRECT_KEY);
-    set({ syncError: `Calendar connection failed: ${String(error)}` });
+    if (!currentSession()) return;
+    calendar.clearSession();
+    const message = String(error);
+    if (!message.includes("popup-closed-by-user") && !message.includes("cancelled-popup-request")) {
+      set({ syncError: `Calendar connection failed: ${message}` });
+    }
+  } finally {
+    if (currentSession()) { set({ authBusy: false }); refreshCalendarFlag(); }
   }
 }
 
+/** Finishes a redirect that started in an older build of the app. */
 async function resumeCalendarRedirect() {
   const fb = firebase();
   const pendingUid = prefs.getString(CALENDAR_REDIRECT_KEY);
   if (!fb || !pendingUid) return;
   prefs.remove(CALENDAR_REDIRECT_KEY);
+  const currentSession = captureWorkspaceSession();
+  if (get().user?.uid !== pendingUid) return;
   try {
     const result = await getRedirectResult(fb.auth);
+    if (!currentSession()) return;
     const token = result ? GoogleAuthProvider.credentialFromResult(result)?.accessToken : null;
     const user = result?.user;
     if (!token || !user?.email || user.uid !== pendingUid) {
@@ -764,12 +962,14 @@ async function resumeCalendarRedirect() {
     if (!(await calendar.verifyAccess())) {
       throw new Error(calendar.lastError ?? "Google Calendar could not be reached.");
     }
+    if (!currentSession()) return;
     await enableCalendarAfterConnect(user.uid);
   } catch (error) {
+    if (!currentSession()) return;
     calendar.clearSession();
     set({ syncError: `Calendar connection failed: ${error instanceof Error ? error.message : String(error)}` });
   } finally {
-    refreshCalendarFlag();
+    if (currentSession()) refreshCalendarFlag();
   }
 }
 
@@ -954,6 +1154,7 @@ export function deleteTask(id: string) {
   }
   const task = get().tasks.find((t) => t.id === id);
   if (!task) return;
+  try { discardRecordDrafts(get().user?.uid ?? "", "task", id); } catch { /* Preserve storage errors in the save path. */ }
   if (calendarEnabled) removeTaskFromCalendar(task);
   set({ tasks: get().tasks.filter((t) => t.id !== id) });
   void saveData();
@@ -1124,8 +1325,95 @@ export function updateNote(note: StudyNote) {
   void saveData();
 }
 
+/** Commits an editor draft without replacing a concurrently edited field. */
+export function saveEditorDraft(entry: EditorDraft): { saved: boolean; conflicted: boolean; id: string } {
+  const currentSession = captureWorkspaceSession();
+  if ((get().user?.uid ?? "") !== entry.owner) return { saved: false, conflicted: false, id: entry.recordId };
+  const note = entry.kind === "note" ? get().notes.find((n) => n.id === entry.recordId) : undefined;
+  const task = entry.kind === "task" ? get().tasks.find((t) => t.id === entry.recordId) : undefined;
+  const current = note ? encodeNote(note) : task ? encodeTask(task) : null;
+  const { value, conflicted } = resolveDraft(entry, current);
+  if (!recordFits(value)) return { saved: false, conflicted, id: entry.recordId };
+  let id = entry.recordId;
+  if (conflicted) {
+    const [key, payload] = recoveryRecords(`${entry.kind}:${entry.recordId}`, JSON.stringify(value), entry.operationId)[0];
+    id = key.slice(key.indexOf(":") + 1);
+    if (key.startsWith("note:")) {
+      if (!get().notes.some((n) => n.id === id)) addNote(decodeNote(JSON.parse(payload)));
+    } else if (!get().tasks.some((t) => t.id === id)) addTask(decodeTask(JSON.parse(payload)));
+  } else if (note) {
+    const history = readSide<{ versions?: Version[] }>(versionsKey(note.id), {});
+    const versions = withVersion(history.versions ?? [], note, Date.now());
+    if (versions) writeSide(versionsKey(note.id), { versions });
+    updateNote({ ...note, ...entry.patch, updatedAt: new Date() });
+  } else if (task && entry.patch.notes !== undefined) updateTaskNotes(task.id, entry.patch.notes);
+  // Acknowledge only after the IndexedDB record/outbox is durable. The journal
+  // survives tab close, storage failure, account changes and newer keystrokes.
+  void saveData().then((stored) => {
+    if (stored && currentSession()) {
+      try { acknowledgeDraft(entry); } catch { /* Replaying it is idempotent. */ }
+    }
+  });
+  return { saved: true, conflicted, id };
+}
+
+async function recoverEditorDrafts() {
+  const currentSession = captureWorkspaceSession();
+  let entries: EditorDraft[];
+  try { entries = readDrafts(get().user?.uid ?? ""); }
+  catch { set({ cloudError: "This browser is blocking editor draft recovery. Your saved workspace is still available." }); return; }
+  for (const entry of entries) {
+    if (!currentSession()) return;
+    try {
+      const result = saveEditorDraft(entry);
+      if (!result.saved) {
+        // Oversized drafts remain complete and exportable as small recovery
+        // notes rather than being truncated or silently dropped on restart.
+        const current = entry.kind === "note" ? get().notes.find((n) => n.id === entry.recordId) : get().tasks.find((t) => t.id === entry.recordId);
+        const payload = JSON.stringify(resolveDraft(entry, current ? entry.kind === "note" ? encodeNote(current as StudyNote) : encodeTask(current as Task) : null).value);
+        for (const [key, value] of recoveryRecords(`settings:editorDraft:${entry.kind}:${entry.recordId}`, payload, entry.operationId)) {
+          if (key.startsWith("note:") && !get().notes.some((n) => `note:${n.id}` === key)) addNote(decodeNote(JSON.parse(value)));
+        }
+      }
+      const stored = await saveData();
+      if (stored && currentSession()) { try { acknowledgeDraft(entry); } catch { /* Preserve on failure. */ } }
+    } catch (error) {
+      set({ cloudError: `An editor draft is preserved on this device but could not be recovered: ${String(error)}` });
+    }
+  }
+}
+
+/** A synced side record, parsed (or the fallback when missing or unreadable). */
+const parsedSide = new Map<string, { payload: string; value: unknown }>();
+export function readSide<T>(key: string, fallback: T): T {
+  const payload = get().side[key];
+  if (payload === undefined) return fallback;
+  const cached = parsedSide.get(key);
+  if (cached?.payload === payload) return cached.value as T;
+  try {
+    const value = JSON.parse(payload) as T;
+    parsedSide.set(key, { payload, value });
+    return value;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeSide(key: string, value: unknown | null) {
+  if (!key.startsWith("settings:") || CORE_SETTINGS.has(key)) throw new Error(`Not a side record: ${key}`);
+  const side = { ...get().side };
+  if (value == null) delete side[key];
+  else side[key] = JSON.stringify(value);
+  set({ side });
+  void saveData();
+}
+
 export function deleteNote(id: string) {
-  set({ notes: get().notes.filter((n) => n.id !== id) });
+  try { discardRecordDrafts(get().user?.uid ?? "", "note", id); } catch { /* The deletion can still be saved. */ }
+  // Its version history goes with it.
+  const side = { ...get().side };
+  delete side[`settings:versions:${id}`];
+  set({ notes: get().notes.filter((n) => n.id !== id), side });
   void saveData();
 }
 
@@ -1161,6 +1449,7 @@ export class UploadPendingError extends Error {}
  * (the deletion stays queued and keeps retrying).
  */
 export async function clearWorkspace() {
+  const currentSession = captureWorkspaceSession();
   if (calendarEnabled) for (const t of get().tasks) removeTaskFromCalendar(t);
   set({
     tasks: [],
@@ -1169,8 +1458,10 @@ export async function clearWorkspace() {
     folders: [],
     tags: [],
     settings: defaultSettings(),
+    side: {},
   });
   const stored = await saveData();
+  if (!currentSession()) throw new Error("Account changed during workspace deletion.");
   // Signed in, the cloud is what counts (even if the device copy failed).
   if (get().user && cloud) {
     try {
@@ -1181,6 +1472,18 @@ export async function clearWorkspace() {
   } else if (!stored) {
     throw new Error(get().cloudError ?? "The deletion could not be saved on this device.");
   }
+}
+
+/** Confirms a durable device save; cloud uploads may still be pending. */
+export async function flushWorkspaceSave(): Promise<void> {
+  if (!(await saveData())) throw new Error(get().cloudError ?? "The device save failed.");
+}
+
+export async function retryCloudSync(): Promise<void> {
+  const currentSession = captureWorkspaceSession();
+  await flushWorkspaceSave();
+  if (!currentSession()) throw new Error("Account changed before retrying sync.");
+  await cloud?.retryNow();
 }
 
 /** Test/dev hook: replaces the signed-out workspace with [records]. */

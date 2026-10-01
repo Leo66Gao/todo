@@ -3,18 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { formatDuration, relativeDay, sameDay, today } from "@/lib/time";
-import { PageHeader } from "@/shell/Shell";
+import { Plus } from "lucide-react";
+import { addDays, formatDuration, relativeDay, sameDay, today } from "@/lib/time";
+import { useEvents } from "@/lib/googleEvents";
+import { EventRow } from "@/features/events/EventSheet";
+import { PageHeader, Stepper } from "@/shell/Shell";
 import { ui, useUI } from "@/shell/ui";
 import { overdueTasks, tasksForDay, useAllTasks, workMinutes } from "@/features/tasks/meta";
 import { Section, TaskList } from "@/features/tasks/TaskList";
 import { moveTask } from "@/features/tasks/actions";
 import { rescheduleTask } from "@/store/workspace";
-import { Button, IconButton } from "@/ui/controls";
+import { Button } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Tooltip } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
+import { useMedia } from "@/ui/useMedia";
 import { DayStrip } from "./DayStrip";
 import { ScheduleRail } from "./ScheduleRail";
 
@@ -22,6 +25,7 @@ export function TodayView() {
   const day = useUI((s) => s.day);
   const all = useAllTasks();
   const { timed, untimed, done } = useMemo(() => tasksForDay(all, day), [all, day]);
+  const events = useEvents(day, addDays(day, 1));
   const isToday = sameDay(day, today());
   const overdue = useMemo(() => (isToday ? overdueTasks(all) : []), [all, isToday]);
   const [reviewing, setReviewing] = useState(false);
@@ -35,6 +39,10 @@ export function TodayView() {
   }, [timed, untimed, done, overdue, reviewing]);
 
   const setDay = (d: Date) => ui.set({ day: d });
+  const phone = useMedia("(max-width: 767px)");
+  // The title is the weekday; "Today", "Tomorrow" or "Yesterday" goes with the date.
+  const relative = relativeDay(day);
+  const nearWord = ["Today", "Tomorrow", "Yesterday"].includes(relative) ? relative : null;
 
   const moveAllOverdue = () => {
     const moved = overdue.map((t) => ({ id: t.id, date: t.date }));
@@ -49,25 +57,22 @@ export function TodayView() {
   return (
     <>
       <PageHeader
-        title={relativeDay(day)}
-        detail={format(day, isToday ? "EEEE d MMMM" : "d MMMM yyyy")}
+        title={format(day, "EEEE")}
+        detail={nearWord ? `${nearWord}, ${format(day, "d MMMM")}` : format(day, "d MMMM yyyy")}
+        eyebrow={nearWord ? `${nearWord} · ${format(day, "d MMM")}` : format(day, "d MMM yyyy")}
         actions={
           <>
-            <div className="mr-1 flex items-center">
-              <Tooltip label="Previous day" shortcut={["←"]}>
-                <IconButton label="Previous day" onClick={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1))}>
-                  <ChevronLeft className="size-4" />
-                </IconButton>
-              </Tooltip>
-              <Button variant="ghost" size="sm" disabled={isToday} onClick={() => setDay(today())}>
-                Today
-              </Button>
-              <Tooltip label="Next day" shortcut={["→"]}>
-                <IconButton label="Next day" onClick={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1))}>
-                  <ChevronRight className="size-4" />
-                </IconButton>
-              </Tooltip>
-            </div>
+            <Stepper
+              prev="Previous day"
+              next="Next day"
+              prevShortcut={["←"]}
+              nextShortcut={["→"]}
+              onPrev={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1))}
+              onNext={() => setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1))}
+              present="Today"
+              atPresent={isToday}
+              onPresent={() => setDay(today())}
+            />
             <Tooltip label="New task" shortcut={["N"]}>
               <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: day })}>
                 <span className="max-sm:hidden">New task</span>
@@ -77,11 +82,24 @@ export function TodayView() {
         }
       />
       <div className="@container flex min-h-0 flex-1 flex-col">
-        <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
-          <DayStrip day={day} onPick={setDay} tasks={all} />
-        </div>
+        {!phone && (
+          <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 @min-[1060px]:max-w-[1160px]">
+            <div className="card p-1.5">
+              <DayStrip day={day} onPick={setDay} tasks={all} />
+            </div>
+          </div>
+        )}
         <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
-          <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-24">
+          <div className="scroll-area -mx-1 min-w-0 flex-1 px-1 pb-bar">
+            {/* On phones the strip floats over the list, which scrolls past its lower corners. */}
+            {phone && (
+              // The page colour fills behind its top corners; below, the list shows through.
+              <div className="sticky top-0 z-10 bg-[linear-gradient(var(--canvas)_50%,transparent_50%)]">
+                <div className="rounded-[26px] border border-line bg-card p-1.5">
+                  <DayStrip day={day} onPick={setDay} tasks={all} />
+                </div>
+              </div>
+            )}
             <div className="mt-4 flex items-center gap-5 px-2 text-xs whitespace-nowrap text-ink-3 max-sm:gap-4">
               <span>
                 <span className="font-semibold text-ink tnum">{open}</span> open
@@ -117,12 +135,12 @@ export function TodayView() {
                   transition={springs.layout}
                   className="overflow-hidden"
                 >
-                  <div className="mt-4 rounded-[calc(var(--radius-ctl)_+_4px)] bg-fill/70 px-2 py-1.5">
+                  <div className="card mt-4 px-2 py-2">
                     <div className="flex items-center gap-2 pl-2">
                       <span className="size-1.5 rounded-full bg-danger" />
-                      <span className="flex-1 text-sm text-ink-2">
-                        <span className="font-medium text-ink tnum">{overdue.length}</span> overdue{" "}
-                        {overdue.length === 1 ? "task" : "tasks"}
+                      <span className="min-w-0 flex-1 truncate text-sm text-ink-2">
+                        <span className="font-medium text-ink tnum">{overdue.length}</span> overdue
+                        <span className="max-[400px]:hidden"> {overdue.length === 1 ? "task" : "tasks"}</span>
                         <span className="max-sm:hidden"> from earlier days</span>
                       </span>
                       <Button variant="ghost" size="sm" onClick={() => setReviewing((v) => !v)}>
@@ -141,9 +159,10 @@ export function TodayView() {
                           transition={springs.layout}
                           className="overflow-hidden"
                         >
-                          <div className="mt-1.5 rounded-[9px] bg-canvas p-1">
+                          <div className="mt-1.5 border-t border-line pt-1.5">
                             <TaskList
                               tasks={overdue}
+                              plain
                               showDate
                               trailing={(t) => (
                                 <Button
@@ -169,8 +188,17 @@ export function TodayView() {
             </AnimatePresence>
 
             <div className="mt-5">
+              {events.length > 0 && (
+                <Section title="Calendar" count={events.length}>
+                  <div className="space-y-px">
+                    {events.map((e) => (
+                      <EventRow key={e.key} event={e} />
+                    ))}
+                  </div>
+                </Section>
+              )}
               {total === 0 ? (
-                <EmptyDay day={day} />
+                events.length === 0 && <EmptyDay day={day} />
               ) : (
                 <>
                   {timed.length > 0 && (
@@ -197,7 +225,7 @@ export function TodayView() {
                   <button
                     type="button"
                     onClick={() => ui.newTask({ date: day })}
-                    className="mt-2 flex h-9 w-full items-center gap-2.5 rounded-[9px] px-2.5 text-sm text-ink-3 transition-colors hover:bg-fill/70 hover:text-ink-2"
+                    className="mt-1 flex h-11 w-full items-center gap-2.5 rounded-card px-3.5 text-sm text-ink-3 transition-colors hover:bg-card hover:text-ink-2"
                   >
                     <Plus className="size-4" />
                     Add a task
@@ -207,7 +235,7 @@ export function TodayView() {
             </div>
           </div>
           <div className="hidden pt-4 pb-6 @min-[1060px]:flex">
-            <ScheduleRail day={day} tasks={all} />
+            <ScheduleRail day={day} tasks={all} events={events} />
           </div>
         </div>
       </div>

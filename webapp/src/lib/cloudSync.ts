@@ -11,7 +11,6 @@
 import {
   collection,
   doc,
-  getDocsFromServer,
   onSnapshot,
   query,
   runTransaction,
@@ -25,16 +24,36 @@ import {
   type Query,
   type Unsubscribe,
 } from "firebase/firestore";
-import { toDartIso } from "./dart";
-import * as prefs from "./prefs";
+import { WorkspaceCache } from "./deviceCache";
+import { syncFailure } from "./syncPolicy";
+import { payloadFits, recoveryRecords } from "./recordRecovery";
 
 type Records = Record<string, string>;
 type Pending = Record<string, string | null>;
 
-const MAX_CHARS = 690000;
-const MAX_BYTES = 900000;
-const byteLength = (s: string) => new TextEncoder().encode(s).length;
-const fitsCloud = (s: string) => s.length <= MAX_CHARS && byteLength(s) <= MAX_BYTES;
+export interface SyncDetails {
+  pending: { key: string; deleting: boolean }[];
+  lastDownloadedAt: number | null;
+  lastUploadedAt: number | null;
+  retryAt: number | null;
+  pauseReason: string | null;
+  error: string | null;
+  recordsReceived: number;
+  recordsUploaded: number;
+}
+
+/**
+ * Uploads are grouped rather than sent on every save: each change is on the
+ * device at once (and survives the app closing), then goes up within a
+ * second, or within 20 seconds for note text, which changes as you type and
+ * would otherwise cost a read and a write per pause. Anything waiting goes up
+ * straight away when the app is put away or the page is left.
+ */
+const UPLOAD_SOON_MS = 1000;
+const UPLOAD_NOTES_MS = 20000;
+const isTypingRecord = (key: string) => key.startsWith("note:") || key.startsWith("settings:versions:");
+
+const validChange = (key: string, value: string | null) => /^(task|note|project|folder|settings):[^/]+$/.test(key) && key.length <= 200 && (value == null || payloadFits(value));
 
 function millisOf(ts: unknown): number | null {
   if (ts instanceof Timestamp) return ts.toMillis();
@@ -45,6 +64,7 @@ function millisOf(ts: unknown): number | null {
 export class CloudSync {
   onRecords: ((records: Records) => void) | null = null;
   onStatus: ((status: string, error: string | null) => void) | null = null;
+  onDetails: ((details: SyncDetails) => void) | null = null;
 
   private uid: string | null = null;
   private records: Records = {};
@@ -52,15 +72,62 @@ export class CloudSync {
   private bases: Pending = {};
   private pendingIds: Record<string, string> = {};
   private lastSyncMillis: number | null = null;
+  private cache = new WorkspaceCache();
+  private deferred = new Map<string, { payload: string | null; at: number }>();
+  private retryAt: number | null = null;
+  private retryReason: string | null = null;
+  private failureCount = 0;
+  private lastUploadedAt: number | null = null;
+  private lastDownloadedAt: number | null = null;
+  private recordsReceived = 0;
+  private recordsUploaded = 0;
+  private storageError: string | null = null;
+  private hideTimer: ReturnType<typeof setTimeout> | null = null;
   /** The upload pass in progress, shared by everyone who asks for one. */
   private inflight: Promise<void> | null = null;
   private lastFlushError: string | null = null;
   private generation = 0;
+  private uploadTimer: ReturnType<typeof setTimeout> | null = null;
+  private uploadDue = 0;
+  private readonly uploadNowIfHidden = () => {
+    if (document.visibilityState === "hidden") {
+      void this.flush();
+      if (this.hideTimer) clearTimeout(this.hideTimer);
+      this.hideTimer = setTimeout(() => {
+        this.unsubscribe?.();
+        this.unsubscribe = null;
+      }, 60_000);
+    } else {
+      if (this.hideTimer) clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+      if (!this.unsubscribe && this.uid) this.listen(this.generation);
+      void this.flush();
+    }
+  };
+  private readonly uploadOnLeave = () => void this.flush();
   private unsubscribe: Unsubscribe | null = null;
   private retry: ReturnType<typeof setInterval> | null = null;
   private resub: ReturnType<typeof setTimeout> | null = null;
+  /** Uploads as soon as the connection returns, not at the next retry. */
+  private readonly reconnected = () => {
+    if (!this.unsubscribe && this.uid) this.listen(this.generation);
+    void this.flush();
+  };
 
-  constructor(private readonly db: Firestore) {}
+  constructor(private readonly db: Firestore) {
+    this.cache.onRecovery = (uid, entries) => {
+      if (uid !== this.uid) return;
+      for (const [key, entry] of Object.entries(entries)) {
+        this.records[key] = entry.payload;
+        this.pending[key] = entry.payload;
+        this.bases[key] = null;
+        this.pendingIds[key] = entry.operationId;
+      }
+      this.onRecords?.({ ...this.records });
+      this.status("Competing device edits saved as conflict copies");
+      this.scheduleUpload(UPLOAD_SOON_MS);
+    };
+  }
 
   private get collectionRef(): CollectionReference<DocumentData> {
     return collection(this.db, "users", this.uid!, "records");
@@ -74,41 +141,95 @@ export class CloudSync {
     return Object.keys(this.pending).length > 0;
   }
 
+  private details() {
+    this.onDetails?.({
+      pending: Object.entries(this.pending).map(([key, value]) => ({ key, deleting: value == null })),
+      lastDownloadedAt: this.lastDownloadedAt, lastUploadedAt: this.lastUploadedAt,
+      retryAt: this.retryAt, pauseReason: this.retryReason,
+      error: this.storageError ?? this.lastFlushError,
+      recordsReceived: this.recordsReceived, recordsUploaded: this.recordsUploaded,
+    });
+  }
+
+  private status(label: string, error: string | null = null) {
+    const quota = this.paused && this.retryReason === "quota";
+    this.onStatus?.(this.storageError ? "Device storage needs attention" : quota ? "Sync paused: quota reached" : label, this.storageError ?? (quota ? this.lastFlushError : error));
+    this.details();
+  }
+
+  private get paused() { return this.retryAt != null && this.retryAt > Date.now(); }
+
+  /** A single explicit retry from the sync panel; automatic retries respect backoff. */
+  async retryNow() {
+    this.retryAt = null;
+    this.retryReason = null;
+    this.lastFlushError = null;
+    if (!this.unsubscribe && this.uid) this.listen(this.generation);
+    await this.flush();
+    this.details();
+  }
+
+  private failed(error: unknown) {
+    const failure = syncFailure(error, this.failureCount++);
+    this.retryAt = failure.retryAt;
+    this.retryReason = failure.reason;
+    this.lastFlushError = failure.message;
+    this.status(failure.reason === "quota" ? "Sync paused: quota reached" : "Saved on this device, retrying", failure.message);
+    this.remember();
+  }
+
+  private remember() {
+    const generation = this.generation;
+    void this.persist().catch((error) => { if (generation === this.generation) this.storageFailed(error); });
+  }
+
+  private storageFailed(error: unknown) {
+    this.storageError = error instanceof Error ? error.message : String(error);
+    this.status("Device storage needs attention", this.storageError);
+  }
+
   async connect(uid: string): Promise<Records> {
     await this.disconnect();
     this.uid = uid;
     const generation = this.generation;
-    const saved = prefs.getString(`cloud.${uid}`);
+    const saved = await this.cache.read(uid).catch((error) => { if (generation === this.generation) this.storageFailed(error); return null; });
+    if (generation !== this.generation || this.uid !== uid) return {};
     if (saved != null) {
-      try {
-        const data = JSON.parse(saved);
+        const data = saved;
         this.records = { ...(data.records as Records) };
         this.pending = { ...(data.pending as Pending) };
         this.bases = data.bases && typeof data.bases === "object" ? { ...data.bases } : {};
         this.pendingIds =
           data.pendingIds && typeof data.pendingIds === "object" ? { ...data.pendingIds } : {};
         this.lastSyncMillis = typeof data.lastSync === "number" ? data.lastSync : null;
-      } catch {
-        // Preserve the damaged cache for recovery instead of uploading a blank
-        // workspace over the user's cloud records.
-        prefs.setString(`cloud.${uid}.recovery`, saved);
-        this.records = {};
-        this.pending = {};
-        this.bases = {};
-        this.pendingIds = {};
-        this.lastSyncMillis = null;
-        this.onStatus?.("Recovering from cloud", "A damaged device cache was backed up.");
-      }
+        this.retryAt = data.retryAt ?? null;
+        this.retryReason = data.retryReason ?? null;
+        this.lastUploadedAt = data.lastUploadedAt ?? null;
+        this.lastDownloadedAt = data.lastDownloadedAt ?? null;
+        this.lastFlushError = data.retryError ?? null;
     }
     if (Object.keys(this.pending).some((k) => !(k in this.pendingIds))) {
       for (const key of Object.keys(this.pending)) {
         this.pendingIds[key] ??= crypto.randomUUID();
       }
-      this.persist();
+      await this.persist();
     }
     this.listen(generation);
-    this.retry = setInterval(() => void this.flush(), 15000);
+    // Retries what failed; changes still in their grouping window wait for it.
+    this.retry = setInterval(() => {
+      if (!this.paused) {
+        if (!this.unsubscribe && (typeof document === "undefined" || !document.hidden)) this.listen(this.generation);
+        if (!this.uploadTimer) void this.flush();
+      }
+    }, 30000);
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", this.reconnected);
+      document.addEventListener("visibilitychange", this.uploadNowIfHidden);
+      window.addEventListener("pagehide", this.uploadOnLeave);
+    }
     void this.flush();
+    if (this.paused) this.status("Sync paused: quota reached", this.lastFlushError);
+    this.details();
     return { ...this.records };
   }
 
@@ -118,8 +239,9 @@ export class CloudSync {
   }
 
   private listen(generation: number) {
+    if (this.paused) return;
     this.unsubscribe?.();
-    const isFullSync = this.lastSyncMillis == null || Object.keys(this.records).length === 0;
+    const isFullSync = this.lastSyncMillis == null;
     let checkedFullServerSnapshot = false;
     let deliveredInitialRecords = false;
     let lastStatus: string | null = null;
@@ -153,8 +275,12 @@ export class CloudSync {
           }
           const data = change.doc.data();
           const ms = millisOf(data?.updatedAt);
-          if (ms != null && (maxUpdated == null || ms > maxUpdated)) maxUpdated = ms;
-          if (id in this.pending) continue;
+          const confirmed = !snapshot.metadata.fromCache && !change.doc.metadata.hasPendingWrites;
+          if (confirmed && ms != null && (maxUpdated == null || ms > maxUpdated)) maxUpdated = ms;
+          if (id in this.pending) {
+            if (confirmed && ms != null) this.deferred.set(id, { payload: data.deleted ? null : data.payload, at: ms });
+            continue;
+          }
           if (data?.deleted === true) {
             if (id in this.records) {
               delete this.records[id];
@@ -170,55 +296,69 @@ export class CloudSync {
           this.lastSyncMillis = maxUpdated;
           watermarkChanged = true;
         }
+        if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
+          this.lastDownloadedAt = Date.now();
+          this.recordsReceived += snapshot.docChanges().filter((c) => c.type !== "removed").length;
+          // An empty account is a valid completed initial sync too.
+          if (this.lastSyncMillis == null) { this.lastSyncMillis = 0; watermarkChanged = true; }
+          if (!(this.paused && this.retryReason === "quota")) {
+            this.retryAt = null;
+            this.retryReason = null;
+            this.failureCount = 0;
+            this.lastFlushError = null;
+          }
+        }
         if (recordsChanged || !deliveredInitialRecords) {
           deliveredInitialRecords = true;
           this.onRecords?.({ ...this.records });
         }
-        if (recordsChanged || watermarkChanged) {
-          try {
-            this.persist();
-          } catch (error) {
-            this.onStatus?.("Device storage needs attention", String(error));
-          }
+        if (recordsChanged || watermarkChanged || (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites)) {
+          this.remember();
         }
         const status = this.hasPending
           ? "Changes waiting to sync"
           : snapshot.metadata.fromCache
-            ? "Offline · saved on this device"
+            ? "Offline, saved on this device"
             : "Synced";
         if (status !== lastStatus) {
           lastStatus = status;
-          this.onStatus?.(status, null);
+          this.status(status);
         }
+        this.details();
       },
       (error) => {
         if (generation !== this.generation) return;
-        this.onStatus?.("Sync needs attention", String(error));
+        this.unsubscribe?.();
+        this.unsubscribe = null;
+        this.failed(error);
         if (this.resub) clearTimeout(this.resub);
         this.resub = setTimeout(() => {
-          if (generation === this.generation && this.uid != null) this.listen(generation);
-        }, 8000);
+          if (generation === this.generation && this.uid != null && (typeof document === "undefined" || !document.hidden)) this.listen(generation);
+        }, Math.max(1000, (this.retryAt ?? Date.now() + 30_000) - Date.now()));
       },
     );
   }
 
-  private persist(): boolean {
+  private async persist(): Promise<void> {
     const uid = this.uid;
-    if (!uid) return false;
-    const encoded = JSON.stringify({
+    const generation = this.generation;
+    if (!uid) return;
+    await this.cache.save(uid, {
       records: this.records,
       pending: this.pending,
       bases: this.bases,
       pendingIds: this.pendingIds,
-      ...(this.lastSyncMillis != null ? { lastSync: this.lastSyncMillis } : {}),
+      lastSync: this.lastSyncMillis,
+      retryAt: this.retryAt, retryReason: this.retryReason, retryError: this.lastFlushError, lastUploadedAt: this.lastUploadedAt, lastDownloadedAt: this.lastDownloadedAt,
     });
-    return prefs.setString(`cloud.${uid}`, encoded);
+    if (generation === this.generation) this.storageError = null;
   }
 
   async writeChanges(changes: Pending): Promise<void> {
     if (!this.uid) throw new Error("Sign in before saving cloud changes.");
     const keys = Object.keys(changes);
     if (keys.length === 0) return;
+    const generation = this.generation;
     for (const key of keys) {
       if (!(key in this.pending)) this.bases[key] = this.records[key] ?? null;
       const value = changes[key];
@@ -229,17 +369,17 @@ export class CloudSync {
     }
     // Upload even when the device copy can't be written, but report it so the
     // caller keeps the change and tries to store it again.
-    let stored = false;
     let failure: unknown = null;
     try {
-      stored = this.persist();
+      await this.persist();
     } catch (error) {
       failure = error;
+      if (generation === this.generation) this.storageFailed(error);
     }
-    this.onStatus?.("Changes waiting to sync", null);
-    void this.flush();
+    if (generation !== this.generation) return;
+    this.status(this.paused ? "Sync paused" : "Changes waiting to sync", this.lastFlushError);
+    this.scheduleUpload(keys.every(isTypingRecord) ? UPLOAD_NOTES_MS : UPLOAD_SOON_MS);
     if (failure) throw failure;
-    if (!stored) throw new Error("This browser is blocking device storage.");
   }
 
   private document(key: string, payload: string | null) {
@@ -249,40 +389,6 @@ export class CloudSync {
       deleted: payload == null,
       updatedAt: serverTimestamp(),
     };
-  }
-
-  /**
-   * A conflicting local edit becomes a visible copy. Settings and unreadable
-   * payloads become a note holding the raw local value so nothing is lost.
-   */
-  private conflictCopy(key: string, payload: string, copyId: string): [string, string] | null {
-    const kind = key.split(":")[0];
-    try {
-      if (kind !== "settings") {
-        const value = JSON.parse(payload) as Record<string, unknown>;
-        value.id = copyId;
-        const nameKey = kind === "folder" ? "name" : "title";
-        value[nameKey] = `${value[nameKey] ?? "Untitled"} (conflict copy)`;
-        if (kind === "task") {
-          value.googleEventId = null;
-          value.calendarEventRevision = 0;
-          value.isConflictCopy = true;
-        }
-        const encoded = JSON.stringify(value);
-        if (fitsCloud(encoded)) return [`${kind}:${copyId}`, encoded];
-      }
-    } catch {
-      // Fall through: preserve malformed data in a readable note.
-    }
-    const now = toDartIso(new Date());
-    const note = JSON.stringify({
-      id: copyId,
-      title: `Sync conflict: ${key}`,
-      content: `Local version of ${key}:\n\n${payload}`,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return fitsCloud(note) ? [`note:${copyId}`, note] : null;
   }
 
   /** Imports only missing documents; existing records and tombstones win. */
@@ -310,10 +416,13 @@ export class CloudSync {
    * save from one that has reached the cloud.
    */
   async uploadNow(): Promise<void> {
+    const generation = this.generation;
+    if (this.paused) throw new Error(this.lastFlushError ?? "Sync is paused until its next retry. Your changes remain on this device.");
     // A pass already under way may have started before the latest changes.
     for (let attempt = 0; attempt < 3 && this.hasPending; attempt++) {
       this.lastFlushError = null;
       await this.flush();
+      if (generation !== this.generation) throw new Error("Account changed during upload.");
       if (this.lastFlushError) break;
     }
     if (this.hasPending) {
@@ -321,8 +430,19 @@ export class CloudSync {
     }
   }
 
+  /** Uploads within `delay`, or sooner if an earlier upload is already due. */
+  private scheduleUpload(delay: number) {
+    const due = Date.now() + delay;
+    if (this.uploadTimer && this.uploadDue <= due) return;
+    if (this.uploadTimer) clearTimeout(this.uploadTimer);
+    this.uploadDue = due;
+    this.uploadTimer = setTimeout(() => void this.flush(), delay);
+  }
+
   flush(): Promise<void> {
-    if (!this.uid || (!this.hasPending && !this.inflight)) return Promise.resolve();
+    if (this.uploadTimer) clearTimeout(this.uploadTimer);
+    this.uploadTimer = null;
+    if (!this.uid || this.paused || (!this.hasPending && !this.inflight)) return Promise.resolve();
     if (!this.inflight) {
       const pass: Promise<void> = this.runFlush().finally(() => {
         if (this.inflight === pass) this.inflight = null;
@@ -338,7 +458,14 @@ export class CloudSync {
     const col = this.collectionRef;
     try {
       while (this.hasPending && generation === this.generation) {
-        const entries = Object.entries(this.pending).slice(0, 50);
+        const blocked = Object.entries(this.pending).filter(([key, value]) => !validChange(key, value));
+        const entries = Object.entries(this.pending).filter(([key, value]) => validChange(key, value)).slice(0, 50);
+        if (!entries.length) {
+          this.lastFlushError = `${blocked.length} changes exceed cloud limits or have invalid record IDs. They remain on this device; shorten them or export a backup.`;
+          await this.persist();
+          this.status("Some changes cannot sync", this.lastFlushError);
+          return;
+        }
         const operationIds: Record<string, string> = {};
         for (const [key] of entries) operationIds[key] = this.pendingIds[key];
         const bases: Pending = {};
@@ -349,10 +476,12 @@ export class CloudSync {
           for (const [key] of entries) snapshots[key] = await tx.get(doc(col, key));
           const tombstones = new Set<string>();
           const conflicts: Record<string, string> = {};
-          const copies: Record<string, [string, string]> = {};
-          const oversized = new Set<string>();
+          const copies: Record<string, [string, string][]> = {};
+          const remoteAt: Record<string, number> = {};
+          let writes = 0;
           for (const [key, value] of entries) {
             const remote = snapshots[key];
+            remoteAt[key] = millisOf(remote.data()?.updatedAt) ?? 0;
             if (remote.data()?.deleted === true) {
               tombstones.add(key);
               continue;
@@ -363,43 +492,35 @@ export class CloudSync {
             if (key in bases && remotePayload === bases[key]) continue;
             conflicts[key] = remotePayload ?? "";
           }
-          const candidates: Record<string, [string, string] | null> = {};
-          for (const [key, value] of entries) {
-            if (key in conflicts) candidates[key] = this.conflictCopy(key, value!, operationIds[key]);
-          }
+          const candidates: Record<string, [string, string][]> = {};
           const copySnapshots: Record<string, DocumentSnapshot<DocumentData>> = {};
-          for (const key of Object.keys(conflicts)) {
-            const copy = candidates[key];
-            if (copy) copySnapshots[key] = await tx.get(doc(col, copy[0]));
+          for (const [key, value] of entries) {
+            if (!(key in conflicts)) continue;
+            candidates[key] = recoveryRecords(key, value!, operationIds[key]);
+            for (const [copyKey] of candidates[key]) copySnapshots[copyKey] = await tx.get(doc(col, copyKey));
           }
           for (const [key, value] of entries) {
             if (tombstones.has(key)) continue;
             if (key in conflicts) {
-              const copy = candidates[key];
-              if (!copy) {
-                oversized.add(key);
-              } else {
-                const existing = copySnapshots[key];
-                if (!existing.exists()) tx.set(doc(col, copy[0]), this.document(copy[0], copy[1]));
-                copies[key] = [copy[0], (existing.data()?.payload as string | undefined) ?? copy[1]];
-              }
+              copies[key] = candidates[key].map(([copyKey, payload]) => {
+                const existing = copySnapshots[copyKey];
+                if (!existing.exists()) { tx.set(doc(col, copyKey), this.document(copyKey, payload)); writes++; }
+                return [copyKey, (existing.data()?.payload as string | undefined) ?? payload];
+              });
             } else if (snapshots[key].data()?.payload !== value || !snapshots[key].exists()) {
               tx.set(doc(col, key), this.document(key, value));
+              writes++;
             }
             // Otherwise this exact write already landed before an earlier
             // attempt lost its acknowledgement.
           }
-          return { tombstones, conflicts, copies, oversized };
+          return { tombstones, conflicts, copies, remoteAt, writes };
         });
         if (generation !== this.generation) return;
+        this.recordsUploaded += outcome.writes;
+        this.recordsReceived += entries.length;
+        this.lastUploadedAt = Date.now();
 
-        for (const key of outcome.oversized) {
-          const value = entries.find(([k]) => k === key)?.[1];
-          prefs.setString(
-            `cloud.${this.uid}.conflict.${operationIds[key]}`,
-            JSON.stringify({ key, payload: value }),
-          );
-        }
         let recordsChanged = false;
         for (const [key, value] of entries) {
           const sameOperation = this.pendingIds[key] === operationIds[key];
@@ -413,9 +534,8 @@ export class CloudSync {
             delete this.records[key];
             recordsChanged = true;
           } else if (key in outcome.conflicts) {
-            const copy = outcome.copies[key];
-            if (copy) {
-              this.records[copy[0]] = copy[1];
+            for (const [copyKey, payload] of outcome.copies[key] ?? []) {
+              this.records[copyKey] = payload;
               recordsChanged = true;
             }
             if (sameOperation) {
@@ -430,72 +550,39 @@ export class CloudSync {
             // value this transaction just wrote.
             this.bases[key] = value;
           }
+          const deferred = this.deferred.get(key);
+          if (!(key in this.pending)) {
+            if (deferred && deferred.at > outcome.remoteAt[key] && !outcome.tombstones.has(key)) {
+              if (deferred.payload == null) delete this.records[key];
+              else this.records[key] = deferred.payload;
+              recordsChanged = true;
+            }
+            this.deferred.delete(key);
+          }
         }
         if (recordsChanged) this.onRecords?.({ ...this.records });
-        this.persist();
+        await this.persist();
         if (Object.keys(outcome.conflicts).length > 0) {
-          this.onStatus?.(
-            "Sync conflicts saved as copies",
-            outcome.oversized.size === 0
-              ? null
-              : "An oversized local version was backed up on this device.",
-          );
+          this.status("Sync conflicts saved as copies");
         }
       }
 
       if (generation === this.generation) {
-        // A remote edit can arrive while an ID is protected by the outbox;
-        // fetch again after acknowledgement so it is not lost.
-        const isFull = this.lastSyncMillis == null;
-        const snapshot = await getDocsFromServer(isFull ? col : this.overlapQuery());
-        if (generation !== this.generation) return;
-        let recordsChanged = isFull;
-        if (isFull) {
-          const remote: Records = {};
-          for (const d of snapshot.docs) {
-            const data = d.data();
-            if (data.deleted !== true && typeof data.payload === "string") remote[d.id] = data.payload;
-          }
-          for (const [key, value] of Object.entries(this.pending)) {
-            if (value == null) delete remote[key];
-            else remote[key] = value;
-          }
-          this.records = remote;
-        } else {
-          for (const d of snapshot.docs) {
-            if (d.id in this.pending) continue;
-            const data = d.data();
-            if (data.deleted === true) {
-              if (d.id in this.records) {
-                delete this.records[d.id];
-                recordsChanged = true;
-              }
-            } else if (typeof data.payload === "string" && this.records[d.id] !== data.payload) {
-              this.records[d.id] = data.payload;
-              recordsChanged = true;
-            }
-          }
-        }
-        let maxUpdated: number | null = null;
-        for (const d of snapshot.docs) {
-          const ms = millisOf(d.data().updatedAt);
-          if (ms != null && (maxUpdated == null || ms > maxUpdated)) maxUpdated = ms;
-        }
-        let watermarkChanged = false;
-        if (maxUpdated != null && maxUpdated > (this.lastSyncMillis ?? 0)) {
-          this.lastSyncMillis = maxUpdated;
-          watermarkChanged = true;
-        }
-        if (recordsChanged) this.onRecords?.({ ...this.records });
-        if (recordsChanged || watermarkChanged) this.persist();
-        if (generation === this.generation) {
-          this.onStatus?.(this.hasPending ? "Changes waiting to sync" : "Synced", null);
-        }
+        // The live listener supplies updates; deferred events above reconcile
+        // writes that arrived during a transaction. No second collection query.
+        this.retryAt = null;
+        this.retryReason = null;
+        this.lastFlushError = null;
+        this.failureCount = 0;
+        this.status(this.hasPending ? "Changes waiting to sync" : "Synced");
       }
     } catch (error) {
       if (generation === this.generation) {
-        this.lastFlushError = String(error);
-        this.onStatus?.("Changes saved locally · retrying", String(error));
+        // Being offline isn't a fault: the changes upload when it's back.
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          this.lastFlushError = String(error);
+          this.status("Offline, saved on this device");
+        } else this.failed(error);
       }
     }
   }
@@ -503,7 +590,15 @@ export class CloudSync {
   async disconnect(): Promise<void> {
     this.generation++;
     if (this.retry) clearInterval(this.retry);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", this.reconnected);
+      document.removeEventListener("visibilitychange", this.uploadNowIfHidden);
+      window.removeEventListener("pagehide", this.uploadOnLeave);
+    }
+    if (this.uploadTimer) clearTimeout(this.uploadTimer);
+    this.uploadTimer = null;
     if (this.resub) clearTimeout(this.resub);
+    if (this.hideTimer) clearTimeout(this.hideTimer);
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.retry = null;
@@ -515,5 +610,16 @@ export class CloudSync {
     this.pendingIds = {};
     this.lastSyncMillis = null;
     this.inflight = null;
+    this.deferred.clear();
+    this.retryAt = null;
+    this.retryReason = null;
+    this.failureCount = 0;
+    this.lastFlushError = null;
+    this.storageError = null;
+    this.lastUploadedAt = null;
+    this.lastDownloadedAt = null;
+    this.recordsReceived = 0;
+    this.recordsUploaded = 0;
+    this.details();
   }
 }

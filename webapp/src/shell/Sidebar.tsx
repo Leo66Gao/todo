@@ -14,6 +14,7 @@ import {
   Search,
   Settings,
   Sun,
+  User,
 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Project } from "@/lib/model";
@@ -25,7 +26,7 @@ import { cn } from "@/ui/cn";
 import { IconButton, Kbd } from "@/ui/controls";
 import { ContextMenu, Tooltip } from "@/ui/overlay";
 import { springs } from "@/ui/motion";
-import { useGlassPrefs } from "@/glass/prefs";
+import { useGlassOn } from "@/glass/prefs";
 import { useGlass } from "@/glass/registry";
 import { useNavigate, useRoute, type Route } from "./nav";
 import { ui } from "./ui";
@@ -37,6 +38,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const projects = useWorkspace((s) => s.projects);
   const user = useWorkspace((s) => s.user);
   const cloudStatus = useWorkspace((s) => s.cloudStatus);
+  // A save or sync problem shows here in red (details are in Settings).
+  const cloudError = useWorkspace((s) => s.cloudError);
   const searchWell = useGlass<HTMLButtonElement>({ level: 2, kind: "well", interactive: true });
 
   const counts = useMemo(() => {
@@ -61,14 +64,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     (view === "notes" && route.view === "note");
 
   return (
-    <nav className="flex h-full w-full flex-col bg-sidebar">
-      <div className="flex h-[52px] shrink-0 items-center gap-2 pr-2.5 pl-4">
-        <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-ink">
-          <svg viewBox="0 0 16 16" className="size-3.5">
+    <nav className="flex h-full w-full flex-col bg-sidebar max-md:px-1">
+      <div className="flex h-[52px] shrink-0 items-center gap-2 pr-2.5 pl-4 max-md:h-auto max-md:gap-3 max-md:pt-12 max-md:pb-1 max-md:pl-[18px]">
+        <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-ink max-md:size-[34px] max-md:rounded-[10px]">
+          <svg viewBox="0 0 16 16" className="size-3.5 max-md:size-5">
             <path d="M4 8.4l2.6 2.6L12 5.4" fill="none" stroke="var(--on-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span className="text-sm font-semibold tracking-[-0.005em]">Todo</span>
+        <span className="text-sm font-semibold tracking-[-0.005em] max-md:font-display max-md:text-[24px] max-md:leading-none max-md:font-bold max-md:tracking-[-0.02em]">Todo</span>
         <Tooltip label="Hide sidebar" shortcut={["⌘", "\\"]}>
           <IconButton label="Hide sidebar" size="sm" className="ml-auto max-lg:hidden" onClick={() => ui.toggleSidebar()}>
             <PanelLeft className="size-4" />
@@ -76,7 +79,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Tooltip>
       </div>
 
-      <div className="px-2.5 pb-2">
+      <div className="px-2.5 pb-2 max-md:pt-4 max-md:pb-3">
         <button
           ref={searchWell}
           type="button"
@@ -84,16 +87,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             ui.set({ paletteOpen: true });
             onNavigate?.();
           }}
-          className="flex h-[30px] w-full items-center gap-2 rounded-ctl bg-canvas/70 px-2.5 text-sm text-ink-3 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas hover:text-ink-2 dark:bg-fill/50"
+          className="flex h-[30px] w-full items-center gap-2 rounded-ctl bg-card/80 px-2.5 text-sm text-ink-3 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas hover:text-ink-2 dark:bg-fill/50 max-md:h-[46px] max-md:gap-2.5 max-md:rounded-full max-md:px-3.5 max-md:text-[15px]"
         >
-          <Search className="size-3.5" />
+          <Search className="size-3.5 max-md:size-[18px]" />
           <span className="flex-1 text-left">Search</span>
-          <Kbd>⌘K</Kbd>
+          <Kbd className="max-md:hidden">⌘K</Kbd>
         </button>
       </div>
 
       <div className="scroll-area flex-1 px-2.5 pb-3">
-        <div className="space-y-px">
+        <div className="space-y-px max-md:space-y-0.5">
           <DayDrop>
             <NavItem icon={<Sun />} label="Today" count={counts.todayOpen} active={active("today")} onClick={() => go({ view: "today" })} />
           </DayDrop>
@@ -114,22 +117,22 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <button
             type="button"
             onClick={() => go({ view: "today" })}
-            className="mt-2 flex h-7 w-full items-center gap-2 rounded-ctl px-2.5 text-xs text-danger transition-colors hover:bg-danger-soft"
+            className="mt-2 flex h-7 w-full items-center gap-2 rounded-ctl px-2.5 text-xs text-danger transition-colors hover:bg-danger-soft max-md:h-9 max-md:gap-3.5 max-md:px-3 max-md:text-[13px]"
           >
-            <span className="size-1.5 rounded-full bg-danger" />
+            <span className="size-1.5 rounded-full bg-danger max-md:mx-[7px]" />
             {counts.overdue} overdue
           </button>
         )}
 
-        <div className="mt-5 flex h-7 items-center justify-between pr-1 pl-2.5">
-          <span className="text-xs font-medium text-ink-3">Subjects</span>
+        <div className="mt-5 flex h-7 items-center justify-between pr-1 pl-2.5 max-md:mx-1 max-md:mt-4 max-md:h-auto max-md:border-t max-md:border-line max-md:pt-2 max-md:pl-2">
+          <span className="text-xs font-medium text-ink-3 max-md:font-mono max-md:text-[11px] max-md:font-normal max-md:tracking-[0.08em] max-md:uppercase">Subjects</span>
           <Tooltip label="New subject">
             <IconButton label="New subject" size="sm" onClick={() => void createSubject()}>
               <Plus className="size-3.5" />
             </IconButton>
           </Tooltip>
         </div>
-        <div className="space-y-px">
+        <div className="space-y-px max-md:space-y-0.5">
           {projects.map((p) => (
             <SubjectItem
               key={p.id}
@@ -151,30 +154,40 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-line p-2.5">
+      <div className="shrink-0 border-t border-line p-2.5 max-md:border-t-0 max-md:px-1.5 max-md:pb-3.5">
         <button
           type="button"
           onClick={() => go({ view: "settings" })}
           className={cn(
-            "flex h-10 w-full items-center gap-2.5 rounded-ctl px-2 text-left transition-colors hover:bg-fill",
+            "flex h-10 w-full items-center gap-2.5 rounded-ctl px-2 text-left transition-colors hover:bg-fill max-md:h-auto max-md:gap-3 max-md:rounded-[22px] max-md:border max-md:border-line max-md:bg-fill/50 max-md:py-2.5 max-md:pr-3 max-md:pl-3",
             route.view === "settings" && "bg-fill",
           )}
         >
           <Avatar name={user?.displayName ?? user?.email ?? null} photo={user?.photoURL ?? null} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">{user ? (user.displayName ?? user.email) : "On this device"}</span>
-            <span className="flex items-center gap-1.5 truncate text-2xs text-ink-3">
+            <span className="block truncate text-sm font-medium max-md:text-[14px]">{user ? (user.displayName ?? user.email) : "On this device"}</span>
+            <span className="flex items-center gap-1.5 truncate text-2xs text-ink-3 max-md:mt-0.5 max-md:text-[12px]">
               <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  !user ? "bg-ink-4" : cloudStatus === "Synced" ? "bg-p-low" : "bg-p-medium",
-                )}
-                style={{ background: !user ? undefined : cloudStatus === "Synced" ? "var(--p-low)" : "var(--p-medium)" }}
+                className={cn("size-1.5 shrink-0 rounded-full", !user && !cloudError && "bg-ink-4")}
+                style={{
+                  background: cloudError
+                    ? "var(--danger)"
+                    : !user
+                      ? undefined
+                      : cloudStatus === "Synced"
+                        ? "var(--p-low)"
+                        : "var(--p-medium)",
+                }}
               />
-              {user ? cloudStatus : "Not signed in"}
+              <span className={cn("truncate", cloudError && "text-danger")}>
+                {cloudError ? "Needs attention" : user ? cloudStatus : "Not signed in"}
+              </span>
             </span>
           </span>
-          <Settings className="size-4 shrink-0 text-ink-3" />
+          {!user && (
+            <span className="flex h-9 shrink-0 items-center rounded-full bg-ink px-3.5 text-[13px] font-semibold text-on-ink md:hidden">Sign in</span>
+          )}
+          <Settings className={cn("size-4 shrink-0 text-ink-3 max-md:size-[18px]", !user && "max-md:hidden")} />
         </button>
       </div>
     </nav>
@@ -184,11 +197,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 function Avatar({ name, photo }: { name: string | null; photo: string | null }) {
   if (photo) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={photo} alt="" referrerPolicy="no-referrer" className="size-7 shrink-0 rounded-full" />;
+    return <img src={photo} alt="" referrerPolicy="no-referrer" className="size-7 shrink-0 rounded-full max-md:size-10" />;
   }
   return (
-    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-fill-strong text-xs font-semibold text-ink-2">
-      {name ? name.trim()[0]?.toUpperCase() : "·"}
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-fill-strong text-xs font-semibold text-ink-2 max-md:size-10 max-md:text-sm">
+      {name ? name.trim()[0]?.toUpperCase() : <User className="size-3.5 max-md:size-[18px]" />}
     </span>
   );
 }
@@ -212,31 +225,32 @@ function NavItem({
     <button
       type="button"
       onClick={onClick}
+      title={label.length > 24 ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex h-[30px] w-full items-center gap-2.5 rounded-ctl px-2.5 text-sm transition-colors duration-100",
-        active ? "font-medium text-ink" : "text-ink-2 hover:bg-fill hover:text-ink",
+        "relative flex h-[30px] w-full min-w-0 items-center gap-2.5 rounded-ctl px-2.5 text-sm transition-colors duration-100 max-md:h-[46px] max-md:gap-3.5 max-md:rounded-[15px] max-md:px-3 max-md:text-[15px] max-md:font-medium",
+        active ? "font-medium text-ink" : "text-ink-2 hover:bg-fill hover:text-ink max-md:text-ink",
         dropping && "bg-accent-soft text-accent",
       )}
     >
       {active && <ActivePill />}
-      <span className={cn("relative flex [&>svg]:size-4", active ? "text-ink" : "text-ink-3")}>{icon}</span>
-      <span className="relative flex-1 text-left">{label}</span>
-      {count != null && count > 0 && <span className="relative text-xs text-ink-3 tnum">{count}</span>}
+      <span className={cn("relative flex shrink-0 [&>svg]:size-4 max-md:[&>svg]:size-5 max-md:[&>svg]:stroke-[1.75]", active ? "text-ink" : "text-ink-3 max-md:text-ink-2")}>{icon}</span>
+      <span className="relative min-w-0 flex-1 truncate text-left">{label}</span>
+      {count != null && count > 0 && <span className="relative shrink-0 text-xs text-ink-3 tnum max-md:font-mono max-md:text-[12px]">{count}</span>}
     </button>
   );
 }
 
 /** The current page's highlight; in Liquid Glass it is a glass lens that glides between items. */
 function ActivePill() {
-  const glass = useGlassPrefs((s) => s.enabled);
+  const glass = useGlassOn();
   const pill = useGlass<HTMLSpanElement>({ level: 2, kind: "control", interactive: true, inScroll: true });
   return (
     <motion.span
       ref={pill}
       layoutId={glass ? "nav-pill" : undefined}
       transition={springs.snappy}
-      className="absolute inset-0 rounded-ctl bg-fill-strong/80 dark:bg-fill-strong"
+      className="absolute inset-0 rounded-ctl bg-card shadow-card max-md:rounded-[15px] max-md:bg-fill max-md:shadow-none"
     />
   );
 }
@@ -268,8 +282,11 @@ function SubjectItem({
       <div ref={setNodeRef} className={cn("rounded-ctl transition-shadow", isOver && "shadow-[inset_0_0_0_1.5px_var(--accent-line)]")}>
         <NavItem
           icon={
-            <span className="flex size-4 items-center justify-center">
-              <span className="size-2 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
+            <span className="flex size-4 items-center justify-center max-md:w-5">
+              <span
+                className="size-2 rounded-full max-md:size-[9px] max-md:shadow-[0_0_0_3px_color-mix(in_srgb,var(--dot)_18%,transparent)]"
+                style={{ background: argbToCss(project.colorValue), ["--dot" as string]: argbToCss(project.colorValue) }}
+              />
             </span>
           }
           label={project.title}

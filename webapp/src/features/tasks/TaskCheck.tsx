@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/ui/cn";
+import { haptic } from "@/lib/native";
 
 /**
  * The completion box. Its outline carries the task's priority colour (as in
@@ -34,6 +35,7 @@ export function TaskCheck({
       onClick={(e) => {
         e.stopPropagation();
         setAnimateIn(true);
+        if (!checked) haptic();
         onToggle();
       }}
       onDoubleClick={(e) => e.stopPropagation()}
@@ -41,7 +43,7 @@ export function TaskCheck({
       style={{ width: size + 8, height: size + 8 }}
     >
       <motion.span
-        className="absolute rounded-[5px] border-[1.5px]"
+        className="absolute rounded-[5px] border-[1.5px] max-md:rounded-full"
         style={{ width: size, height: size }}
         initial={false}
         animate={{

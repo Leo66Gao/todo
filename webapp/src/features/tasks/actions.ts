@@ -4,12 +4,15 @@ import { format } from "date-fns";
 import type { Priority } from "@/lib/dart";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
-import { addDays, relativeDay, startOfWeek, today } from "@/lib/time";
+import { startTaskFocus } from "@/lib/focus";
+import { addDays, formatDuration, relativeDay, startOfWeek, today } from "@/lib/time";
 import type { Route } from "@/shell/nav";
 import { ui } from "@/shell/ui";
+import { restoreFromTrash, trashTask } from "@/store/trash";
 import {
   addSubtaskFull,
   addTask,
+  captureWorkspaceSession,
   deleteTask,
   newTask,
   patchTask,
@@ -19,7 +22,7 @@ import {
 } from "@/store/workspace";
 import type { MenuItem } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
-import { PRIORITY_LABEL, priorityColor } from "./meta";
+import { PRIORITY_LABEL, priorityColor, workMinutes } from "./meta";
 
 type Navigate = (route: Route) => void;
 
@@ -41,6 +44,7 @@ export function editTask(task: Task, navigate: Navigate) {
 }
 
 export function removeTask(task: Task) {
+  const currentSession = captureWorkspaceSession();
   const state = useWorkspace.getState();
   if (task.milestone) {
     const parent = state.tasks.find((t) => t.id === task.milestone!.parentId);
@@ -48,31 +52,30 @@ export function removeTask(task: Task) {
     const sub = parent?.subtasks[index];
     deleteTask(task.id);
     if (parent && sub) {
-      toast(`Deleted “${task.title}”`, { label: "Undo", run: () => addSubtaskFull(parent.id, sub, index) });
+      toast(`Deleted “${task.title}”`, { label: "Undo", run: () => { if (currentSession()) addSubtaskFull(parent.id, sub, index); } });
     }
     return;
   }
-  const index = state.tasks.findIndex((t) => t.id === task.id);
-  const snapshot = state.tasks[index];
+  const snapshot = state.tasks.find((t) => t.id === task.id);
   if (!snapshot) return;
   if (ui.get().inspectorId === task.id) ui.closeInspector();
-  deleteTask(task.id);
+  // Kept in Recently deleted; Undo brings it back from there (under a new ID,
+  // so a deletion that has already synced can't remove it again).
+  trashTask(snapshot);
   toast(`Deleted “${task.title}”`, {
     label: "Undo",
-    // A fresh calendar revision so the restored task never reuses a deleted event.
-    run: () =>
-      addTask(
-        { ...snapshot, googleEventId: null, calendarEventRevision: snapshot.calendarEventRevision + 1 },
-        index,
-      ),
+    run: () => {
+      if (currentSession()) restoreFromTrash("task", snapshot.id);
+    },
   });
 }
 
 export function moveTask(task: Task, day: Date, quiet = false) {
+  const currentSession = captureWorkspaceSession();
   const previous = task.date;
   rescheduleTask(task.id, day);
   if (!quiet) {
-    toast(`Moved to ${relativeDay(day)}`, { label: "Undo", run: () => rescheduleTask(task.id, previous) });
+    toast(`Moved to ${relativeDay(day)}`, { label: "Undo", run: () => { if (currentSession()) rescheduleTask(task.id, previous); } });
   }
 }
 
@@ -106,8 +109,16 @@ export function taskMenu(task: Task, navigate: Navigate): MenuItem[] {
   if (task.type === "assignment" && !isMilestone) {
     items.push({ label: "Open assignment", onSelect: () => navigate({ view: "assignment", id: task.id }) });
   }
+  items.push({ label: task.isDone ? "Mark as not done" : "Mark as done", shortcut: "Space", onSelect: () => toggleTask(task.id) });
+  if (!task.isDone) {
+    const minutes = workMinutes(task);
+    items.push({
+      label: minutes > 0 ? `Focus for ${formatDuration(minutes)}` : "Focus",
+      shortcut: "F",
+      onSelect: () => startTaskFocus(task, minutes),
+    });
+  }
   items.push(
-    { label: task.isDone ? "Mark as not done" : "Mark as done", shortcut: "Space", onSelect: () => toggleTask(task.id) },
     { separator: true },
     {
       label: "Move to",

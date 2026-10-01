@@ -49,7 +49,7 @@ export function SubjectsView() {
           </Button>
         }
       />
-      <div className="scroll-area flex-1 pb-24">
+      <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[900px] px-6 max-sm:px-3">
           {projects.length === 0 ? (
             <div className="flex flex-col items-center py-20 text-center">
@@ -85,14 +85,15 @@ function SubjectTile({
       <button
         type="button"
         onClick={() => navigate({ view: "subject", id: project.id })}
-        className="group flex flex-col rounded-[calc(var(--radius-ctl)_+_4px)] border border-line px-4 py-3.5 text-left transition-[background-color,border-color,transform] duration-150 hover:border-line-strong hover:bg-fill/40 active:scale-[0.99]"
+        className="card group flex min-w-0 flex-col px-4 py-3.5 text-left transition-[background-color,transform] duration-150 hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] active:scale-[0.99]"
       >
-        <span className="flex items-center gap-2.5">
-          <span className="size-2.5 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="size-2.5 shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
           <span className="truncate text-sm font-semibold">{project.title}</span>
         </span>
-        <span className="mt-3 flex items-end justify-between gap-3 text-xs text-ink-3">
-          <span className="flex gap-3">
+        {project.description && <span className="mt-1 line-clamp-2 text-xs leading-[18px] text-ink-3">{project.description}</span>}
+        <span className="mt-auto flex pt-3 items-end justify-between gap-3 text-xs text-ink-3">
+          <span className="flex gap-3 whitespace-nowrap">
             <span>
               <span className="font-medium text-ink tnum">{info.open}</span> open
             </span>
@@ -100,7 +101,7 @@ function SubjectTile({
               <span className="font-medium text-ink tnum">{info.notes}</span> {info.notes === 1 ? "note" : "notes"}
             </span>
           </span>
-          <span className={cn(info.overdue > 0 && "text-danger")}>
+          <span className={cn("truncate", info.overdue > 0 && "text-danger")}>
             {info.overdue > 0
               ? `${info.overdue} overdue`
               : info.next

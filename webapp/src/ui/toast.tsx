@@ -28,7 +28,7 @@ export function ToastHost() {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-5 z-[80] flex flex-col items-center gap-2 max-md:bottom-[calc(54px+env(safe-area-inset-bottom)+84px)]"
+      className="pointer-events-none fixed inset-x-0 bottom-5 z-[80] flex flex-col items-center gap-2 max-md:bottom-[calc(max(10px,env(safe-area-inset-bottom))+76px)]"
     >
       <AnimatePresence initial={false}>
         {toasts.map((t) => (
@@ -41,7 +41,7 @@ export function ToastHost() {
             transition={springs.panel}
             className="glass-overlay glass-ink pointer-events-auto relative flex h-10 items-center gap-3 rounded-[calc(var(--radius-ctl)_+_3px)] bg-ink pr-1.5 pl-4 text-sm text-on-ink shadow-lift"
           >
-            <span className="max-w-[340px] truncate">{t.message}</span>
+            <span className="max-w-[min(340px,calc(100vw-140px))] truncate">{t.message}</span>
             {t.action ? (
               <button
                 className="h-7 rounded-[7px] px-2.5 text-sm font-semibold text-on-ink/90 transition-colors hover:bg-on-ink/12"

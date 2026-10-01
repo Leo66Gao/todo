@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarDays, FileText, GraduationCap, Menu as MenuIcon, Plus, Sun } from "lucide-react";
 import { createNote } from "@/features/notes/noteActions";
+import { haptic } from "@/lib/native";
 import { cn } from "@/ui/cn";
 import { springs } from "@/ui/motion";
-import { useGlassPrefs } from "@/glass/prefs";
-import { useGlass } from "@/glass/registry";
+import { GlassLens } from "@/ui/lens";
 import type { Route } from "./nav";
 import { ui, useUI } from "./ui";
 
@@ -44,70 +44,66 @@ export function createForRoute(route: Route, navigate: (r: Route) => void) {
 const HAS_ADD: Route["view"][] = ["today", "week", "calendar", "assignments", "subject", "notes"];
 
 /**
- * Phone navigation: a bottom tab bar within thumb reach, with everything else
- * (Week, Subjects, Settings) under More. Hidden from tablet width up.
+ * Phone navigation: a floating capsule of icon-only tabs within thumb reach,
+ * with everything else (Week, Subjects, Settings) under More, and the add
+ * button as a matching drop of glass beside it. Both are a fixed, subtle
+ * frosted glass (the Liquid Glass theme is desktop only). Hidden from tablet
+ * width up.
+ *
+ * The geometry is concentric: the capsule is 58 px tall with a 5 px inset,
+ * so the selection inside it (48 px) shares its centre of curvature, and the
+ * add button is a 58 px circle.
  */
 export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: Route) => void }) {
   const drawer = useUI((s) => s.sidebarOpen);
-  const glass = useGlassPrefs((s) => s.enabled);
+  const hidden = useUI((s) => s.sidebarOpen || s.editor != null || s.inspectorId != null);
   const current = TABS.find((t) => t.view === route.view || t.also?.includes(route.view));
-  const tabs = (
-    <>
-      {TABS.map((tab) => (
-        <TabButton
-          key={tab.view}
-          label={tab.label}
-          icon={tab.icon}
-          glass={glass}
-          active={!drawer && current === tab}
-          onClick={() => {
-            ui.set({ sidebarOpen: false });
-            navigate({ view: tab.view } as Route);
-          }}
-        />
-      ))}
-      <TabButton label="More" icon={<MenuIcon />} glass={glass} active={drawer || !current} onClick={() => ui.set({ sidebarOpen: !drawer })} />
-    </>
-  );
-  if (glass) return <GlassTabBar route={route} navigate={navigate}>{tabs}</GlassTabBar>;
+  // The button keeps its place while hidden (it only fades), so the bar's
+  // width, and with it the glass, doesn't change as the menu slides in.
+  const canAdd = HAS_ADD.includes(route.view);
   return (
-    <nav className="relative z-20 shrink-0 border-t border-line bg-canvas/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
-      <div className="grid h-[54px] grid-cols-5">{tabs}</div>
-    </nav>
-  );
-}
-
-/**
- * Liquid Glass: a floating capsule of tabs with the add button as a matching
- * drop of the same glass beside it. The geometry is concentric: the capsule
- * is 62 px tall with a 5 px inset, so the selection inside it (52 px) shares
- * its centre of curvature, and the add button is a 62 px circle. Gaps match
- * the phone's 8 px panel margins.
- */
-function GlassTabBar({ route, navigate, children }: { route: Route; navigate: (r: Route) => void; children: ReactNode }) {
-  const capsule = useGlass<HTMLDivElement>({ level: 1, kind: "chrome", radius: "pill" });
-  const add = useGlass<HTMLButtonElement>({ level: 1, kind: "chrome", radius: "pill", interactive: true });
-  const hidden = useUI((s) => s.editor != null);
-  const canAdd = HAS_ADD.includes(route.view) && !hidden;
-  return (
-    <nav className="relative z-20 flex shrink-0 items-center pt-2 pb-[max(8px,env(safe-area-inset-bottom))] md:hidden">
-      <div ref={capsule} className="grid h-[62px] min-w-0 flex-1 grid-cols-5 p-[5px]">
-        {children}
+    <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-4 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
+      <div className="pointer-events-auto relative grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
+        <GlassLens radius={29} bezel={22} className="lens-bar" />
+        {TABS.map((tab) => (
+          <TabButton
+            key={tab.view}
+            label={tab.label}
+            icon={tab.icon}
+            active={!drawer && current === tab}
+            onClick={() => {
+              if (current !== tab || drawer) haptic();
+              ui.set({ sidebarOpen: false });
+              navigate({ view: tab.view } as Route);
+            }}
+          />
+        ))}
+        <TabButton label="More" icon={<MenuIcon />} active={drawer || !current} onClick={() => {
+            haptic();
+            ui.set({ sidebarOpen: !drawer });
+          }} />
       </div>
       <AnimatePresence initial={false}>
         {canAdd && (
           <motion.button
-            ref={add}
             type="button"
             aria-label={route.view === "notes" ? "New note" : "New task"}
-            initial={{ width: 0, marginLeft: 0, opacity: 0 }}
-            animate={{ width: 62, marginLeft: 8, opacity: 1 }}
-            exit={{ width: 0, marginLeft: 0, opacity: 0 }}
+            initial={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
+            animate={{ width: 58, marginLeft: 10, opacity: hidden ? 0 : 1, scale: hidden ? 0.7 : 1 }}
+            aria-hidden={hidden || undefined}
+            tabIndex={hidden ? -1 : undefined}
+            style={{ pointerEvents: hidden ? "none" : undefined }}
+            exit={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
+            whileTap={{ scale: 0.88, transition: springs.press }}
             transition={springs.panel}
-            onClick={() => createForRoute(route, navigate)}
-            className="flex h-[62px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink transition-transform active:scale-[0.94]"
+            data-no-press
+            onClick={() => {
+              haptic("medium");
+              createForRoute(route, navigate);
+            }}
+            className="lens-round pointer-events-auto flex h-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink"
           >
-            <Plus className="size-6 shrink-0" strokeWidth={2} />
+            <Plus className="size-[25px] shrink-0" strokeWidth={2.1} />
           </motion.button>
         )}
       </AnimatePresence>
@@ -115,71 +111,32 @@ function GlassTabBar({ route, navigate, children }: { route: Route; navigate: (r
   );
 }
 
-function TabButton({
-  label,
-  icon,
-  active,
-  glass,
-  onClick,
-}: {
-  label: string;
-  icon: ReactNode;
-  active: boolean;
-  glass: boolean;
-  onClick: () => void;
-}) {
+function TabButton({ label, icon, active, onClick }: { label: string; icon: ReactNode; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
+      aria-label={label}
       className={cn(
-        "relative flex min-w-0 flex-col items-center justify-center gap-[3px] transition-[color,transform] duration-150 active:scale-[0.92]",
+        "relative flex min-w-0 items-center justify-center rounded-full transition-colors duration-200",
         active ? "text-ink" : "text-ink-3",
-        glass && !active && "text-ink-2",
       )}
     >
-      {glass && active && <TabPill />}
-      <span className={cn("relative flex [&>svg]:size-[21px]", active ? "[&>svg]:stroke-[2.1]" : "[&>svg]:stroke-[1.7]")}>{icon}</span>
-      <span className={cn("relative whitespace-nowrap text-[10.5px] leading-none", glass && "text-[10px] tracking-[-0.01em]", active && "font-semibold")}>{label}</span>
-    </button>
-  );
-}
-
-function TabPill() {
-  const pill = useGlass<HTMLSpanElement>({ level: 2, kind: "control", radius: "pill" });
-  return (
-    <motion.span
-      ref={pill}
-      layoutId="tab-pill"
-      transition={springs.snappy}
-      className="absolute inset-0 rounded-full bg-fill-strong"
-    />
-  );
-}
-
-/** The add button, above the tab bar on the right, on screens that create things. */
-export function MobileAddButton({ route, navigate }: { route: Route; navigate: (r: Route) => void }) {
-  const hidden = useUI((s) => s.sidebarOpen || s.editor != null || s.inspectorId != null);
-  const glass = useGlassPrefs((s) => s.enabled);
-  const show = HAS_ADD.includes(route.view) && !hidden && !glass;
-  return (
-    <AnimatePresence>
-      {show && (
-        <motion.button
-          type="button"
-          aria-label={route.view === "notes" ? "New note" : "New task"}
-          initial={{ scale: 0.6, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.6, opacity: 0 }}
-          whileTap={{ scale: 0.9 }}
-          transition={springs.snappy}
-          onClick={() => createForRoute(route, navigate)}
-          className="absolute right-4 bottom-[calc(54px+env(safe-area-inset-bottom)+16px)] z-20 flex size-[52px] items-center justify-center rounded-full bg-ink text-on-ink shadow-[0_6px_20px_-6px_rgb(0_0_0/0.45)] md:hidden"
-        >
-          <Plus className="size-6" strokeWidth={2.2} />
-        </motion.button>
+      {active && (
+        <motion.span layoutId="tab-pill" transition={springs.pill} className="absolute inset-0 rounded-full">
+          <GlassLens radius={24} bezel={14} frost={0.75} className="lens-pill" />
+        </motion.span>
       )}
-    </AnimatePresence>
+      {/* The icon lifts a little as it becomes the current tab. */}
+      <motion.span
+        className={cn("relative flex [&>svg]:size-[23px] [&>svg]:transition-[stroke-width] [&>svg]:duration-200", active ? "[&>svg]:stroke-[2.1]" : "[&>svg]:stroke-[1.75]")}
+        initial={false}
+        animate={{ scale: active ? [0.82, 1.08, 1] : 1 }}
+        transition={{ duration: 0.42, ease: [0.2, 0.9, 0.3, 1], times: [0, 0.55, 1] }}
+      >
+        {icon}
+      </motion.span>
+    </button>
   );
 }

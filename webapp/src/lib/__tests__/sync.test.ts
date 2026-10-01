@@ -71,6 +71,28 @@ it("shares one upload pass between callers", async () => {
   expect(firestore.transactions).toBe(1);
 });
 
+it("groups note typing into one upload, and sends task changes within a second", async () => {
+  vi.useFakeTimers();
+  try {
+    stubStorage();
+    const sync = await signedInSync();
+    for (let i = 0; i < 12; i++) {
+      await sync.writeChanges({ "note:n": JSON.stringify({ text: "x".repeat(i) }) });
+      await vi.advanceTimersByTimeAsync(600);
+    }
+    expect(firestore.transactions).toBe(0);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(firestore.transactions).toBe(1);
+    expect(sync.hasPending).toBe(false);
+
+    await sync.writeChanges({ "task:a": "{}" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(firestore.transactions).toBe(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 const task = (id: string, hour: number) =>
   JSON.stringify({
     id,
@@ -103,4 +125,18 @@ it("fails a workspace deletion that could not be stored", async () => {
   const blocked = await import("@/store/workspace");
   blocked.loadGuestRecords({ "task:a": task("a", 9) });
   await expect(blocked.clearWorkspace()).rejects.not.toBeInstanceOf(blocked.UploadPendingError);
+});
+
+it("keeps extra settings records and saves new ones", async () => {
+  stubStorage();
+  const ws = await import("@/store/workspace");
+  ws.loadGuestRecords({ "task:a": task("a", 9), "settings:sources": JSON.stringify({ sources: [{ id: "s1" }] }) });
+  expect(ws.readSide("settings:sources", { sources: [] })).toEqual({ sources: [{ id: "s1" }] });
+  ws.writeSide("settings:versions:n1", { versions: [{ at: 1 }] });
+  ws.updateTask({ ...ws.useWorkspace.getState().tasks[0], title: "Edited" });
+  await new Promise((r) => setTimeout(r, 10));
+  // Stored as Flutter's shared preferences do: a JSON string holding JSON.
+  const stored = JSON.parse(JSON.parse(window.localStorage.getItem("flutter.activeGuestWorkspace")!));
+  expect(Object.keys(stored)).toEqual(expect.arrayContaining(["settings:sources", "settings:versions:n1"]));
+  expect(() => ws.writeSide("settings:order", [])).toThrow();
 });

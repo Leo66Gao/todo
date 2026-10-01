@@ -9,6 +9,8 @@ import { cn } from "./cn";
 import { Button, Kbd } from "./controls";
 import { springs } from "./motion";
 import { PHONE, useMedia } from "./useMedia";
+import { haptic } from "@/lib/native";
+import { sessionDialog } from "@/lib/sessionDialog";
 
 // ---------------------------------------------------------------------------
 // Modal
@@ -21,6 +23,7 @@ export function Modal({
   label,
   className,
   initialFocus,
+  returnFocus = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,6 +33,8 @@ export function Modal({
   className?: string;
   /** Return false to keep Radix from focusing the first control. */
   initialFocus?: (event: Event) => void;
+  /** Whether closing puts focus back where it was (off when the caller moves it). */
+  returnFocus?: boolean;
 }) {
   const phone = useMedia(PHONE);
   const sheetDrag = useDragControls();
@@ -53,6 +58,7 @@ export function Modal({
                 asChild
                 aria-describedby={undefined}
                 onOpenAutoFocus={initialFocus}
+                onCloseAutoFocus={returnFocus ? undefined : (e) => e.preventDefault()}
               >
                 <motion.div
                   className={cn(
@@ -74,7 +80,10 @@ export function Modal({
                         dragConstraints: { top: 0, bottom: 0 },
                         dragElastic: { top: 0, bottom: 0.8 },
                         onDragEnd: (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
-                          if (info.offset.y > 110 || info.velocity.y > 600) onOpenChange(false);
+                          if (info.offset.y > 110 || info.velocity.y > 600) {
+                            haptic();
+                            onOpenChange(false);
+                          }
                         },
                       }
                     : {
@@ -167,6 +176,9 @@ export function Tooltip({
   children: ReactNode;
   side?: "top" | "bottom" | "left" | "right";
 }) {
+  // Touch screens have no hover: a tip would only flash up on each tap.
+  const touch = useMedia("(hover: none)");
+  if (touch) return <>{children}</>;
   return (
     <RTooltip.Root>
       <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
@@ -214,7 +226,7 @@ const itemClass = cn(
   "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-sm text-ink outline-none",
   "data-[highlighted]:bg-fill data-[state=open]:bg-fill data-[disabled]:opacity-40",
 );
-const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] rounded-pop bg-raised p-1 shadow-pop";
+const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] max-w-[calc(100vw-24px)] rounded-pop bg-raised p-1 shadow-pop max-sm:min-w-[156px]";
 
 type Parts = typeof RDM | typeof RCM;
 
@@ -238,7 +250,7 @@ function renderItems(P: Parts, items: MenuItem[]): ReactNode {
         </span>
         <span className={cn("flex-1 truncate", item.destructive && "text-danger")}>{item.label}</span>
         {item.checked && <Check className="size-3.5 text-ink-2" />}
-        {item.shortcut && <span className="text-2xs text-ink-3">{item.shortcut}</span>}
+        {item.shortcut && <span className="hover-only text-2xs text-ink-3">{item.shortcut}</span>}
       </>
     );
     if (item.items) {
@@ -302,7 +314,11 @@ export function ContextMenu({
   return (
     <RCM.Root
       modal={false}
-      onOpenChange={(open) => open && setResolved(typeof items === "function" ? items() : items)}
+      onOpenChange={(open) => {
+        if (!open) return;
+        haptic("medium");
+        setResolved(typeof items === "function" ? items() : items);
+      }}
     >
       <RCM.Trigger asChild disabled={disabled}>
         {children}
@@ -349,7 +365,12 @@ export function confirmDialog(options: {
   cancelLabel?: string;
   destructive?: boolean;
 }): Promise<boolean> {
-  return new Promise((resolve) => useAsk.setState({ current: { kind: "confirm", ...options, resolve } }));
+  cancelAsk();
+  return sessionDialog(false, (resolve) => {
+    const request: Ask = { kind: "confirm", ...options, resolve };
+    useAsk.setState({ current: request });
+    return () => { if (useAsk.getState().current === request) useAsk.setState({ current: null }); };
+  });
 }
 
 export function promptDialog(options: {
@@ -360,7 +381,18 @@ export function promptDialog(options: {
   confirmLabel: string;
   validate?: (value: string) => boolean;
 }): Promise<string | null> {
-  return new Promise((resolve) => useAsk.setState({ current: { kind: "prompt", ...options, resolve } }));
+  cancelAsk();
+  return sessionDialog<string | null>(null, (resolve) => {
+    const request: Ask = { kind: "prompt", ...options, resolve };
+    useAsk.setState({ current: request });
+    return () => { if (useAsk.getState().current === request) useAsk.setState({ current: null }); };
+  });
+}
+
+function cancelAsk() {
+  const request = useAsk.getState().current;
+  if (request?.kind === "confirm") request.resolve(false);
+  else request?.resolve(null);
 }
 
 export function AskHost() {
@@ -404,7 +436,7 @@ export function AskHost() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={ask.placeholder}
-              className="mt-3.5 h-9 w-full rounded-ctl border border-line-strong bg-canvas px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
+              className="mt-3.5 h-9 w-full rounded-ctl border border-line-strong bg-card px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft"
             />
           )}
           <div className="mt-5 flex justify-end gap-2">

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { Task } from "@/lib/model";
 import { getLocal, setLocal } from "@/lib/prefs";
 import { today } from "@/lib/time";
+import { useWorkspace } from "@/store/workspace";
 
 export type EditorState =
   | { mode: "new"; defaults: Partial<Task>; nonce: number }
@@ -19,6 +20,8 @@ interface UIState {
   weekOf: Date;
   /** Selected day on the Calendar (its month is the one displayed). */
   calendarDay: Date;
+  /** The Calendar shows the upcoming list instead of the month. */
+  calendarList: boolean;
   /** Keyboard/selection focus in lists. */
   selectedId: string | null;
   /** Task shown in the detail panel. */
@@ -33,12 +36,15 @@ interface UIState {
   visibleOrder: string[];
   /** True while a drag is in flight or just settled (pauses layout animation). */
   dragging: boolean;
+  /** Where a task dragged over the schedule would land. */
+  dropSlot: { day: number; minutes: number; duration: number } | null;
 }
 
 export const useUI = create<UIState>(() => ({
   day: today(),
   weekOf: today(),
   calendarDay: today(),
+  calendarList: false,
   selectedId: null,
   inspectorId: null,
   editor: null,
@@ -48,6 +54,7 @@ export const useUI = create<UIState>(() => ({
   sidebarCollapsed: false,
   visibleOrder: [],
   dragging: false,
+  dropSlot: null,
 }));
 
 export const ui = {
@@ -79,9 +86,20 @@ export const ui = {
     setLocal("sidebarCollapsed", collapsed);
   },
   restore() {
-    useUI.setState({ sidebarCollapsed: getLocal("sidebarCollapsed", false) });
+    useUI.setState({ sidebarCollapsed: getLocal("sidebarCollapsed", false), calendarList: getLocal("calendarList", false) });
+  },
+  setCalendarList(list: boolean) {
+    useUI.setState({ calendarList: list });
+    setLocal("calendarList", list);
   },
 };
+
+// Editors and selections must never reopen against a different workspace.
+useWorkspace.subscribe((state, previous) => {
+  if (state.user?.uid !== previous.user?.uid) {
+    useUI.setState({ editor: null, inspectorId: null, selectedId: null, paletteOpen: false, visibleOrder: [], dragging: false, dropSlot: null });
+  }
+});
 
 // Moving to another day, week or month drops the selection.
 useUI.subscribe((state, prev) => {

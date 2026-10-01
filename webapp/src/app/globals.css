@@ -3,23 +3,26 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Tokens. A neutral, slightly cool greyscale does almost all of the work;
- * ink (near-black) is the primary action colour, as in the original app, and
- * a single calm cobalt marks "now", selection and assignments.
+ * Tokens. A near-white neutral page (like iOS grouped lists) with content in
+ * white, well-rounded cards; black cards on a darker page in dark mode. A
+ * neutral greyscale does almost all of the work; ink
+ * (near-black) is the primary action colour, as in the original app, and a
+ * single calm cobalt marks "now", selection and assignments.
  */
 :root {
-  --canvas: #ffffff;
-  --sidebar: #f7f7f8;
+  --canvas: #f8f8f7;
+  --sidebar: #f8f8f7;
+  --card: #ffffff;
   --raised: #ffffff;
-  --fill: #f2f2f4;
-  --row-hover: color-mix(in srgb, var(--fill) 70%, transparent);
-  --fill-strong: #e9e9ec;
-  --line: #ececef;
-  --line-strong: #dedee2;
+  --fill: #efefee;
+  --row-hover: color-mix(in srgb, var(--fill) 60%, transparent);
+  --fill-strong: #e6e6e4;
+  --line: #ebebe9;
+  --line-strong: #dcdcda;
   --ink: #1d1d20;
-  --ink-2: #616169;
-  --ink-3: #9a9aa2;
-  --ink-4: #c5c5cb;
+  --ink-2: #5f5f67;
+  --ink-3: #8e8e96;
+  --ink-4: #c3c3c9;
   --on-ink: #ffffff;
   --accent: #2f5fd0;
   --accent-soft: rgb(47 95 208 / 0.09);
@@ -31,6 +34,7 @@
   --p-high: #e0701f;
   --p-critical: #cf3a2f;
   --scrim: rgb(20 20 24 / 0.22);
+  --shadow-card: 0 0 0 0.5px rgb(0 0 0 / 0.045), 0 1px 2px rgb(0 0 0 / 0.03), 0 4px 14px -6px rgb(0 0 0 / 0.06);
   --shadow-pop: 0 0 0 1px rgb(0 0 0 / 0.06), 0 10px 28px -6px rgb(0 0 0 / 0.16),
     0 2px 6px -2px rgb(0 0 0 / 0.06);
   --shadow-modal: 0 0 0 1px rgb(0 0 0 / 0.05), 0 24px 64px -12px rgb(0 0 0 / 0.25);
@@ -38,38 +42,68 @@
   color-scheme: light;
 }
 
+
 .dark {
-  --canvas: #161618;
-  --sidebar: #1b1b1e;
-  --raised: #1f1f22;
-  --fill: #242428;
-  --fill-strong: #2d2d32;
-  --line: #28282c;
-  --line-strong: #36363b;
+  --canvas: #0b0b0d;
+  --sidebar: #0b0b0d;
+  --card: #1a1a1d;
+  --raised: #222226;
+  --fill: #29292e;
+  --fill-strong: #323238;
+  --line: #29292e;
+  --line-strong: #37373d;
   --ink: #ececef;
   --ink-2: #a3a3ab;
-  --ink-3: #6f6f78;
+  --ink-3: #75757e;
   --ink-4: #4a4a51;
   --on-ink: #161618;
   --accent: #7097f2;
   --accent-soft: rgb(112 151 242 / 0.13);
-  --accent-line: rgb(112 151 242 / 0.35);
+  --accent-line: rgb(112 151 242 / 0.38);
   --danger: #ec6a5f;
   --danger-soft: rgb(236 106 95 / 0.12);
   --p-low: #58b77b;
   --p-medium: #e2b23a;
   --p-high: #ee8a42;
   --p-critical: #ec6a5f;
-  --scrim: rgb(0 0 0 / 0.45);
+  --scrim: rgb(0 0 0 / 0.5);
+  --shadow-card: 0 0 0 0.5px rgb(255 255 255 / 0.06);
   --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.07), 0 12px 32px -6px rgb(0 0 0 / 0.55);
   --shadow-modal: 0 0 0 1px rgb(255 255 255 / 0.07), 0 28px 70px -12px rgb(0 0 0 / 0.7);
   --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 10px 24px -6px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
+/* Phones in dark mode: a deeper, warmer black. */
+@media (max-width: 767px) {
+  .dark {
+    --canvas: #0a0a0b;
+    --sidebar: #111113;
+    --card: #141416;
+    --raised: #1b1b1e;
+    --fill: #1d1d20;
+    --fill-strong: #26262a;
+    --line: #1f1f22;
+    --line-strong: #2c2c30;
+    --ink: #f2f1ee;
+    --ink-2: #a1a09b;
+    --ink-3: #8a8984;
+    --ink-4: #4a4a4f;
+    --on-ink: #0a0a0b;
+    --accent: #8fa6ff;
+    --accent-soft: rgb(143 166 255 / 0.12);
+    --accent-line: rgb(143 166 255 / 0.38);
+    --danger: #f0655a;
+    --danger-soft: rgb(240 101 90 / 0.12);
+    --p-critical: #f0655a;
+    --scrim: rgb(0 0 0 / 0.6);
+    --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.03);
+  }
+}
 
 @theme inline {
   --color-canvas: var(--canvas);
   --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
   --color-raised: var(--raised);
   --color-fill: var(--fill);
   --color-fill-strong: var(--fill-strong);
@@ -88,12 +122,15 @@
   --color-scrim: var(--scrim);
   --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-title), var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-numeric), ui-monospace, monospace;
+  --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
   --shadow-modal: var(--shadow-modal);
   --shadow-lift: var(--shadow-lift);
-  --radius-ctl: 8px;
-  --radius-pop: 12px;
-  --radius-modal: 16px;
+  --radius-ctl: 10px;
+  --radius-pop: 14px;
+  --radius-modal: 22px;
+  --radius-card: 18px;
 }
 
 /* Not inlined, so the phone media query below can re-scale them. */
@@ -161,7 +198,7 @@ a,
 
 /* iOS zooms into any field under 16px; keep them at least that on touch screens. */
 @media (pointer: coarse) {
-  :is(input, textarea, select):not([class*="text-lg"], [class*="text-xl"]),
+  :is(input, textarea, select):not([class*="text-lg"], [class*="text-xl"], [class*="font-display"]),
   .ql-editor {
     font-size: 16px !important;
   }
@@ -265,6 +302,17 @@ textarea {
   text-decoration-color: var(--accent-line);
   text-underline-offset: 2px;
 }
+/* Links to other notes read as part of the text, not as web links. */
+.rt .ql-editor a[href^="/note?id="] {
+  color: var(--ink);
+  font-weight: 550;
+  text-decoration-color: var(--line-strong);
+  text-decoration-thickness: 1.5px;
+  cursor: pointer;
+}
+.rt .ql-editor a[href^="/note?id="]:hover {
+  text-decoration-color: var(--ink-3);
+}
 .rt .ql-editor blockquote {
   border-left: 2px solid var(--line-strong);
   padding-left: 12px;
@@ -308,6 +356,93 @@ textarea {
   text-decoration: line-through;
   text-decoration-color: var(--ink-4);
 }
+/* Formulas: inline ones sit on the line; one alone on a line is centred. */
+.rt .ql-editor .ql-formula {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 1px;
+  transition: background-color 150ms;
+}
+.rt .ql-editor .ql-formula:hover {
+  background: var(--fill);
+}
+.rt .ql-editor .ql-formula .katex {
+  font-size: 1.08em;
+}
+.rt .ql-editor p:has(> .ql-formula[data-value^="\\displaystyle"]:only-child) {
+  text-align: center;
+  margin: 0.55em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.rt .ql-editor p:has(> .ql-formula[data-value^="\\displaystyle"]:only-child) .katex {
+  font-size: 1.18em;
+}
+
+/* Read-only note bodies (version history). */
+.doc-preview {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.doc-preview p {
+  margin: 0;
+}
+.doc-preview p.gap {
+  height: 0.8em;
+}
+.doc-preview h1 {
+  font-size: 1.35em;
+  font-weight: 650;
+  margin: 0.9em 0 0.3em;
+}
+.doc-preview h2 {
+  font-size: 1.15em;
+  font-weight: 650;
+  margin: 0.8em 0 0.25em;
+}
+.doc-preview ul,
+.doc-preview ol {
+  padding-left: 1.4em;
+  list-style: revert;
+}
+.doc-preview ul.checklist {
+  list-style: none;
+  padding-left: 0.2em;
+}
+.doc-preview li.done {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+.doc-preview blockquote {
+  border-left: 2px solid var(--line-strong);
+  padding-left: 12px;
+  color: var(--ink-2);
+  margin: 0.4em 0;
+}
+.doc-preview pre {
+  font: 0.86em/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+  background: var(--fill);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0.4em 0;
+  white-space: pre-wrap;
+}
+.doc-preview code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.88em;
+}
+.doc-preview a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-line);
+}
+.doc-preview .math {
+  text-align: center;
+  margin: 0.55em 0;
+  overflow-x: auto;
+}
+
 .rt .ql-tooltip {
   z-index: 60;
   border-radius: 10px;
@@ -402,9 +537,310 @@ textarea {
   animation: fade-out 80ms var(--ease-in) forwards;
 }
 
+/* ----- Floating chrome ---------------------------------------------------- */
+/* The phone tab bar, the add button and the focus timer float over the page
+ * in a fixed, subtle frosted glass: a bright translucent fill, a strong
+ * backdrop blur, a lit rim and a soft shadow. (In the Liquid Glass theme,
+ * overlays have their own glass.) */
+
+html:not(.glass) .float-glass {
+  background-color: rgb(255 255 255 / 0.74);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.9), 0 0 0 0.5px rgb(0 0 0 / 0.07),
+    0 10px 30px -10px rgb(0 0 0 / 0.22), 0 2px 6px -2px rgb(0 0 0 / 0.06);
+}
+html.dark:not(.glass) .float-glass {
+  background-color: rgb(44 44 48 / 0.72);
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.14), 0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 12px 32px -10px rgb(0 0 0 / 0.6);
+}
+@media (prefers-reduced-transparency: reduce) {
+  html:not(.glass) .float-glass {
+    background-color: var(--raised);
+  }
+}
+
+/* A strike-through that draws across a (possibly wrapped) title. */
+.strike {
+  background: linear-gradient(var(--ink-3), var(--ink-3)) no-repeat 0 58% / 0% 1px;
+  transition: background-size 0.22s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+.strike[data-done] {
+  background-size: 100% 1px;
+}
+
+/* Room at the end of a scrolling page for what floats over it. */
+/* Room under a scrolling page so its end clears the floating tab bar.
+   A utility, so it also works behind a variant (max-md:pb-bar). */
+@utility pb-bar {
+  padding-bottom: 6rem;
+  @media (max-width: 767px) {
+    padding-bottom: calc(120px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Phone glass (see ui/lens.tsx), cut like crystal: a cool, clear body that
+   bends the page at its rim, bright light caught along the top and bottom
+   edges (so it reads as curved), a faint inner shade for thickness, and a
+   soft shadow. The url() filters do the bending (Chromium). */
+:root {
+  --lens-fill: linear-gradient(180deg, rgb(250 251 253 / 0.5) 0%, rgb(228 231 237 / 0.4) 50%, rgb(246 247 250 / 0.5) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.95), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.8),
+    inset 0 0 0 0.5px rgb(40 50 70 / 0.12), inset 0 0 10px rgb(90 100 120 / 0.1), 0 12px 28px -12px rgb(20 25 40 / 0.3),
+    0 2px 6px -2px rgb(20 25 40 / 0.1);
+  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 1) 0%, rgb(255 255 255 / 0.25) 12%, rgb(255 255 255 / 0) 28%,
+    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.25) 90%, rgb(255 255 255 / 0.9) 100%);
+}
+.dark {
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0.05) 50%, rgb(255 255 255 / 0.08) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.28), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.07), inset 0 0 10px rgb(255 255 255 / 0.03), 0 12px 30px -10px rgb(0 0 0 / 0.75);
+  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 0.38) 0%, rgb(255 255 255 / 0.07) 12%, rgb(255 255 255 / 0) 28%,
+    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.07) 90%, rgb(255 255 255 / 0.24) 100%);
+}
+/* The buttons at the top of a page: the same glass, less frosted. */
+:root {
+  --lens-fill-soft: linear-gradient(180deg, rgb(250 251 253 / 0.3) 0%, rgb(232 235 240 / 0.22) 50%, rgb(246 247 250 / 0.3) 100%);
+}
+.dark {
+  --lens-fill-soft: linear-gradient(180deg, rgb(255 255 255 / 0.06) 0%, rgb(255 255 255 / 0.025) 50%, rgb(255 255 255 / 0.05) 100%);
+}
+.dark {
+  --lens-fill-round: linear-gradient(180deg, rgb(255 255 255 / 0.07) 0%, rgb(255 255 255 / 0.035) 50%, rgb(255 255 255 / 0.056) 100%);
+}
+.lens-soft {
+  --lens-fill: var(--lens-fill-soft);
+}
+/* In the dark, the tab bar and the add button are a little clearer than
+   other glass, so they don't read as grey slabs. */
+.dark .lens-bar {
+  --lens-fill: var(--lens-fill-round);
+}
+/* The selected tab's bubble: the same glass as the buttons (bright at the
+   top and bottom), with a lighter tint and half their frost. */
+.lens-pill {
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.16) 0%, rgb(240 242 246 / 0.1) 50%, rgb(255 255 255 / 0.15) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 1), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.8),
+    inset 0 0 0 0.5px rgb(40 50 70 / 0.08), 0 4px 12px -4px rgb(20 25 40 / 0.2);
+}
+.dark .lens-pill {
+  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.055) 0%, rgb(255 255 255 / 0.028) 50%, rgb(255 255 255 / 0.045) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.32), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
+    0 4px 12px -4px rgb(0 0 0 / 0.5);
+}
+/* The caught light: a thin ring, brightest at the top and bottom. */
+.lens-surface::before,
+.lens-rim::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--lens-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.lens-surface {
+  background: var(--lens-fill);
+  box-shadow: var(--lens-shadow);
+  -webkit-backdrop-filter: blur(10px) saturate(1.9);
+  backdrop-filter: blur(10px) saturate(1.9);
+}
+@utility lens-chip {
+  position: relative;
+  background: var(--lens-fill-soft);
+  border-color: transparent;
+  box-shadow: var(--lens-shadow);
+  -webkit-backdrop-filter: blur(10px) saturate(1.9);
+  backdrop-filter: blur(0.5px) saturate(1.6) url(#lens-c44);
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--lens-rim);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+@utility lens-round {
+  position: relative;
+  background: var(--lens-fill-round, var(--lens-fill));
+  box-shadow: var(--lens-shadow);
+  -webkit-backdrop-filter: blur(10px) saturate(1.9);
+  backdrop-filter: blur(1px) saturate(1.9) brightness(1.04) url(#lens-c58);
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--lens-rim);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* A note being edited: a plain page on a grey desk, like a word processor. */
+.note-desk {
+  background: #e8e8e6;
+}
+.note-desk[data-page-theme="dark"] {
+  background: #111113;
+}
+.note-page {
+  background: #fff;
+  color: #1b1c1f;
+  color-scheme: light;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.05), 0 2px 6px rgb(0 0 0 / 0.05), 0 18px 40px -16px rgb(0 0 0 / 0.22);
+  min-height: min(1056px, 100%);
+  --ink: #1b1c1f;
+  --ink-2: #4c4e55;
+  --ink-3: #7b7e87;
+  --ink-4: #b3b5bb;
+  --line: rgb(0 0 0 / 0.08);
+  --line-strong: rgb(0 0 0 / 0.14);
+  --fill: rgb(0 0 0 / 0.045);
+  --fill-strong: rgb(0 0 0 / 0.085);
+  --row-hover: rgb(0 0 0 / 0.035);
+  --canvas: #fff;
+  --card: #fff;
+  --raised: #fff;
+  --on-ink: #fff;
+  --accent: #2f5fd0;
+  --accent-soft: rgb(47 95 208 / 0.09);
+  --accent-line: rgb(47 95 208 / 0.28);
+}
+.note-desk[data-page-theme="dark"] .note-page {
+  background: #1d1d20;
+  color: #ececef;
+  color-scheme: dark;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06), 0 18px 40px -16px rgb(0 0 0 / 0.7);
+  --ink: #ececef;
+  --ink-2: #a3a3ab;
+  --ink-3: #7d7d86;
+  --ink-4: #4a4a51;
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.14);
+  --fill: rgb(255 255 255 / 0.06);
+  --fill-strong: rgb(255 255 255 / 0.1);
+  --row-hover: rgb(255 255 255 / 0.04);
+  --canvas: #1d1d20;
+  --card: #222226;
+  --raised: #29292e;
+  --on-ink: #161618;
+  --accent: #7097f2;
+  --accent-soft: rgb(112 151 242 / 0.13);
+  --accent-line: rgb(112 151 242 / 0.38);
+}
+.note-page .ql-editor {
+  font-size: 16px;
+  line-height: 1.65;
+}
+@media (max-width: 767px) {
+  .note-page {
+    border-radius: 14px;
+  }
+}
+/* The formatting bar floats over the page as frosted glass. */
+.note-toolbar {
+  background: rgb(255 255 255 / 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  backdrop-filter: blur(20px) saturate(1.8);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.06), 0 6px 18px -8px rgb(0 0 0 / 0.18);
+}
+.note-desk[data-page-theme="dark"] .note-toolbar {
+  background: rgb(40 40 44 / 0.72);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08), 0 6px 18px -8px rgb(0 0 0 / 0.6);
+}
+
+/* A section's tasks: one rounded card, rows divided by hairlines. */
+.task-group {
+  overflow: clip;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.task-group > * + * {
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 768px) {
+  .task-group {
+    border-radius: var(--radius-card);
+  }
+}
+/* On phones a section's tasks share one box; wider screens give each its own card. */
+@media (max-width: 767px) {
+  .task-stack {
+    overflow: clip;
+    border-radius: 22px;
+    background: var(--card);
+    border: 1px solid var(--line);
+  }
+  .task-stack > * + * {
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* A white (black, in dark mode) rounded box on the grey page. */
+@utility card {
+  background-color: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* Screen changes on phones: a short settle, or a slide for pages opened from
+   a list. Only opacity and transform, so they stay on the compositor. */
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .view-in {
+    animation: view-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+  .view-push {
+    animation: view-push 340ms cubic-bezier(0.2, 0.85, 0.2, 1) backwards;
+  }
+}
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes view-push {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+/* A task the AI is still filling in: a slow light passing over its title. */
+.ai-shimmer {
+  background: linear-gradient(100deg, var(--ink) 35%, var(--accent) 50%, var(--ink) 65%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ai-shimmer 1.6s linear infinite;
+}
+@keyframes ai-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
   }
 }

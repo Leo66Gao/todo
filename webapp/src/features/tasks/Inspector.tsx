@@ -1,31 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   CalendarDays,
+  CalendarX2,
   Check,
   ChevronDown,
   MoreHorizontal,
   Pencil,
   Plus,
+  Route,
+  Timer,
   Trash2,
   X,
 } from "lucide-react";
 import { argbToCss, PRIORITIES, type Priority } from "@/lib/dart";
-import { encodeTask, hasExplicitDifficulty, recordFits, uuid, type Subtask, type Task } from "@/lib/model";
+import { encodeTask, hasExplicitDifficulty, uuid, type Subtask, type Task } from "@/lib/model";
+import { changeDraft, storeDraft, type EditorDraft } from "@/lib/editorDrafts";
 import { dueLabel, formatDuration, relativeDay, startOfDay } from "@/lib/time";
 import { clockOf, withClock } from "@/lib/timeParse";
 import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
 import {
   addSubtaskFull,
+  captureWorkspaceSession,
   deleteSubtask,
   patchTask,
   toggleSubtask,
   toggleTask,
   updateSubtask,
-  updateTaskNotes,
+  saveEditorDraft,
   useWorkspace,
 } from "@/store/workspace";
 import { cn } from "@/ui/cn";
@@ -37,9 +42,13 @@ import { RichText } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
 import { taskMenu } from "./actions";
 import { DateField, SubjectField, TimeField } from "./fields";
-import { PRIORITY_LABEL, priorityColor } from "./meta";
+import { PRIORITY_LABEL, priorityColor, difficultyColor, workMinutes } from "./meta";
+import { WorkBack } from "./WorkBack";
+import { SubtaskSheet } from "./SubtaskSheet";
+import { format } from "date-fns";
+import { startTaskFocus } from "@/lib/focus";
 import { TaskCheck } from "./TaskCheck";
-import { useGlassPrefs } from "@/glass/prefs";
+import { useGlassOn } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
 
 const PANEL_WIDTH = 384;
@@ -50,7 +59,7 @@ export function InspectorPanel() {
   const exists = useWorkspace((s) => (id ? s.tasks.some((t) => t.id === id) : false));
   const open = id != null && exists;
   const [shown, setShown] = useState(id);
-  const glass = useGlassPrefs((s) => s.enabled);
+  const glass = useGlassOn();
   const panelGlass = useGlass({ level: 1, kind: "chrome" });
   if (open && id !== shown) setShown(id);
   return (
@@ -60,7 +69,7 @@ export function InspectorPanel() {
       initial={false}
       animate={{ width: open ? PANEL_WIDTH : 0, marginLeft: glass && open ? GLASS_GAP : 0 }}
       transition={springs.panel}
-      className="relative shrink-0 overflow-hidden border-l border-line bg-canvas max-lg:hidden"
+      className="relative shrink-0 overflow-hidden border-l border-line bg-card max-lg:hidden"
       style={{ borderLeftWidth: open && !glass ? 1 : 0 }}
       aria-hidden={!open}
     >
@@ -109,7 +118,7 @@ export function InspectorSheet() {
   );
 }
 
-export function TaskDetail({ taskId, variant }: { taskId: string; variant: "panel" | "page" }) {
+export function TaskDetail({ taskId, variant, summary }: { taskId: string; variant: "panel" | "page"; summary?: ReactNode }) {
   const task = useWorkspace((s) => s.tasks.find((t) => t.id === taskId));
   const settings = useWorkspace((s) => s.settings);
   const projects = useWorkspace((s) => s.projects);
@@ -120,8 +129,10 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
   const setStart = (time: { hour: number; minute: number } | null) =>
     patchTask(task.id, { startTime: time ? withClock(task.date, time) : null });
 
+  // An assignment's page lists only the fields that have a value (edit adds the rest).
+  const page = variant === "page";
   const properties: ReactNode[] = [];
-  if (settings.showTaskType) {
+  if (settings.showTaskType && !page) {
     properties.push(
       <Property key="type" label="Type">
         <Menu
@@ -151,7 +162,7 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       </Property>,
     );
   }
-  if (settings.showTime) {
+  if (settings.showTime && (!page || task.startTime)) {
     properties.push(
       <Property key="time" label="Time">
         <TimeField
@@ -163,7 +174,7 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       </Property>,
     );
   }
-  if (settings.showDuration) {
+  if (settings.showDuration && (!page || task.durationMinutes > 0)) {
     const options = isAssignment
       ? Array.from({ length: 10 }, (_, i) => (i + 1) * 60)
       : [0, 15, 30, 45, 60, 90, 120, 150, 180];
@@ -184,7 +195,7 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       </Property>,
     );
   }
-  if (settings.showDifficulty) {
+  if (settings.showDifficulty && (!page || hasExplicitDifficulty(task))) {
     const selected = hasExplicitDifficulty(task);
     const chooseDifficulty = (level: number | null) => {
       const extra = { ...task.extra };
@@ -198,7 +209,12 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
     properties.push(
       <Property key="difficulty" label="Difficulty">
         <Menu
-          trigger={<ValueButton muted={!selected}>{selected ? `Level ${task.difficulty}` : "None"}</ValueButton>}
+          trigger={
+            <ValueButton muted={!selected}>
+              {selected && <span className="size-[7px] shrink-0 rounded-full" style={{ background: difficultyColor(task.difficulty) }} />}
+              {selected ? `Level ${task.difficulty}` : "None"}
+            </ValueButton>
+          }
           items={[
             { label: "None", checked: !selected, onSelect: () => chooseDifficulty(null) },
             ...[1, 2, 3, 4, 5].map((level) => ({
@@ -211,7 +227,7 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       </Property>,
     );
   }
-  if (settings.showPriority) {
+  if (settings.showPriority && (!page || task.priority !== "none")) {
     properties.push(
       <Property key="priority" label="Priority">
         <Menu
@@ -233,7 +249,7 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       </Property>,
     );
   }
-  if (settings.showSubject && projects.length > 0) {
+  if (settings.showSubject && projects.length > 0 && (!page || task.projectId)) {
     properties.push(
       <Property key="subject" label="Subject">
         <SubjectField
@@ -246,7 +262,7 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       </Property>,
     );
   }
-  if (settings.showLabels && settings.labels.length > 0) {
+  if (settings.showLabels && settings.labels.length > 0 && (!page || settings.labels.some((l) => l.name === task.category))) {
     const label = settings.labels.find((l) => l.name === task.category);
     properties.push(
       <Property key="label" label="Label">
@@ -290,6 +306,13 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
                 Open page
               </Button>
             )}
+            {!task.isDone && (
+              <Tooltip label="Focus (40-minute rounds)" shortcut={["F"]}>
+                <IconButton label="Focus" onClick={() => startTaskFocus(task, workMinutes(task))}>
+                  <Timer className="size-[15px]" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip label="Edit all fields" shortcut={["⌘", "↩"]}>
               <IconButton label="Edit task" onClick={() => ui.editTask(task.id)}>
                 <Pencil className="size-[15px]" />
@@ -314,14 +337,22 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
       )}
       <div className={cn(variant === "panel" && "scroll-area flex-1 px-5 pb-10")}>
         <TitleEditor task={task} large={variant === "page"} />
-        {properties.length > 0 && <div className="mt-3 space-y-0.5">{properties}</div>}
+        {summary}
+        {properties.length > 0 &&
+          (variant === "page" ? (
+            <PageRows.Provider value>
+              <div className="task-group mt-3">{properties}</div>
+            </PageRows.Provider>
+          ) : (
+            <div className="mt-3 space-y-0.5">{properties}</div>
+          ))}
 
-        <SubtaskSection task={task} />
+        <SubtaskSection task={task} page={variant === "page"} />
 
         {settings.showNotes && (
           <div className="mt-6">
-            <div className="mb-2 text-xs font-semibold text-ink-2">Notes</div>
-            <NotesEditor task={task} />
+            <div className="mb-2 pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Notes</div>
+            <NotesEditor task={task} page={variant === "page"} />
           </div>
         )}
       </div>
@@ -329,7 +360,19 @@ export function TaskDetail({ taskId, variant }: { taskId: string; variant: "pane
   );
 }
 
+/** On an assignment's page the fields are a list of rows: name on the left, value on the right. */
+const PageRows = createContext(false);
+
 function Property({ label, children }: { label: string; children: ReactNode }) {
+  const page = useContext(PageRows);
+  if (page) {
+    return (
+      <div className="flex min-h-12 items-center justify-between gap-4 pr-2 pl-4">
+        <span className="shrink-0 text-[15px] text-ink-2">{label}</span>
+        <div className="flex min-w-0 justify-end text-right [&_button]:justify-end [&_button]:text-[15px] [&>*]:w-auto!">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-[104px_1fr] items-center">
       <span className="text-xs text-ink-3">{label}</span>
@@ -383,39 +426,65 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
       }}
       aria-label="Title"
       className={cn(
-        "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 font-semibold tracking-[-0.01em] outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
-        large ? "text-xl" : "text-lg",
+        "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
+        large ? "font-display text-xl font-semibold tracking-[-0.015em] max-md:text-[28px] max-md:leading-[1.2] max-md:font-bold max-md:tracking-[-0.02em]" : "text-lg font-semibold tracking-[-0.01em]",
         task.isDone && "text-ink-3 line-through decoration-ink-4",
       )}
     />
   );
 }
 
-function NotesEditor({ task }: { task: Task }) {
+function NotesEditor({ task, page }: { task: Task; page?: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<string | null>(null);
+  const pending = useRef<EditorDraft | null>(null);
+  const [editorSession] = useState(() => ({ current: captureWorkspaceSession(), owner: useWorkspace.getState().user?.uid ?? "", journalId: uuid() }));
+  const warned = useRef(false);
+  const draftDurable = useRef(false);
   const flush = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    const content = pending.current;
-    pending.current = null;
-    if (content == null) return;
-    if (!recordFits(encodeTask({ ...task, notes: content }))) {
-      toast("Notes are too long to sync. Shorten them to save.");
+    if (!editorSession.current() || !pending.current) return;
+    const result = saveEditorDraft(pending.current);
+    if (!result.saved) {
+      toast(draftDurable.current ? "Notes are too long to sync. The draft is kept on this device; shorten it to save." : "Notes are too long and draft storage is unavailable. Keep this page open and shorten them to save.");
       return;
     }
-    updateTaskNotes(task.id, content);
+    pending.current = null;
+    if (result.conflicted) toast("This task changed elsewhere. Your notes were kept in a conflict copy.");
   };
   useEffect(() => () => flush(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const flushRef = useRef(flush);
+  useEffect(() => { flushRef.current = flush; });
+  useEffect(() => {
+    const leave = () => flushRef.current();
+    const hide = () => { if (document.hidden) leave(); };
+    window.addEventListener("pagehide", leave);
+    document.addEventListener("visibilitychange", hide);
+    return () => { window.removeEventListener("pagehide", leave); document.removeEventListener("visibilitychange", hide); };
+  }, []);
   return (
-    <div className="rounded-[calc(var(--radius-ctl)_+_2px)] border border-line px-3.5 pt-3 pb-2 transition-colors focus-within:border-line-strong">
+    <div
+      className={cn(
+        "px-3.5 pt-3 pb-2 transition-colors",
+        page ? "card" : "rounded-[calc(var(--radius-ctl)_+_2px)] border border-line focus-within:border-line-strong",
+      )}
+    >
       <RichText
         value={task.notes}
         placeholder="Write notes, links or a checklist…"
         toolbar="compact"
         minHeight={72}
-        onChange={(content) => {
-          pending.current = content;
+        onBlur={flush}
+        onChange={(content, basedOn) => {
+          if (!editorSession.current()) return;
+          const current = useWorkspace.getState().tasks.find((t) => t.id === task.id) ?? task;
+          pending.current = changeDraft(pending.current, editorSession.owner, "task", encodeTask(current), editorSession.journalId, "notes", content, basedOn);
+          try { storeDraft(pending.current); draftDurable.current = true; }
+          catch {
+            draftDurable.current = false;
+            if (!warned.current) { warned.current = true; toast("Draft storage is unavailable. Keep this page open until the device save finishes."); }
+            flush();
+          }
           if (timer.current) clearTimeout(timer.current);
           timer.current = setTimeout(flush, 600);
         }}
@@ -427,8 +496,12 @@ function NotesEditor({ task }: { task: Task }) {
 // ---------------------------------------------------------------------------
 // Subtasks and milestones
 
-function SubtaskSection({ task }: { task: Task }) {
+function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
   const [draft, setDraft] = useState("");
+  const [planning, setPlanning] = useState(false);
+  // Assignments add and edit subtasks in a sheet, as in the phone app.
+  const [sheet, setSheet] = useState<{ open: boolean; sub: Subtask | null }>({ open: false, sub: null });
+  const canPlan = task.type === "assignment" && !task.isDone && startOfDay(task.date) >= startOfDay(new Date());
   const isAssignment = task.type === "assignment";
   const done = task.subtasks.filter((s) => s.isDone).length;
   const total = task.subtasks.length;
@@ -440,11 +513,18 @@ function SubtaskSection({ task }: { task: Task }) {
   };
   return (
     <div className="mt-6">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span className="text-xs font-semibold text-ink-2">{isAssignment ? "Subtasks and milestones" : "Subtasks"}</span>
+      <div className="mb-1.5 flex min-w-0 items-center gap-2">
+        <span className="min-w-0 truncate pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Subtasks</span>
+        {canPlan && (
+          <Tooltip label="Suggest steps, dated back from the deadline">
+            <Button size="sm" variant="ghost" className="-my-1 h-6 px-1.5 text-xs text-ink-3" icon={<Route className="size-3.5" />} onClick={() => setPlanning(true)}>
+              Work back
+            </Button>
+          </Tooltip>
+        )}
         {total > 0 && (
           <>
-            <span className="relative ml-auto h-1 w-16 overflow-hidden rounded-full bg-fill-strong">
+            <span className="relative ml-auto h-1 w-16 shrink-0 overflow-hidden rounded-full bg-fill-strong max-sm:w-10">
               <motion.span
                 className="absolute inset-y-0 left-0 rounded-full bg-ink"
                 initial={false}
@@ -458,7 +538,34 @@ function SubtaskSection({ task }: { task: Task }) {
           </>
         )}
       </div>
-      <div>
+      {isAssignment ? (
+        <div className="flex flex-col gap-1.5">
+          <AnimatePresence initial={false}>
+            {task.subtasks.map((sub) => (
+              <motion.div
+                key={sub.id}
+                layout="position"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={springs.layout}
+              >
+                <SubtaskTile task={task} sub={sub} onEdit={() => setSheet({ open: true, sub })} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          <button
+            type="button"
+            onClick={() => setSheet({ open: true, sub: null })}
+            className="flex h-11 items-center justify-center gap-2 rounded-[14px] border border-line text-sm font-semibold transition-colors hover:bg-fill active:scale-[0.99]"
+          >
+            <Plus className="size-[18px]" />
+            Add subtask
+          </button>
+          <SubtaskSheet task={task} existing={sheet.sub} open={sheet.open} onOpenChange={(open) => setSheet((s) => ({ ...s, open }))} />
+        </div>
+      ) : (
+      <div className={cn(page && "card px-2 py-1.5")}>
         <AnimatePresence initial={false}>
           {task.subtasks.map((sub) => (
             <motion.div
@@ -491,6 +598,66 @@ function SubtaskSection({ task }: { task: Task }) {
           />
         </form>
       </div>
+      )}
+      {canPlan && <WorkBack task={task} open={planning} onOpenChange={setPlanning} />}
+    </div>
+  );
+}
+
+/** An assignment's subtask: tap to edit it; a date makes it a milestone. */
+function SubtaskTile({ task, sub, onEdit }: { task: Task; sub: Subtask; onEdit: () => void }) {
+  const [dateOpen, setDateOpen] = useState(false);
+  const milestone = sub.date != null;
+  return (
+    <div
+      className={cn(
+        "flex min-h-12 items-center gap-2 rounded-[14px] border border-line py-1 pr-1.5 pl-2",
+        milestone ? "bg-fill/60" : "bg-card",
+      )}
+    >
+      <TaskCheck size={20} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} />
+      <button
+        type="button"
+        onClick={onEdit}
+        className={cn(
+          "min-w-0 flex-1 py-1.5 text-left text-[15px] leading-snug break-words",
+          sub.isDone ? "text-ink-3 line-through decoration-ink-4" : "text-ink",
+        )}
+      >
+        {sub.title}
+      </button>
+      {milestone && (
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <span className="rounded-[5px] bg-fill-strong px-1.5 py-px text-[9px] font-bold tracking-[0.06em] text-ink-2">MILESTONE</span>
+          <span className="font-mono text-[11px] text-ink-3">{format(sub.date!, "MMM d")}</span>
+        </span>
+      )}
+      <Popover
+        open={dateOpen}
+        onOpenChange={setDateOpen}
+        align="end"
+        trigger={
+          <IconButton label={milestone ? "Change the milestone date" : "Make it a milestone"} size="sm" className="size-8 shrink-0 text-ink-3">
+            <CalendarDays className="size-4" />
+          </IconButton>
+        }
+      >
+        <DatePanel
+          value={sub.date ?? task.date}
+          onPick={(d) => {
+            updateSubtask(task.id, { ...sub, date: startOfDay(d) });
+            setDateOpen(false);
+          }}
+        />
+      </Popover>
+      {milestone && (
+        <IconButton label="Remove the milestone date" size="sm" className="size-8 shrink-0 text-ink-3" onClick={() => updateSubtask(task.id, { ...sub, date: null })}>
+          <CalendarX2 className="size-4" />
+        </IconButton>
+      )}
+      <IconButton label="Delete subtask" size="sm" className="size-8 shrink-0 text-ink-3" onClick={() => deleteSubtask(task.id, sub.id)}>
+        <X className="size-4" />
+      </IconButton>
     </div>
   );
 }

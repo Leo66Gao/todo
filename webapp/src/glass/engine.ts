@@ -11,7 +11,7 @@ export interface EngineLook {
   dark: boolean;
   /** 0 sharp … 1 fully diffused. */
   blur: number;
-  /** Milky haze: 0 clear … 1 fully frosted. */
+  /** Frosted surface: 0 smooth … 1 fully frosted (milky white haze and an icy grain). */
   frost: number;
   /** Light text over a light background: the glass then keeps itself dark. */
   lightText: boolean;
@@ -138,6 +138,23 @@ export class GlassEngine {
     this.maxShapes = Math.max(8, Math.min(48, Math.floor((vectors - 32) / 7)));
     this.glassProgram = new Program(gl, glassFragment(this.maxShapes));
     this.blitProgram = new Program(gl, BLIT_FS);
+  }
+
+  /** Called with the background's colour along the top edge whenever it settles. */
+  onTopColor: ((rgb: [number, number, number]) => void) | null = null;
+
+  /** Average colour (0…255) of the top strip of the background, under the status bar. */
+  private topColor(): [number, number, number] {
+    const gl = this.gl;
+    const { w, h } = this.bg;
+    const rows = Math.min(h, Math.ceil(28 * this.dpr));
+    const pixels = new Uint8Array(w * rows * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.bg.fbo);
+    gl.readPixels(0, h - rows, w, rows, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    const sum = [0, 0, 0];
+    for (let i = 0; i < pixels.length; i += 4) for (let c = 0; c < 3; c++) sum[c] += pixels[i + c];
+    const n = Math.max(1, w * rows);
+    return [Math.round(sum[0] / n), Math.round(sum[1] / n), Math.round(sum[2] / n)];
   }
 
   private target(w: number, h: number, previous?: Target): Target {
@@ -328,8 +345,8 @@ export class GlassEngine {
       const m = this.material(s.kind, Math.min(hw, hh), radius, look);
       shape.set([radius, m.bezel, m.height, m.shadowBlur * (1 + s.hover * 0.25)], i * 4);
       tint.set(m.tint, i * 4);
-      extra.set([m.legible, s.light[0], s.light[1], 0], i * 4);
-      optic.set([m.frost, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
+      extra.set([m.legible, s.light[0], s.light[1], m.frosted], i * 4);
+      optic.set([m.blur, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
       state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
@@ -357,18 +374,19 @@ export class GlassEngine {
     // Glass under light text behaves as it does in dark mode.
     const dark = look.dark || look.lightText;
     const solid = look.solid;
-    // Frost is white haze in light mode and a soft grey mist in dark mode.
+    // Blur only softens what shows through; frost turns the glass milky and
+    // grained. Reading surfaces also keep a fixed, gentle legibility band.
     const haze = dark ? [0.4, 0.41, 0.44] : [1, 1, 1];
-    // How firmly reading surfaces hold a readable brightness.
-    const hold = mix(0.4, 1, Math.max(b, f));
+    const hold = 0.55;
     switch (kind) {
       case "slab":
         return {
           bezel: Math.min(radius, 26 * dpr),
           height: 36 * dpr,
-          tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.92] : [...haze, dark ? mix(0, 0.3, f) : mix(0, 0.5, f)],
+          tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.92] : [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold,
-          frost: mix(0.12, 1, b),
+          blur: mix(0.04, 1, b),
+          frosted: f,
           dispersion: 0.12,
           rim: 0.75,
           shadow: dark ? 0.32 : 0.14,
@@ -379,9 +397,10 @@ export class GlassEngine {
           // Small chrome (the phone tab bar) gets a proportionally gentler lens.
           bezel: Math.min(radius, 26 * dpr, halfShort * 0.55),
           height: Math.min(42 * dpr, halfShort * 0.9),
-          tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.88] : [...haze, dark ? mix(0, 0.26, f) : mix(0, 0.4, f)],
-          legible: (dark ? -1 : 1) * hold,
-          frost: mix(0.08, 0.95, b),
+          tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.88] : [1, 1, 1, 0],
+          legible: (dark ? -1 : 1) * hold * 0.9,
+          blur: mix(0.03, 0.95, b),
+          frosted: f * 0.9,
           dispersion: 0.12,
           rim: 1,
           shadow: dark ? 0.34 : 0.16,
@@ -394,7 +413,8 @@ export class GlassEngine {
           height: Math.min(halfShort * 1.1, 22 * dpr),
           tint: [1, 1, 1, 0],
           legible: 0,
-          frost: 0,
+          blur: 0,
+          frosted: 0,
           dispersion: 0.22,
           rim: 0,
           shadow: dark ? 0.16 : 0.07,
@@ -405,9 +425,10 @@ export class GlassEngine {
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.3, 26 * dpr),
-          tint: [...haze, dark ? mix(0.03, 0.12, f) : mix(0.08, 0.28, f)],
-          legible: (dark ? -1 : 1) * hold,
-          frost: mix(0.02, 0.45, b),
+          tint: [...haze, dark ? 0.06 : 0.14],
+          legible: (dark ? -1 : 1) * hold * 0.9,
+          blur: mix(0.02, 0.45, b),
+          frosted: f * 0.6,
           dispersion: 0.17,
           rim: 1.2,
           shadow: dark ? 0.24 : 0.12,
@@ -420,7 +441,8 @@ export class GlassEngine {
           height: Math.min(14 * dpr, halfShort * 0.6),
           tint: [1, 1, 1, 0],
           legible: 0,
-          frost: 0,
+          blur: 0,
+          frosted: 0,
           dispersion: 0.12,
           rim: 0,
           shadow: dark ? 0.12 : 0.04,
@@ -433,7 +455,8 @@ export class GlassEngine {
           height: Math.min(halfShort, 10 * dpr),
           tint: dark ? [0, 0, 0, 0.12] : [0.2, 0.22, 0.26, 0.06],
           legible: 0,
-          frost: 0.85,
+          blur: 0.85,
+          frosted: 0,
           dispersion: 0.1,
           rim: 0.55,
           shadow: 0,
@@ -471,6 +494,7 @@ export class GlassEngine {
       this.renderBackground();
     }
     this.bgDrawn = true;
+    if (bgChanged && this.fadeStart == null && this.onTopColor) this.onTopColor(this.topColor());
     const level1Changed = bgChanged || key1 !== this.level1Key;
     if (!level1Changed && key2 === this.level2Key) return false;
     if (level1Changed) {

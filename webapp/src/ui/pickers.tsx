@@ -190,7 +190,7 @@ export function TimePanel({
           onChange={(e) => setText(e.target.value)}
           placeholder="Type a time…"
           className={cn(
-            "h-8 w-full rounded-[7px] border bg-canvas px-2.5 text-sm outline-none transition-[border-color,box-shadow]",
+            "h-8 w-full rounded-[7px] border bg-card px-2.5 text-sm outline-none transition-[border-color,box-shadow]",
             text && !parsed ? "border-danger/50" : "border-line-strong focus:border-accent focus:ring-3 focus:ring-accent-soft",
           )}
         />

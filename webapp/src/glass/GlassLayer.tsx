@@ -2,15 +2,16 @@
 
 import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
-import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassPrefs } from "./prefs";
+import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
-import { noteScroll, refreshGlassShapes } from "./registry";
+import { noteScroll } from "./registry";
+import { reportGlassTop } from "@/lib/native";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
 
 /** Keeps <html> classes in step with the theme: `glass`, a background class, and the CSS fallback. */
 export function useGlassDocumentClasses() {
-  const enabled = useGlassPrefs((s) => s.enabled);
+  const enabled = useGlassOn();
   const background = useGlassPrefs((s) => s.background);
   useEffect(() => {
     const root = document.documentElement;
@@ -22,17 +23,18 @@ export function useGlassDocumentClasses() {
     };
   }, [enabled, background]);
 
+  // Overlays drawn in CSS follow the frost setting too: whiter, and grained.
+  const frost = useGlassPrefs((s) => s.frost);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--glass-frost", String(enabled ? frost : 0));
+    root.classList.toggle("glass-frosty", enabled && frost > 0.15);
+  }, [enabled, frost]);
+
   const lightText = useGlassPrefs((s) => s.lightText);
   useEffect(() => {
     document.documentElement.classList.toggle("glass-light-text", enabled && lightText);
   }, [enabled, lightText]);
-
-  const radius = useGlassPrefs((s) => s.radius);
-  useEffect(() => {
-    document.documentElement.style.setProperty("--glass-radius", `${radius}px`);
-    // Let the new radii reach the DOM before the renderer re-reads them.
-    requestAnimationFrame(refreshGlassShapes);
-  }, [radius]);
 }
 
 /**
@@ -41,7 +43,7 @@ export function useGlassDocumentClasses() {
  * CSS (`glass-css`): a gradient background and backdrop-filter surfaces.
  */
 export function GlassLayer() {
-  const enabled = useGlassPrefs((s) => s.enabled);
+  const enabled = useGlassOn();
   useGlassDocumentClasses();
   if (!enabled) return null;
   return <GlassCanvas />;
@@ -67,6 +69,7 @@ function GlassCanvas() {
       return () => root.classList.remove("glass-css");
     }
     root.classList.remove("glass-css");
+    engine.onTopColor = reportGlassTop;
     const tracker = new ShapeTracker();
     // Development aid: `?glass-bg` shows the bare background.
     const bareBackground = process.env.NODE_ENV !== "production" && location.search.includes("glass-bg");

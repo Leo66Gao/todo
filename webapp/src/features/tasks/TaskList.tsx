@@ -20,12 +20,16 @@ export function TaskList({
   showDate,
   trailing,
   id,
+  plain,
+  hideSubject,
 }: {
   tasks: Task[];
   sortable?: boolean;
   showDate?: boolean;
   trailing?: (task: Task) => ReactNode;
   id?: string;
+  plain?: boolean;
+  hideSubject?: boolean;
 }) {
   const dragging = useUI((s) => s.dragging);
   const rows = (
@@ -43,16 +47,19 @@ export function TaskList({
             task={task}
             sortable={sortable && !task.milestone}
             showDate={showDate}
+            plain={plain}
+            hideSubject={hideSubject}
             trailing={trailing?.(task)}
           />
         </motion.div>
       ))}
     </AnimatePresence>
   );
-  if (!sortable) return <div>{rows}</div>;
+  const body = <div className={plain ? undefined : "task-stack"}>{rows}</div>;
+  if (!sortable) return body;
   return (
     <SortableContext id={id} items={tasks.filter((t) => !t.milestone).map((t) => t.id)} strategy={verticalListSortingStrategy}>
-      <div>{rows}</div>
+      {body}
     </SortableContext>
   );
 }
@@ -82,13 +89,13 @@ export function Section({
           <ChevronRight className="size-3.5" />
         </motion.span>
       )}
-      <span className="text-xs font-semibold text-ink-2">{title}</span>
-      {count != null && <span className="text-xs text-ink-3 tnum">{count}</span>}
+      <span className="text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">{title}</span>
+      {count != null && <span className="text-[11px] font-semibold text-ink-3/70 tnum">{count}</span>}
     </span>
   );
   return (
     <motion.section layout="position" transition={springs.layout} className={cn("mt-5 first:mt-0", className)}>
-      <div className="flex h-7 items-center justify-between pr-1 pl-2">
+      <div className="flex h-7 items-center justify-between pr-1 pl-2 max-md:mb-1 max-md:pl-1">
         {collapsible ? (
           <button type="button" onClick={() => setOpen((v) => !v)} className="-ml-1 rounded-[6px] px-1 py-0.5 hover:bg-fill">
             {heading}

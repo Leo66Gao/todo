@@ -2,9 +2,12 @@
 
 import { formatDistanceToNowStrict, isToday, isYesterday, format } from "date-fns";
 import type { StudyNote } from "@/lib/model";
-import { uuid } from "@/lib/model";
+import { contentFromDelta } from "@/lib/delta";
+import { encodeNote, recordFits, uuid } from "@/lib/model";
+import { versionsKey, withVersion, type Version } from "@/lib/versions";
 import type { Route } from "@/shell/nav";
-import { addNote, deleteNote, useWorkspace } from "@/store/workspace";
+import { addNote, captureWorkspaceSession, readSide, updateNote, useWorkspace, writeSide } from "@/store/workspace";
+import { restoreFromTrash, trashNote } from "@/store/trash";
 import { confirmDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 
@@ -24,19 +27,70 @@ export function createNote(navigate: (r: Route) => void, opts: { subjectId?: str
   navigate({ view: "note", id: note.id });
 }
 
-export async function removeNote(note: StudyNote, after?: () => void) {
+/** Makes a note from a Word document and opens it. */
+export async function importNote(file: File, navigate: (r: Route) => void, subjectId: string | null) {
+  const currentSession = captureWorkspaceSession();
+  try {
+    const { docxToContent } = await import("@/lib/noteFiles");
+    const { title, ops } = await docxToContent(file);
+    if (!currentSession()) return;
+    const now = new Date();
+    const note: StudyNote = {
+      id: uuid(),
+      title,
+      content: contentFromDelta(ops),
+      subjectId,
+      folderId: null,
+      attachments: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (!recordFits(encodeNote(note))) {
+      toast("This document is too large for one note. Split it and import the parts.");
+      return;
+    }
+    addNote(note);
+    navigate({ view: "note", id: note.id });
+    toast(`Imported “${title}”`);
+  } catch {
+    if (!currentSession()) return;
+    toast("This file couldn’t be read. Choose a Word document (.docx).");
+  }
+}
+
+export async function removeNote(note: StudyNote, after?: () => void, restoredNote?: (id: string) => void) {
+  const currentSession = captureWorkspaceSession();
   const ok = await confirmDialog({
     title: `Delete “${note.title || "Untitled note"}”?`,
-    message: "This removes the note from all your devices.",
+    message: "It moves to Recently deleted in Settings for 30 days.",
     confirmLabel: "Delete note",
     destructive: true,
   });
-  if (!ok) return;
-  const index = useWorkspace.getState().notes.findIndex((n) => n.id === note.id);
-  deleteNote(note.id);
+  if (!ok || !currentSession()) return;
+  const snapshot = useWorkspace.getState().notes.find((n) => n.id === note.id);
+  if (!snapshot) return;
+  trashNote(snapshot);
   after?.();
-  toast("Note deleted", { label: "Undo", run: () => addNote(note, index) });
+  toast("Note deleted", {
+    label: "Undo",
+    run: () => {
+      if (!currentSession()) return;
+      const id = restoreFromTrash("note", snapshot.id);
+      if (id) restoredNote?.(id);
+    },
+  });
 }
+
+/** Pins or unpins a note. Pinning isn't an edit, so the edited time stays. */
+export function togglePin(note: StudyNote) {
+  const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+  if (!current) return;
+  const { pinnedAt, ...rest } = current;
+  updateNote(pinnedAt ? rest : { ...rest, pinnedAt: Date.now() });
+}
+
+/** Pinned notes, most recently pinned first. */
+export const pinnedFirst = (a: StudyNote, b: StudyNote) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0);
 
 export function editedLabel(date: Date) {
   const diff = Date.now() - date.getTime();
@@ -54,4 +108,27 @@ export function noteGroup(date: Date) {
   if (days < 7) return "Previous 7 days";
   if (days < 30) return "Previous 30 days";
   return format(date, date.getFullYear() === new Date().getFullYear() ? "MMMM" : "MMMM yyyy");
+}
+
+// ---------------------------------------------------------------------------
+// Version history
+
+export function noteVersions(noteId: string): Version[] {
+  const record = readSide<{ versions?: Version[] }>(versionsKey(noteId), {});
+  return Array.isArray(record.versions) ? record.versions : [];
+}
+
+/** Keeps this state of the note, if it's time for another version. */
+export function recordVersion(note: StudyNote, force = false) {
+  const next = withVersion(noteVersions(note.id), note, Date.now(), force);
+  if (next) writeSide(versionsKey(note.id), { versions: next });
+}
+
+/** Brings back an earlier version; the current one is kept first. */
+export function restoreVersion(noteId: string, version: Version) {
+  const current = useWorkspace.getState().notes.find((n) => n.id === noteId);
+  if (!current) return;
+  recordVersion(current, true);
+  updateNote({ ...current, title: version.title, content: version.content, updatedAt: new Date() });
+  toast("Version restored");
 }

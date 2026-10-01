@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, CornerDownRight, GraduationCap, Plus } from "lucide-react";
+import { CornerDownRight, GraduationCap, Plus } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { addDays, formatClock, formatDuration, sameDay, startOfWeek, today } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
-import { PageHeader } from "@/shell/Shell";
+import { PageHeader, Stepper } from "@/shell/Shell";
 import { ui, useUI } from "@/shell/ui";
 import { openTask, taskMenu } from "@/features/tasks/actions";
 import { priorityColor, tasksForDay, useAllTasks, useProjectMap, workMinutes } from "@/features/tasks/meta";
@@ -20,9 +20,11 @@ import { TaskCheck } from "@/features/tasks/TaskCheck";
 import type { TaskDragData } from "@/features/tasks/TaskRow";
 import { toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
-import { Button, IconButton } from "@/ui/controls";
+import { Button } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
+import { eventsOnDay, useEvents, type GEvent } from "@/lib/googleEvents";
+import { EventRow } from "@/features/events/EventSheet";
 
 function weekTitle(start: Date) {
   const diff = Math.round((start.getTime() - startOfWeek(today()).getTime()) / (7 * 864e5));
@@ -44,6 +46,7 @@ export function WeekView() {
       }),
     [all, startKey],
   );
+  const events = useEvents(new Date(startKey), addDays(new Date(startKey), 7));
   const stats = useMemo(() => {
     const list = columns.flatMap((c) => c.tasks);
     const done = list.filter((t) => t.isDone).length;
@@ -64,17 +67,15 @@ export function WeekView() {
         detail={`${format(start, "d MMM")} – ${format(end, start.getMonth() === end.getMonth() ? "d" : "d MMM")}${start.getMonth() === end.getMonth() ? format(end, " MMMM") : ""}`}
         actions={
           <>
-            <div className="mr-1 flex items-center">
-              <IconButton label="Previous week" onClick={() => ui.set({ weekOf: addDays(start, -7) })}>
-                <ChevronLeft className="size-4" />
-              </IconButton>
-              <Button variant="ghost" size="sm" disabled={sameDay(start, startOfWeek(today()))} onClick={() => ui.set({ weekOf: today() })}>
-                This week
-              </Button>
-              <IconButton label="Next week" onClick={() => ui.set({ weekOf: addDays(start, 7) })}>
-                <ChevronRight className="size-4" />
-              </IconButton>
-            </div>
+            <Stepper
+              prev="Previous week"
+              next="Next week"
+              onPrev={() => ui.set({ weekOf: addDays(start, -7) })}
+              onNext={() => ui.set({ weekOf: addDays(start, 7) })}
+              present="This week"
+              atPresent={sameDay(start, startOfWeek(today()))}
+              onPresent={() => ui.set({ weekOf: today() })}
+            />
             <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: sameDay(start, startOfWeek(today())) ? today() : start })}>
               <span className="max-sm:hidden">New task</span>
             </Button>
@@ -106,31 +107,54 @@ export function WeekView() {
           </span>
         )}
       </div>
-      <div className="scroll-area flex min-h-0 flex-1 border-t border-line max-md:flex-col max-md:overflow-y-auto">
+      <div className="scroll-area flex min-h-0 flex-1 gap-2 px-4 pt-1 pb-4 max-md:flex-col max-md:pt-2 max-md:gap-2.5 max-md:overflow-y-auto max-md:px-3 max-md:pb-bar">
         {columns.map((col) => (
-          <DayColumn key={col.date.getTime()} date={col.date} tasks={col.tasks} />
+          <DayColumn key={col.date.getTime()} date={col.date} tasks={col.tasks} events={events} />
         ))}
       </div>
     </>
   );
 }
 
-function DayColumn({ date, tasks }: { date: Date; tasks: Task[] }) {
+function DayColumn({ date, tasks, events }: { date: Date; tasks: Task[]; events: GEvent[] }) {
+  const dayEvents = useMemo(() => {
+    const { allDay, timed } = eventsOnDay(events, date);
+    return [...allDay, ...timed];
+  }, [events, date]);
   const { setNodeRef, isOver } = useDroppable({ id: `week-${date.getTime()}`, data: { type: "day", date } });
   const isToday = sameDay(date, today());
+  const section = useRef<HTMLElement | null>(null);
+  const ref = useMergedRefs(setNodeRef, section);
+  // Phones list the days one under another; glide down to today on arrival.
+  useEffect(() => {
+    if (!isToday || !matchMedia("(max-width: 767px)").matches) return;
+    const el = section.current;
+    const list = el?.parentElement;
+    if (!el || !list) return;
+    const id = setTimeout(
+      () =>
+        list.scrollTo({
+          top: el.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop - 8,
+          behavior: "smooth",
+        }),
+      180,
+    );
+    return () => clearTimeout(id);
+  }, [isToday]);
   const open = tasks.filter((t) => !t.isDone).length;
   const past = date.getTime() < today().getTime();
   const sortableIds = tasks.filter((t) => !t.milestone && !t.isDone && !t.startTime).map((t) => t.id);
   return (
     <section
-      ref={setNodeRef}
+      ref={ref}
       className={cn(
-        "group/col flex min-w-[132px] flex-1 flex-col border-r border-line last:border-r-0 transition-colors duration-150 max-md:flex-none max-md:border-r-0 max-md:border-b",
-        isOver && "bg-accent-soft/60",
-        isToday && !isOver && "bg-fill/40",
+        "card group/col flex min-w-[124px] flex-1 flex-col transition-[outline-color] duration-150 max-md:flex-none",
+        // Today, and a day a task is dragged over, get a blue edge.
+        (isOver || isToday) && "outline -outline-offset-[1.25px] outline-[1.25px]",
+        isOver ? "outline-accent" : isToday && "outline-accent-line",
       )}
     >
-      <header className="flex h-11 shrink-0 items-center gap-1.5 px-3">
+      <header className="flex h-11 shrink-0 items-center gap-1.5 px-3 pt-0.5">
         <span className={cn("text-xs font-medium", isToday ? "text-accent" : past ? "text-ink-3" : "text-ink-2")}>
           {format(date, "EEE")}
         </span>
@@ -145,6 +169,13 @@ function DayColumn({ date, tasks }: { date: Date; tasks: Task[] }) {
         {open > 0 && <span className="ml-auto text-2xs text-ink-3 tnum">{open}</span>}
       </header>
       <div className="scroll-area flex-1 px-1.5 pb-2 max-md:flex-none max-md:overflow-visible">
+        {dayEvents.length > 0 && (
+          <div className="mb-1 space-y-px">
+            {dayEvents.map((e) => (
+              <EventRow key={e.key} event={e} compact />
+            ))}
+          </div>
+        )}
         <SortableContext id={`week-${date.getTime()}`} items={sortableIds} strategy={verticalListSortingStrategy}>
           <AnimatePresence initial={false}>
             {tasks.map((task) => (
@@ -207,7 +238,7 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
           }}
           onDoubleClick={() => !task.milestone && ui.editTask(task.id)}
           className={cn(
-            "mb-1 flex gap-1 rounded-[calc(var(--radius-ctl)_+_1px)] py-1.5 pr-2 pl-0.5 transition-colors duration-100",
+            "mb-1 flex items-center gap-1 rounded-[calc(var(--radius-ctl)_+_1px)] py-1.5 pr-2 pl-0.5 transition-colors duration-100",
             selected ? "bg-accent-soft" : "hover:bg-fill",
           )}
         >
@@ -216,7 +247,6 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
             checked={task.isDone}
             color={showPriority && task.priority !== "none" ? priorityColor(task.priority) : undefined}
             onToggle={() => toggleTask(task.id)}
-            className="-mt-[3px]"
           />
           <div className="min-w-0 flex-1">
             <p className={cn("line-clamp-2 text-xs leading-[17px] font-medium", task.isDone ? "text-ink-3 line-through decoration-ink-4" : "text-ink")}>

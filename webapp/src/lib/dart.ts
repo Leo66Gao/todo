@@ -81,6 +81,12 @@ export function argbToCss(value: number | undefined | null): string {
   return a >= 0.999 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${a.toFixed(3)})`;
 }
 
+/** "#RRGGBB" for an ARGB int (alpha dropped), as Android colours want. */
+export function argbToHex(value: number | undefined | null): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "#8E8E93";
+  return `#${((value >>> 0) & 0xffffff).toString(16).padStart(6, "0").toUpperCase()}`;
+}
+
 export function hexToArgb(hex: string): number {
   const clean = hex.replace("#", "");
   return (0xff000000 | parseInt(clean.slice(0, 6), 16)) >>> 0;
