@@ -17,12 +17,5 @@
       ]
     }
   ],
-  "fieldOverrides": [
-    {
-      "collectionGroup": "records",
-      "fieldPath": "payload",
-      "ttl": false,
-      "indexes": []
-    }
-  ]
+  "fieldOverrides": []
 }

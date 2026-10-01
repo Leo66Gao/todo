@@ -100,8 +100,10 @@ new ID, because the cloud keeps a permanent tombstone for a deleted ID; links
 to it (a milestone's parent, note links, note history) move to the new ID.
 Settings → Data saves a whole-workspace backup (JSON) and restores one:
 existing items return to their backed-up version, deleted ones come back
-under new IDs, and nothing made since is removed. `firestore.indexes.json`
-exempts the unqueried `payload` field from indexing.
+under new IDs, and nothing made since is removed. The `todo-sync` database is
+Firestore Enterprise, which indexes nothing automatically: only the
+`updatedAt` index in `firestore.indexes.json` exists, so `payload` is never
+indexed.
 
 Confirmations, task editors and Undo actions belong to the account that opened
 them and are cancelled on account changes. Google Calendar event edits remain
