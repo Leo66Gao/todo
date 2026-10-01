@@ -385,7 +385,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
                 {
                   label: "Delete note…",
                   destructive: true,
-                  onSelect: () => void removeNote(note, () => navigate({ view: "notes" })),
+                  onSelect: () => void removeNote(note, () => navigate({ view: "notes" }), (id) => navigate({ view: "note", id })),
                 },
               ]}
             />

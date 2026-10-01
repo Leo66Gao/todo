@@ -39,6 +39,7 @@ import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
 import { setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
 import { SyncDetails } from "./SyncDetails";
+import { BackupItems, TrashList } from "./DataTools";
 
 const FIELD_NAMES: Record<FieldId, string> = {
   type: "Task type",
@@ -71,6 +72,9 @@ export function SettingsView() {
                 Show shortcuts
               </Button>
             </Item>
+          </Group>
+          <Group title="Recently deleted" description="Deleted tasks and notes, kept for 30 days. Restoring puts them back where they were.">
+            <TrashList />
           </Group>
           <DataSection />
         </div>
@@ -737,6 +741,7 @@ function DataSection() {
   };
   return (
     <Group title="Data">
+      <BackupItems Item={Item} />
       <Item title="Delete workspace data" detail="Removes everything. This can’t be undone.">
         <Button size="sm" variant="ghost" className="text-danger hover:bg-danger-soft hover:text-danger" disabled={busy} onClick={() => void run()}>
           Delete…

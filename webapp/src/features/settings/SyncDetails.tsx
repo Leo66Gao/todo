@@ -7,7 +7,7 @@ import { Button } from "@/ui/controls";
 import { toast } from "@/ui/toast";
 
 const when = (at: number | null) => at == null ? "Not yet" : new Date(at).toLocaleString();
-const settingName = (key: string) => key.startsWith("settings:versions:") ? "Note history" : key === "settings:sources" ? "Source library" : key === "settings:order" ? "Task order" : key === "settings:tags" ? "Tags" : "Workspace preferences";
+const settingName = (key: string) => key.startsWith("settings:versions:") ? "Note history" : key.startsWith("settings:trash:") ? "Recently deleted" : key === "settings:sources" ? "Source library" : key === "settings:order" ? "Task order" : key === "settings:tags" ? "Tags" : "Workspace preferences";
 
 export function SyncDetails() {
   const [busy, setBusy] = useState(false);

@@ -65,6 +65,7 @@ import { startPressFeedback } from "@/ui/press";
 import { InstallHint } from "./InstallHint";
 import { Sidebar } from "./Sidebar";
 import { ui, useUI } from "./ui";
+import { expireTrash } from "@/store/trash";
 
 export function Shell() {
   const isLoading = useWorkspace((s) => s.isLoading);
@@ -100,7 +101,10 @@ export function Shell() {
   }, [themeMode, mounted]);
 
   useEffect(() => {
-    if (mounted && !isLoading) hideSplash();
+    if (!mounted || isLoading) return;
+    hideSplash();
+    // Recently deleted keeps things for 30 days.
+    expireTrash();
   }, [mounted, isLoading]);
 
   if (!mounted || isLoading) {

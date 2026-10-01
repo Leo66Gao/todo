@@ -6,7 +6,8 @@ import { contentFromDelta } from "@/lib/delta";
 import { encodeNote, recordFits, uuid } from "@/lib/model";
 import { versionsKey, withVersion, type Version } from "@/lib/versions";
 import type { Route } from "@/shell/nav";
-import { addNote, captureWorkspaceSession, deleteNote, readSide, updateNote, useWorkspace, writeSide } from "@/store/workspace";
+import { addNote, captureWorkspaceSession, readSide, updateNote, useWorkspace, writeSide } from "@/store/workspace";
+import { restoreFromTrash, trashNote } from "@/store/trash";
 import { confirmDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 
@@ -57,27 +58,25 @@ export async function importNote(file: File, navigate: (r: Route) => void, subje
   }
 }
 
-export async function removeNote(note: StudyNote, after?: () => void) {
+export async function removeNote(note: StudyNote, after?: () => void, restoredNote?: (id: string) => void) {
   const currentSession = captureWorkspaceSession();
   const ok = await confirmDialog({
     title: `Delete “${note.title || "Untitled note"}”?`,
-    message: "This removes the note from all your devices.",
+    message: "It moves to Recently deleted in Settings for 30 days.",
     confirmLabel: "Delete note",
     destructive: true,
   });
   if (!ok || !currentSession()) return;
-  const index = useWorkspace.getState().notes.findIndex((n) => n.id === note.id);
-  const snapshot = useWorkspace.getState().notes[index];
+  const snapshot = useWorkspace.getState().notes.find((n) => n.id === note.id);
   if (!snapshot) return;
-  const history = noteVersions(note.id);
-  deleteNote(note.id);
+  trashNote(snapshot);
   after?.();
   toast("Note deleted", {
     label: "Undo",
     run: () => {
       if (!currentSession()) return;
-      addNote(snapshot, index);
-      if (history.length) writeSide(versionsKey(note.id), { versions: history });
+      const id = restoreFromTrash("note", snapshot.id);
+      if (id) restoredNote?.(id);
     },
   });
 }

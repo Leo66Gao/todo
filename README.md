@@ -94,6 +94,15 @@ field that changed elsewhere is preserved as a conflict copy. Cmd/Ctrl+S confirm
 the device save, while cloud progress remains visible in Sync details. Oversized
 note drafts can still be exported before shortening them.
 
+Deleted tasks and notes go to Recently deleted (Settings) for 30 days, as
+synced `settings:trash:*` records. Restoring, including Undo, gives the item a
+new ID, because the cloud keeps a permanent tombstone for a deleted ID; links
+to it (a milestone's parent, note links, note history) move to the new ID.
+Settings → Data saves a whole-workspace backup (JSON) and restores one:
+existing items return to their backed-up version, deleted ones come back
+under new IDs, and nothing made since is removed. `firestore.indexes.json`
+exempts the unqueried `payload` field from indexing.
+
 Confirmations, task editors and Undo actions belong to the account that opened
 them and are cancelled on account changes. Google Calendar event edits remain
 visible immediately, but requests for the same event run in order; a failed

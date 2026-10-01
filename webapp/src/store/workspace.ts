@@ -199,7 +199,21 @@ function encodeRecords(state: WorkspaceState = get()): Records {
   return { ...out, ...state.side, ...unreadable };
 }
 
-function applyRecords(records: Records) {
+/** Every record of the workspace, as stored and synced (for backups). */
+export function workspaceRecords(): Records {
+  return encodeRecords();
+}
+
+/**
+ * Replaces the workspace with merged records (a restored backup) and saves
+ * the difference, so it uploads like any other edit.
+ */
+export function applyRestoredRecords(records: Records): Promise<boolean> {
+  applyRecords(records, false);
+  return saveData();
+}
+
+function applyRecords(records: Records, stored = true) {
   const tasks: Task[] = [];
   const projects: Project[] = [];
   const notes: StudyNote[] = [];
@@ -250,7 +264,8 @@ function applyRecords(records: Records) {
     side: Object.keys(side).length === Object.keys(get().side).length && Object.entries(side).every(([key, value]) => get().side[key] === value) ? get().side : side,
   };
   set(next);
-  baseline = encodeRecords();
+  // Records from storage are the new baseline; restored ones still need saving.
+  if (stored) baseline = encodeRecords();
 }
 
 let saveQueue: Promise<boolean> = Promise.resolve(true);

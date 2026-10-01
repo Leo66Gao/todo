@@ -8,6 +8,7 @@ import { startTaskFocus } from "@/lib/focus";
 import { addDays, formatDuration, relativeDay, startOfWeek, today } from "@/lib/time";
 import type { Route } from "@/shell/nav";
 import { ui } from "@/shell/ui";
+import { restoreFromTrash, trashTask } from "@/store/trash";
 import {
   addSubtaskFull,
   addTask,
@@ -55,20 +56,16 @@ export function removeTask(task: Task) {
     }
     return;
   }
-  const index = state.tasks.findIndex((t) => t.id === task.id);
-  const snapshot = state.tasks[index];
+  const snapshot = state.tasks.find((t) => t.id === task.id);
   if (!snapshot) return;
   if (ui.get().inspectorId === task.id) ui.closeInspector();
-  deleteTask(task.id);
+  // Kept in Recently deleted; Undo brings it back from there (under a new ID,
+  // so a deletion that has already synced can't remove it again).
+  trashTask(snapshot);
   toast(`Deleted “${task.title}”`, {
     label: "Undo",
-    // A fresh calendar revision so the restored task never reuses a deleted event.
     run: () => {
-      if (!currentSession()) return;
-      addTask(
-        { ...snapshot, googleEventId: null, calendarEventRevision: snapshot.calendarEventRevision + 1 },
-        index,
-      );
+      if (currentSession()) restoreFromTrash("task", snapshot.id);
     },
   });
 }
