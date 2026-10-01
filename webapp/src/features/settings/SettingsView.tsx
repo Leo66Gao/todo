@@ -17,6 +17,7 @@ import { ui } from "@/shell/ui";
 import { editNameColor, PALETTE } from "@/features/subjects/NameColorDialog";
 import {
   clearWorkspace,
+  captureWorkspaceSession,
   UploadPendingError,
   connectCalendar,
   disconnectCalendar,
@@ -349,6 +350,7 @@ function FieldRow({ id, visible, onToggle }: { id: FieldId; visible: boolean; on
 function LabelsSection() {
   const settings = useWorkspace((s) => s.settings);
   const edit = async (label?: TaskLabel) => {
+    const currentSession = captureWorkspaceSession();
     const result = await editNameColor({
       title: label ? "Edit label" : "New label",
       confirmLabel: label ? "Save" : "Create label",
@@ -356,25 +358,27 @@ function LabelsSection() {
       placeholder: "Label name",
       color: label?.colorValue ?? PALETTE[settings.labels.length % PALETTE.length],
     });
-    if (!result) return;
+    if (!result || !currentSession()) return;
+    const current = useWorkspace.getState().settings;
+    const previous = label ? current.labels.find((l) => l.id === label.id) : null;
+    if (label && !previous) return;
     const lower = result.name.toLowerCase();
     if (lower === "general") {
       toast("“General” is reserved for tasks without a label.");
       return;
     }
-    if (settings.labels.some((l) => l.id !== label?.id && l.name.toLowerCase() === lower)) {
+    if (current.labels.some((l) => l.id !== label?.id && l.name.toLowerCase() === lower)) {
       toast("A label with that name already exists.");
       return;
     }
-    const current = useWorkspace.getState().settings;
     const updated: TaskLabel = { id: label?.id ?? uuid(), name: result.name, colorValue: result.color };
     const labels = label ? current.labels.map((l) => (l.id === label.id ? updated : l)) : [...current.labels, updated];
     // Tasks refer to labels by name; keep them attached through a rename.
-    if (label && label.name !== updated.name) {
+    if (previous && previous.name !== updated.name) {
       useWorkspace.setState({
         tasks: useWorkspace
           .getState()
-          .tasks.map((t) => (t.category === label.name ? { ...t, category: updated.name } : t)),
+          .tasks.map((t) => (t.category === previous.name ? { ...t, category: updated.name } : t)),
       });
     }
     updateSettings({ ...current, labels });
@@ -690,6 +694,7 @@ function DataSection() {
   const [busy, setBusy] = useState(false);
   const user = useWorkspace((s) => s.user);
   const run = async () => {
+    const currentSession = captureWorkspaceSession();
     const first = await confirmDialog({
       title: "Delete all workspace data?",
       message: user
@@ -698,14 +703,14 @@ function DataSection() {
       confirmLabel: "Continue",
       destructive: true,
     });
-    if (!first) return;
+    if (!first || !currentSession()) return;
     const typed = await promptDialog({
       title: "Type DELETE to continue",
       placeholder: "DELETE",
       confirmLabel: "Next",
       validate: (v) => v === "DELETE",
     });
-    if (typed !== "DELETE") return;
+    if (typed !== "DELETE" || !currentSession()) return;
     const a = 3 + Math.floor(Math.random() * 7);
     const b = 4 + Math.floor(Math.random() * 8);
     const answer = await promptDialog({
@@ -715,7 +720,7 @@ function DataSection() {
       confirmLabel: "Delete everything",
       validate: (v) => Number(v) === a + b,
     });
-    if (answer == null || Number(answer) !== a + b) return;
+    if (answer == null || Number(answer) !== a + b || !currentSession()) return;
     setBusy(true);
     try {
       await clearWorkspace();

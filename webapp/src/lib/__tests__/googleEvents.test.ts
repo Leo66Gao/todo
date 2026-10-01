@@ -5,6 +5,85 @@ import type { Project } from "../model";
 
 const cal: GCalendar = { id: "school", name: "ManageBac", color: "#3a7", primary: false, writable: false, googleSelected: true };
 
+it("keeps a newer optimistic edit visible and sends requests in order after the first fails", async () => {
+  const events = await import("../googleEvents");
+  const { calendarClient, useWorkspace } = await import("@/store/workspace");
+  useWorkspace.setState({ user: { uid: "A", email: null, photoURL: null, displayName: null } });
+  const original = events.decodeEvent({ id: "ordered", summary: "Original", start: { date: "2026-09-28" }, end: { date: "2026-09-29" } }, cal)!;
+  events.useGoogleEvents.setState({ uid: "A", months: { "2026-9": [original] } });
+  let failFirst!: (error: Error) => void;
+  let finishSecond!: (value: { id: string }) => void;
+  const patch = vi.spyOn(calendarClient(), "patchCalendarEvent")
+    .mockImplementationOnce(() => new Promise((_resolve, reject) => { failFirst = reject; }))
+    .mockImplementationOnce(() => new Promise((resolve) => { finishSecond = resolve; }));
+  const first = events.updateEvent(original, { title: "Failed title" }).catch(() => {});
+  const second = events.updateEvent(original, { location: "Library" });
+  expect(patch).toHaveBeenCalledTimes(1);
+  expect(events.useGoogleEvents.getState().months["2026-9"][0]).toMatchObject({ title: "Failed title", location: "Library" });
+  failFirst(new Error("Rejected"));
+  await first;
+  expect(patch).toHaveBeenCalledTimes(2);
+  expect(patch.mock.calls[1][2]).toEqual({ location: "Library" });
+  expect(events.useGoogleEvents.getState().months["2026-9"][0]).toMatchObject({ title: "Original", location: "Library" });
+  finishSecond({ id: original.id });
+  await second;
+  expect(events.useGoogleEvents.getState().months["2026-9"][0]).toMatchObject({ title: "Original", location: "Library" });
+});
+
+it("rolls a failed later edit back to the last successful edit rather than its stale caller snapshot", async () => {
+  const events = await import("../googleEvents");
+  const { calendarClient } = await import("@/store/workspace");
+  const original = events.decodeEvent({ id: "success-first", summary: "Original", start: { date: "2026-09-28" }, end: { date: "2026-09-29" } }, cal)!;
+  events.useGoogleEvents.setState({ uid: "u", months: { "2026-9": [original] } });
+  let finish!: (value: { id: string }) => void;
+  vi.spyOn(calendarClient(), "patchCalendarEvent")
+    .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+    .mockRejectedValueOnce(new Error("Later request failed"));
+  const first = events.updateEvent(original, { title: "Saved" });
+  const second = events.updateEvent(original, { title: "Rejected" }).catch(() => {});
+  finish({ id: original.id });
+  await Promise.all([first, second]);
+  expect(events.useGoogleEvents.getState().months["2026-9"][0].title).toBe("Saved");
+});
+
+it("queues deletion behind a pending edit and restores the accepted edit if deletion fails", async () => {
+  const events = await import("../googleEvents");
+  const { calendarClient } = await import("@/store/workspace");
+  const original = events.decodeEvent({ id: "delete-later", summary: "Original", start: { date: "2026-09-28" }, end: { date: "2026-09-29" } }, cal)!;
+  events.useGoogleEvents.setState({ uid: "u", months: { "2026-9": [original] } });
+  let finish!: (value: { id: string }) => void;
+  vi.spyOn(calendarClient(), "patchCalendarEvent").mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  const remove = vi.spyOn(calendarClient(), "removeCalendarEvent").mockRejectedValue(new Error("Delete refused"));
+  const edit = events.updateEvent(original, { title: "Saved" });
+  const deletion = events.deleteEvent(original).catch(() => {});
+  expect(remove).not.toHaveBeenCalled();
+  expect(events.useGoogleEvents.getState().months["2026-9"]).toEqual([]);
+  finish({ id: original.id });
+  await Promise.all([edit, deletion]);
+  expect(remove).toHaveBeenCalledOnce();
+  expect(events.useGoogleEvents.getState().months["2026-9"][0].title).toBe("Saved");
+});
+
+it("does not dispatch queued edits from an account that has signed out and back in", async () => {
+  const events = await import("../googleEvents");
+  const { calendarClient, useWorkspace } = await import("@/store/workspace");
+  const user = { uid: "A", email: null, photoURL: null, displayName: null };
+  useWorkspace.setState({ user });
+  const original = events.decodeEvent({ id: "same-account", summary: "Original", start: { date: "2026-09-28" }, end: { date: "2026-09-29" } }, cal)!;
+  events.useGoogleEvents.setState({ uid: "A", months: { "2026-9": [original] } });
+  let finish!: (value: { id: string }) => void;
+  const patch = vi.spyOn(calendarClient(), "patchCalendarEvent").mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  const old = events.updateEvent(original, { title: "Old request" }).catch(() => {});
+  const queued = events.updateEvent(original, { title: "Never send" }).catch(() => {});
+  useWorkspace.setState({ user: null });
+  useWorkspace.setState({ user });
+  events.useGoogleEvents.setState({ uid: "A", months: { "2026-9": [original] } });
+  finish({ id: original.id });
+  await Promise.all([old, queued]);
+  expect(patch).toHaveBeenCalledOnce();
+  expect(events.useGoogleEvents.getState().months["2026-9"][0].title).toBe("Original");
+});
+
 it.each(["update", "delete"])("does not roll an event back into another account after a failed %s", async (operation) => {
   const events = await import("../googleEvents");
   const { calendarClient, useWorkspace } = await import("@/store/workspace");

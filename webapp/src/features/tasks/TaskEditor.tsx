@@ -12,7 +12,7 @@ import { hasExplicitDifficulty, isFieldVisible, type FieldId, type Task } from "
 import { formatClock, formatDuration, relativeDay, sameDay, startOfDay, today } from "@/lib/time";
 import { clockOf, withClock, type ClockTime } from "@/lib/timeParse";
 import { ui, useUI, type EditorState } from "@/shell/ui";
-import { addTask, applyDominoShift, newTask, updateTask, useWorkspace } from "@/store/workspace";
+import { addTask, applyDominoShift, captureWorkspaceSession, newTask, updateTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, Kbd, Segmented } from "@/ui/controls";
 import { confirmDialog, Modal } from "@/ui/overlay";
@@ -48,6 +48,7 @@ export function TaskEditorHost() {
 }
 
 function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
+  const [editorSession] = useState(() => captureWorkspaceSession());
   const tasks = useWorkspace((s) => s.tasks);
   const settings = useWorkspace((s) => s.settings);
   const projects = useWorkspace((s) => s.projects);
@@ -147,6 +148,8 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
   }
 
   const save = async () => {
+    const currentSession = editorSession;
+    if (!currentSession()) return;
     if (!canSave) {
       titleRef.current?.focus();
       return;
@@ -194,6 +197,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     ) {
       domino = await askDomino(existing, startTime);
     }
+    if (!currentSession()) return;
     updateTask(updated);
     if (domino) {
       applyDominoShift(updated.id, existing.date, existing.startTime!, startTime!.getTime() - existing.startTime!.getTime());

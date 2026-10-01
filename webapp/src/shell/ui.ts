@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { Task } from "@/lib/model";
 import { getLocal, setLocal } from "@/lib/prefs";
 import { today } from "@/lib/time";
+import { useWorkspace } from "@/store/workspace";
 
 export type EditorState =
   | { mode: "new"; defaults: Partial<Task>; nonce: number }
@@ -92,6 +93,13 @@ export const ui = {
     setLocal("calendarList", list);
   },
 };
+
+// Editors and selections must never reopen against a different workspace.
+useWorkspace.subscribe((state, previous) => {
+  if (state.user?.uid !== previous.user?.uid) {
+    useUI.setState({ editor: null, inspectorId: null, selectedId: null, paletteOpen: false, visibleOrder: [], dragging: false, dropSlot: null });
+  }
+});
 
 // Moving to another day, week or month drops the selection.
 useUI.subscribe((state, prev) => {

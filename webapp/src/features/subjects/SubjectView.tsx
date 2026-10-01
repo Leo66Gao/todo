@@ -13,7 +13,7 @@ import { useAllTasks } from "@/features/tasks/meta";
 import { Section, TaskList } from "@/features/tasks/TaskList";
 import { createNote } from "@/features/notes/noteActions";
 import { NoteRow } from "@/features/notes/NoteRow";
-import { addFolder, deleteFolder, renameFolder, useWorkspace } from "@/store/workspace";
+import { addFolder, captureWorkspaceSession, deleteFolder, renameFolder, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
@@ -59,8 +59,9 @@ export function SubjectView({ id }: { id: string }) {
   }
 
   const newFolder = async () => {
+    const currentSession = captureWorkspaceSession();
     const name = await promptDialog({ title: "New folder", placeholder: "Folder name", confirmLabel: "Create folder" });
-    if (!name) return;
+    if (!name || !currentSession() || !useWorkspace.getState().projects.some((p) => p.id === id)) return;
     const folder = { id: uuid(), name, subjectId: id, createdAt: new Date() };
     addFolder(folder);
     setFolderId(folder.id);

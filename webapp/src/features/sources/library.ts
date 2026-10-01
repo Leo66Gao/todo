@@ -67,3 +67,6 @@ export const useSourcesSheet = create<{ open: boolean; target: CiteTarget | null
 
 export const openSources = (target: CiteTarget | null = null) => useSourcesSheet.setState({ open: true, target });
 export const closeSources = () => useSourcesSheet.setState({ open: false });
+useWorkspace.subscribe((state, previous) => {
+  if (state.user?.uid !== previous.user?.uid) useSourcesSheet.setState({ open: false, target: null });
+});

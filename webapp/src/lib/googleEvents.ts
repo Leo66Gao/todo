@@ -181,7 +181,7 @@ export function setCalendarMode(id: string, mode: CalendarMode) {
 const connected = () => useWorkspace.getState().calendarConnected && calendarClient().isConnected;
 /** Months some view currently shows (refreshed when the app comes back). */
 const wanted = new Map<string, number>();
-const inflight = new Map<string, Promise<void>>();
+const inflight = new Map<string, { promise: Promise<void>; token: object }>();
 let calendarsFetchedAt = 0;
 let calendarsInFlight: { uid: string; promise: Promise<void> } | null = null;
 
@@ -197,13 +197,14 @@ async function ensureCalendars(uid: string | null) {
 }
 
 async function fetchCalendars(uid: string) {
+  const currentSession = captureWorkspaceSession();
   try {
     const raw = await calendarClient().listCalendars();
-    if (get().uid !== uid) return;
+    if (!currentSession() || get().uid !== uid) return;
     calendarsFetchedAt = Date.now();
     set({ calendars: raw.map(toCalendar).sort(byImportance), listMissing: false });
   } catch (error) {
-    if (get().uid !== uid) return;
+    if (!currentSession() || get().uid !== uid) return;
     if (error instanceof ApiError && error.status === 403) {
       // Connected before this app could list calendars: the main one still works.
       calendarsFetchedAt = Date.now();
@@ -229,31 +230,35 @@ function loadMonth(key: string, force = false): Promise<void> {
   if (!force && Date.now() - (get().fetchedAt[key] ?? 0) < STALE_MS) return Promise.resolve();
   const uid = get().uid;
   if (!uid) return Promise.resolve();
+  const currentSession = captureWorkspaceSession();
+  const mutationGeneration = eventMutationGeneration;
   const jobKey = `${uid}:${key}`;
   const running = inflight.get(jobKey);
-  if (running) return running;
+  if (running) return running.promise;
+  const token = {};
   const job = (async () => {
     try {
       await ensureCalendars(uid);
-      if (get().uid !== uid) return;
+      if (!currentSession() || get().uid !== uid) return;
       const from = monthStart(key);
       const to = new Date(from.getFullYear(), from.getMonth() + 1, 1);
       const calendars = get().calendars.filter((c) => modeOf(c) !== "hide");
       const lists = await Promise.all(
         calendars.map(async (c) => (await calendarClient().listEvents(c.id, from, to)).map((raw) => decodeEvent(raw, c))),
       );
-      if (get().uid !== uid) return;
+      if (!currentSession() || get().uid !== uid || mutationGeneration !== eventMutationGeneration) return;
       const events = lists.flat().filter((e): e is GEvent => e != null);
       set({ months: { ...get().months, [key]: events }, fetchedAt: { ...get().fetchedAt, [key]: Date.now() }, error: null });
+      for (const queue of eventQueues.values()) if (queueCurrent(queue)) showQueued(queue);
       saveCache();
-      onMonthLoaded?.(key, events);
+      onMonthLoaded?.(key, get().months[key]);
     } catch (error) {
-      if (get().uid === uid) set({ error: error instanceof Error ? error.message : String(error) });
+      if (currentSession() && get().uid === uid) set({ error: error instanceof Error ? error.message : String(error) });
     } finally {
-      inflight.delete(jobKey);
+      if (inflight.get(jobKey)?.token === token) inflight.delete(jobKey);
     }
   })();
-  inflight.set(jobKey, job);
+  inflight.set(jobKey, { promise: job, token });
   return job;
 }
 
@@ -286,6 +291,8 @@ function wire() {
     const uid = user?.uid ?? null;
     if (uid !== get().uid) {
       calendarsFetchedAt = 0;
+      calendarsInFlight = null;
+      inflight.clear();
       if (uid) loadCache(uid);
       else set({ uid: null, calendars: [], months: {}, fetchedAt: {}, modes: {} });
     }
@@ -387,49 +394,108 @@ export interface EventPatch {
   description?: string;
 }
 
+interface EventOperation {
+  patch: EventPatch | null;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+}
+interface EventQueue {
+  key: string;
+  uid: string;
+  currentSession: () => boolean;
+  base: GEvent | null;
+  event: GEvent;
+  operations: EventOperation[];
+  running: boolean;
+}
+const eventQueues = new Map<string, EventQueue>();
+let eventMutationGeneration = 0;
+const queueCurrent = (queue: EventQueue) => queue.currentSession() && get().uid === queue.uid;
+
+function patchedEvent(event: GEvent | null, patch: EventPatch | null): GEvent | null {
+  return event && patch ? { ...event, ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value != null)) } : null;
+}
+
+/** Later edits remain visible even when an earlier request fails. */
+function showQueued(queue: EventQueue) {
+  let visible = queue.base;
+  for (const operation of queue.operations) visible = patchedEvent(visible, operation.patch);
+  replaceEverywhere(queue.event.key, visible);
+}
+
+function enqueueEvent(event: GEvent, patch: EventPatch | null): Promise<void> {
+  const uid = get().uid;
+  if (!uid) return Promise.reject(new Error("Sign in before editing Calendar events."));
+  const key = JSON.stringify([uid, event.key]);
+  let queue = eventQueues.get(key);
+  if (!queue || !queueCurrent(queue)) {
+    const cached = Object.values(get().months).flat().find((e) => e.key === event.key);
+    queue = { key, uid, currentSession: captureWorkspaceSession(), base: cached ?? event, event, operations: [], running: false };
+    eventQueues.set(key, queue);
+  }
+  const job = queue;
+  if (!job.base || job.operations.some((o) => o.patch == null)) return Promise.reject(new Error("This event is being deleted."));
+  return new Promise<void>((resolve, reject) => {
+    job.operations.push({ patch, resolve, reject });
+    eventMutationGeneration++;
+    showQueued(job);
+    if (!job.running) void drainEvent(job);
+  });
+}
+
+async function drainEvent(queue: EventQueue) {
+  queue.running = true;
+  try {
+    while (queue.operations.length) {
+      if (!queueCurrent(queue)) {
+        for (const operation of queue.operations.splice(0)) operation.reject(new Error("Account changed during the Calendar edit."));
+        return;
+      }
+      const operation = queue.operations[0];
+      const next = patchedEvent(queue.base, operation.patch);
+      let failure: unknown;
+      let failed = false;
+      try {
+        if (operation.patch == null) {
+          await calendarClient().removeCalendarEvent(queue.event.calendarId, queue.event.id);
+        } else {
+          if (!next) throw new Error("This event was deleted.");
+          const patch = operation.patch;
+          const body: Record<string, unknown> = {};
+          if (patch.title != null) body.summary = patch.title;
+          if (patch.location != null) body.location = patch.location;
+          if (patch.description != null) body.description = patch.description;
+          if (patch.start || patch.end || patch.allDay != null) {
+            body.start = next.allDay ? { date: dateOnly(next.start) } : { dateTime: next.start.toISOString(), timeZone: timeZone() };
+            body.end = next.allDay ? { date: dateOnly(next.end) } : { dateTime: next.end.toISOString(), timeZone: timeZone() };
+          }
+          await calendarClient().patchCalendarEvent(queue.event.calendarId, queue.event.id, body);
+        }
+      } catch (error) { failed = true; failure = error; }
+      if (!queueCurrent(queue)) {
+        for (const pending of queue.operations.splice(0)) pending.reject(new Error("Account changed during the Calendar edit."));
+        return;
+      }
+      if (!failed) queue.base = next;
+      queue.operations.shift();
+      eventMutationGeneration++;
+      showQueued(queue);
+      saveCache();
+      if (failed) operation.reject(failure);
+      else operation.resolve();
+    }
+  } finally {
+    queue.running = false;
+    if (eventQueues.get(queue.key) === queue) eventQueues.delete(queue.key);
+  }
+}
+
 /** Changes an event in Google Calendar (shown at once; undone if Google refuses). */
 export async function updateEvent(event: GEvent, patch: EventPatch): Promise<void> {
-  const currentSession = captureWorkspaceSession();
-  const uid = get().uid;
-  const next: GEvent = {
-    ...event,
-    title: patch.title ?? event.title,
-    start: patch.start ?? event.start,
-    end: patch.end ?? event.end,
-    allDay: patch.allDay ?? event.allDay,
-    location: patch.location ?? event.location,
-    description: patch.description ?? event.description,
-  };
-  const body: Record<string, unknown> = {};
-  if (patch.title != null) body.summary = patch.title;
-  if (patch.location != null) body.location = patch.location;
-  if (patch.description != null) body.description = patch.description;
-  if (patch.start || patch.end || patch.allDay != null) {
-    body.start = next.allDay ? { date: dateOnly(next.start) } : { dateTime: next.start.toISOString(), timeZone: timeZone() };
-    body.end = next.allDay ? { date: dateOnly(next.end) } : { dateTime: next.end.toISOString(), timeZone: timeZone() };
-  }
-  replaceEverywhere(event.key, next);
-  try {
-    await calendarClient().patchCalendarEvent(event.calendarId, event.id, body);
-    if (!currentSession() || get().uid !== uid) return;
-    saveCache();
-  } catch (error) {
-    if (currentSession() && get().uid === uid) replaceEverywhere(event.key, event);
-    throw error;
-  }
+  await enqueueEvent(event, patch);
 }
 
 /** Deletes an event from Google Calendar (undone if Google refuses). */
 export async function deleteEvent(event: GEvent): Promise<void> {
-  const currentSession = captureWorkspaceSession();
-  const uid = get().uid;
-  replaceEverywhere(event.key, null);
-  try {
-    await calendarClient().removeCalendarEvent(event.calendarId, event.id);
-    if (!currentSession() || get().uid !== uid) return;
-    saveCache();
-  } catch (error) {
-    if (currentSession() && get().uid === uid) replaceEverywhere(event.key, event);
-    throw error;
-  }
+  await enqueueEvent(event, null);
 }

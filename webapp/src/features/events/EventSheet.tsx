@@ -12,10 +12,12 @@ import { cn } from "@/ui/cn";
 import { Button } from "@/ui/controls";
 import { confirmDialog, Modal } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
+import { captureWorkspaceSession, useWorkspace } from "@/store/workspace";
 
 const useOpenEvent = create<{ key: string | null }>(() => ({ key: null }));
 export const openEvent = (event: GEvent) => useOpenEvent.setState({ key: event.key });
 const closeEvent = () => useOpenEvent.setState({ key: null });
+useWorkspace.subscribe((state, previous) => { if (state.user?.uid !== previous.user?.uid) closeEvent(); });
 
 /** "09.00–10.30", "All day", or a span across days. */
 export function eventTimeLabel(event: GEvent) {
@@ -47,9 +49,11 @@ export function EventSheet() {
 
   const save = async (patch: EventPatch) => {
     if (!e) return;
+    const currentSession = captureWorkspaceSession();
     try {
       await updateEvent(e, patch);
     } catch (error) {
+      if (!currentSession()) return;
       toast(`Couldn’t update the event: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
@@ -135,18 +139,20 @@ export function EventSheet() {
                 className="ml-auto text-danger hover:bg-danger-soft hover:text-danger"
                 icon={<Trash2 className="size-3.5" />}
                 onClick={async () => {
+                  const currentSession = captureWorkspaceSession();
                   const ok = await confirmDialog({
                     title: "Delete this event?",
                     message: e.recurring ? "Only this occurrence is deleted from Google Calendar." : "It’s deleted from Google Calendar.",
                     confirmLabel: "Delete",
                     destructive: true,
                   });
-                  if (!ok) return;
+                  if (!ok || !currentSession()) return;
                   closeEvent();
                   try {
                     await deleteEvent(e);
-                    toast("Event deleted");
+                    if (currentSession()) toast("Event deleted");
                   } catch (error) {
+                    if (!currentSession()) return;
                     toast(`Couldn’t delete the event: ${error instanceof Error ? error.message : String(error)}`);
                   }
                 }}

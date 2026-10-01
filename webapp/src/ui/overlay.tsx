@@ -10,6 +10,7 @@ import { Button, Kbd } from "./controls";
 import { springs } from "./motion";
 import { PHONE, useMedia } from "./useMedia";
 import { haptic } from "@/lib/native";
+import { sessionDialog } from "@/lib/sessionDialog";
 
 // ---------------------------------------------------------------------------
 // Modal
@@ -364,7 +365,12 @@ export function confirmDialog(options: {
   cancelLabel?: string;
   destructive?: boolean;
 }): Promise<boolean> {
-  return new Promise((resolve) => useAsk.setState({ current: { kind: "confirm", ...options, resolve } }));
+  cancelAsk();
+  return sessionDialog(false, (resolve) => {
+    const request: Ask = { kind: "confirm", ...options, resolve };
+    useAsk.setState({ current: request });
+    return () => { if (useAsk.getState().current === request) useAsk.setState({ current: null }); };
+  });
 }
 
 export function promptDialog(options: {
@@ -375,7 +381,18 @@ export function promptDialog(options: {
   confirmLabel: string;
   validate?: (value: string) => boolean;
 }): Promise<string | null> {
-  return new Promise((resolve) => useAsk.setState({ current: { kind: "prompt", ...options, resolve } }));
+  cancelAsk();
+  return sessionDialog<string | null>(null, (resolve) => {
+    const request: Ask = { kind: "prompt", ...options, resolve };
+    useAsk.setState({ current: request });
+    return () => { if (useAsk.getState().current === request) useAsk.setState({ current: null }); };
+  });
+}
+
+function cancelAsk() {
+  const request = useAsk.getState().current;
+  if (request?.kind === "confirm") request.resolve(false);
+  else request?.resolve(null);
 }
 
 export function AskHost() {

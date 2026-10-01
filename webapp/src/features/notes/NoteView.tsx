@@ -302,13 +302,22 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
     }
   };
 
-  const setSubject = (id: string | null) =>
-    updateNote({ ...note, subjectId: id, folderId: null, updatedAt: new Date() });
-  const setFolder = (id: string | null) => updateNote({ ...note, folderId: id, updatedAt: new Date() });
+  const setSubject = (id: string | null) => {
+    if (!editorSession.current()) return;
+    const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+    if (current) updateNote({ ...current, subjectId: id, folderId: null, updatedAt: new Date() });
+  };
+  const setFolder = (id: string | null) => {
+    if (!editorSession.current()) return;
+    const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+    if (current) updateNote({ ...current, folderId: id, updatedAt: new Date() });
+  };
   const newFolder = async () => {
     const name = await promptDialog({ title: "New folder", placeholder: "Folder name", confirmLabel: "Create folder" });
-    if (!name) return;
-    const created = { id: uuid(), name, subjectId: note.subjectId, createdAt: new Date() };
+    if (!name || !editorSession.current()) return;
+    const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+    if (!current?.subjectId || !useWorkspace.getState().projects.some((p) => p.id === current.subjectId)) return;
+    const created = { id: uuid(), name, subjectId: current.subjectId, createdAt: new Date() };
     addFolder(created);
     setFolder(created.id);
   };

@@ -11,6 +11,7 @@ import { ui } from "@/shell/ui";
 import {
   addSubtaskFull,
   addTask,
+  captureWorkspaceSession,
   deleteTask,
   newTask,
   patchTask,
@@ -42,6 +43,7 @@ export function editTask(task: Task, navigate: Navigate) {
 }
 
 export function removeTask(task: Task) {
+  const currentSession = captureWorkspaceSession();
   const state = useWorkspace.getState();
   if (task.milestone) {
     const parent = state.tasks.find((t) => t.id === task.milestone!.parentId);
@@ -49,7 +51,7 @@ export function removeTask(task: Task) {
     const sub = parent?.subtasks[index];
     deleteTask(task.id);
     if (parent && sub) {
-      toast(`Deleted “${task.title}”`, { label: "Undo", run: () => addSubtaskFull(parent.id, sub, index) });
+      toast(`Deleted “${task.title}”`, { label: "Undo", run: () => { if (currentSession()) addSubtaskFull(parent.id, sub, index); } });
     }
     return;
   }
@@ -61,19 +63,22 @@ export function removeTask(task: Task) {
   toast(`Deleted “${task.title}”`, {
     label: "Undo",
     // A fresh calendar revision so the restored task never reuses a deleted event.
-    run: () =>
+    run: () => {
+      if (!currentSession()) return;
       addTask(
         { ...snapshot, googleEventId: null, calendarEventRevision: snapshot.calendarEventRevision + 1 },
         index,
-      ),
+      );
+    },
   });
 }
 
 export function moveTask(task: Task, day: Date, quiet = false) {
+  const currentSession = captureWorkspaceSession();
   const previous = task.date;
   rescheduleTask(task.id, day);
   if (!quiet) {
-    toast(`Moved to ${relativeDay(day)}`, { label: "Undo", run: () => rescheduleTask(task.id, previous) });
+    toast(`Moved to ${relativeDay(day)}`, { label: "Undo", run: () => { if (currentSession()) rescheduleTask(task.id, previous); } });
   }
 }
 

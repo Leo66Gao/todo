@@ -7,6 +7,7 @@ import { argbToCss, hexToArgb } from "@/lib/dart";
 import { cn } from "@/ui/cn";
 import { Button } from "@/ui/controls";
 import { Modal } from "@/ui/overlay";
+import { sessionDialog } from "@/lib/sessionDialog";
 
 export const PALETTE = [
   "#E5484D",
@@ -34,9 +35,12 @@ interface Request {
 const useRequest = create<{ request: Request | null; open: boolean }>(() => ({ request: null, open: false }));
 
 export function editNameColor(options: Omit<Request, "resolve">) {
-  return new Promise<{ name: string; color: number } | null>((resolve) =>
-    useRequest.setState({ request: { ...options, resolve }, open: true }),
-  );
+  useRequest.getState().request?.resolve(null);
+  return sessionDialog<{ name: string; color: number } | null>(null, (resolve) => {
+    const request = { ...options, resolve };
+    useRequest.setState({ request, open: true });
+    return () => { if (useRequest.getState().request === request) useRequest.setState({ open: false }); };
+  });
 }
 
 export function NameColorHost() {

@@ -94,6 +94,11 @@ field that changed elsewhere is preserved as a conflict copy. Cmd/Ctrl+S confirm
 the device save, while cloud progress remains visible in Sync details. Oversized
 note drafts can still be exported before shortening them.
 
+Confirmations, task editors and Undo actions belong to the account that opened
+them and are cancelled on account changes. Google Calendar event edits remain
+visible immediately, but requests for the same event run in order; a failed
+request rolls back only its own change and preserves later edits.
+
 Data created before the first sign-in is offered for import automatically the
 first time an account signs in on that device.
 

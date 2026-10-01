@@ -459,7 +459,7 @@ async function switchAccount(user: User | null) {
     firebaseUser = user;
     set({ user: toAccount(user) });
     prefs.setLocal(LAST_ACCOUNT, toAccount(user));
-    void restoreCalendarForAccount(user).catch((error) => set({ cloudError: String(error) }));
+    restoreCalendarSafely(user);
     const importAvailable = prefs.getString("legacyOwner") === user.uid && prefs.getBool(`legacyImported.${user.uid}`) !== true;
     set({ importAvailable });
     if (importAvailable) void importLocalData();
@@ -518,7 +518,7 @@ async function switchAccount(user: User | null) {
     applyRecords(records);
     await recoverEditorDrafts();
     // Google Calendar reconnects in the background; the workspace is ready now.
-    void restoreCalendarForAccount(user).catch((error) => set({ cloudError: String(error) }));
+    restoreCalendarSafely(user);
     const importAvailable =
       legacyOwner === user.uid && prefs.getBool(`legacyImported.${user.uid}`) !== true;
     set({ importAvailable });
@@ -574,6 +574,7 @@ export async function signOut() {
 }
 
 export async function importLocalData() {
+  const currentSession = captureWorkspaceSession();
   const uid = get().user?.uid;
   if (!uid || !get().importAvailable || !cloud) return;
   try {
@@ -581,9 +582,11 @@ export async function importLocalData() {
     const legacy: Records = raw ? JSON.parse(raw) : {};
     if (get().user?.uid !== uid) return;
     await cloud.importMissing(legacy);
+    if (!currentSession()) return;
     prefs.setBool(`legacyImported.${uid}`, true);
     if (get().user?.uid === uid) set({ importAvailable: false });
   } catch (error) {
+    if (!currentSession()) return;
     set({ cloudError: `Local data is safe. Retry the import from Settings: ${String(error)}` });
   }
 }
@@ -797,18 +800,25 @@ function startCalendarRetry() {
 }
 
 async function keepCalendarAlive() {
+  const currentSession = captureWorkspaceSession();
   const user = get().user;
   if (!user || !calendarEnabled) return;
   refreshCalendarFlag();
   if (!get().calendarConnected && isNative()) {
     const email = await calendar.authorize({ interactive: false, email: user.email, uid: user.uid });
-    if (get().user?.uid !== user.uid) return;
+    if (!currentSession() || get().user?.uid !== user.uid) return;
     if (email && email === user.email) refreshCalendarFlag();
   }
   if (get().calendarConnected) void scheduleCalendarFlush();
 }
 
+function restoreCalendarSafely(user: User) {
+  const currentSession = captureWorkspaceSession();
+  void restoreCalendarForAccount(user).catch((error) => { if (currentSession()) set({ cloudError: String(error) }); });
+}
+
 async function restoreCalendarForAccount(user: User) {
+  const currentSession = captureWorkspaceSession();
   calendarOwnerUid = user.uid;
   calendarEnabled = prefs.getBool(`calendar.enabled.${user.uid}`) === true;
   const saved = prefs.getString(outboxKey(user.uid));
@@ -823,11 +833,11 @@ async function restoreCalendarForAccount(user: User) {
   if (get().user?.uid === user.uid) set({ calendarPending: Object.keys(outbox).length });
   if (!navigator.onLine) {
     // Offline, Google can't be asked: open straight away and reconnect later.
-    window.addEventListener("online", () => void (get().user?.uid === user.uid && restoreCalendarForAccount(user)), { once: true });
+    window.addEventListener("online", () => { if (currentSession() && get().user?.uid === user.uid) restoreCalendarSafely(user); }, { once: true });
     return;
   }
   const email = await calendar.authorize({ interactive: false, email: user.email, uid: user.uid });
-  if (get().user?.uid !== user.uid) return;
+  if (!currentSession() || get().user?.uid !== user.uid) return;
   if (email && email !== user.email) calendar.clearSession();
   refreshCalendarFlag();
   startCalendarRetry();
@@ -922,8 +932,11 @@ async function resumeCalendarRedirect() {
   const pendingUid = prefs.getString(CALENDAR_REDIRECT_KEY);
   if (!fb || !pendingUid) return;
   prefs.remove(CALENDAR_REDIRECT_KEY);
+  const currentSession = captureWorkspaceSession();
+  if (get().user?.uid !== pendingUid) return;
   try {
     const result = await getRedirectResult(fb.auth);
+    if (!currentSession()) return;
     const token = result ? GoogleAuthProvider.credentialFromResult(result)?.accessToken : null;
     const user = result?.user;
     if (!token || !user?.email || user.uid !== pendingUid) {
@@ -934,12 +947,14 @@ async function resumeCalendarRedirect() {
     if (!(await calendar.verifyAccess())) {
       throw new Error(calendar.lastError ?? "Google Calendar could not be reached.");
     }
+    if (!currentSession()) return;
     await enableCalendarAfterConnect(user.uid);
   } catch (error) {
+    if (!currentSession()) return;
     calendar.clearSession();
     set({ syncError: `Calendar connection failed: ${error instanceof Error ? error.message : String(error)}` });
   } finally {
-    refreshCalendarFlag();
+    if (currentSession()) refreshCalendarFlag();
   }
 }
 
