@@ -21,6 +21,7 @@ export function TaskList({
   trailing,
   id,
   plain,
+  hideSubject,
 }: {
   tasks: Task[];
   sortable?: boolean;
@@ -28,6 +29,7 @@ export function TaskList({
   trailing?: (task: Task) => ReactNode;
   id?: string;
   plain?: boolean;
+  hideSubject?: boolean;
 }) {
   const dragging = useUI((s) => s.dragging);
   const rows = (
@@ -46,6 +48,7 @@ export function TaskList({
             sortable={sortable && !task.milestone}
             showDate={showDate}
             plain={plain}
+            hideSubject={hideSubject}
             trailing={trailing?.(task)}
           />
         </motion.div>

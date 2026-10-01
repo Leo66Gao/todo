@@ -41,6 +41,8 @@ export interface TaskRowProps {
   compact?: boolean;
   /** A plain row, for lists that already sit inside a card. */
   plain?: boolean;
+  /** Leave out the subject (on that subject's own page). */
+  hideSubject?: boolean;
 }
 
 export function TaskRow(props: TaskRowProps) {
@@ -86,6 +88,7 @@ const TaskRowView = memo(function TaskRowView({
   trailing,
   compact,
   plain,
+  hideSubject,
   dragRef,
   dragProps,
   dragStyle,
@@ -220,7 +223,7 @@ const TaskRowView = memo(function TaskRowView({
       </span>,
     );
   }
-  if (project && settings.showSubject) {
+  if (project && settings.showSubject && !hideSubject) {
     meta.push(
       <span key="subject" className="flex min-w-0 items-center gap-1.5">
         <span className="size-[7px] shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />

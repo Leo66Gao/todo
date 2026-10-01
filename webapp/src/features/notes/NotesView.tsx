@@ -12,7 +12,7 @@ import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Menu, Tooltip } from "@/ui/overlay";
 import { openSources } from "@/features/sources/library";
-import { createNote, importNote, noteGroup } from "./noteActions";
+import { createNote, importNote, noteGroup, pinnedFirst } from "./noteActions";
 import { NoteRow } from "./NoteRow";
 
 export function NotesView() {
@@ -30,7 +30,10 @@ export function NotesView() {
       .filter((n) => !q || n.title.toLowerCase().includes(q) || plainText(n.content).toLowerCase().includes(q))
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     const out: { title: string; items: typeof filtered }[] = [];
+    const pinned = filtered.filter((n) => n.pinnedAt).sort(pinnedFirst);
+    if (pinned.length) out.push({ title: "Pinned", items: pinned });
     for (const n of filtered) {
+      if (n.pinnedAt) continue;
       const title = noteGroup(n.updatedAt);
       const last = out[out.length - 1];
       if (last?.title === title) last.items.push(n);

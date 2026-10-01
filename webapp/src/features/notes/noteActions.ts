@@ -81,6 +81,17 @@ export async function removeNote(note: StudyNote, after?: () => void, restoredNo
   });
 }
 
+/** Pins or unpins a note. Pinning isn't an edit, so the edited time stays. */
+export function togglePin(note: StudyNote) {
+  const current = useWorkspace.getState().notes.find((n) => n.id === note.id);
+  if (!current) return;
+  const { pinnedAt, ...rest } = current;
+  updateNote(pinnedAt ? rest : { ...rest, pinnedAt: Date.now() });
+}
+
+/** Pinned notes, most recently pinned first. */
+export const pinnedFirst = (a: StudyNote, b: StudyNote) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0);
+
 export function editedLabel(date: Date) {
   const diff = Date.now() - date.getTime();
   if (diff < 60_000) return "Edited just now";

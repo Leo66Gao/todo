@@ -91,7 +91,8 @@ function SubjectTile({
           <span className="size-2.5 shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />
           <span className="truncate text-sm font-semibold">{project.title}</span>
         </span>
-        <span className="mt-3 flex items-end justify-between gap-3 text-xs text-ink-3">
+        {project.description && <span className="mt-1 line-clamp-2 text-xs leading-[18px] text-ink-3">{project.description}</span>}
+        <span className="mt-auto flex pt-3 items-end justify-between gap-3 text-xs text-ink-3">
           <span className="flex gap-3 whitespace-nowrap">
             <span>
               <span className="font-medium text-ink tnum">{info.open}</span> open

@@ -21,7 +21,7 @@ import { noteHref, RichText, type EditorAction, type NoteLinks } from "@/ui/Rich
 import { toast } from "@/ui/toast";
 import { getLocal, setLocal } from "@/lib/prefs";
 import { useMedia } from "@/ui/useMedia";
-import { editedLabel, removeNote } from "./noteActions";
+import { editedLabel, removeNote, togglePin } from "./noteActions";
 import { VersionHistory } from "./VersionHistory";
 import { NoteAiButton } from "./NoteAi";
 
@@ -377,6 +377,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
                 </IconButton>
               }
               items={[
+                { label: note.pinnedAt ? "Unpin note" : "Pin note", onSelect: () => togglePin(note) },
                 { label: "Version history…", onSelect: () => { persist(); setHistoryOpen(true); } },
                 { separator: true },
                 { label: "Export as Word document", onSelect: () => void exportDocx() },

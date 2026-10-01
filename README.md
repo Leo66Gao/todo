@@ -117,8 +117,12 @@ first time an account signs in on that device.
 
 Settings → Customize tasks: show/hide any field, drag to reorder them
 (drag-reorder list), and manage colored labels. Subject management lives on
-the Subjects tab, where every subject opens its own workspace (upcoming work,
-notes, folders).
+the Subjects tab, where every subject opens its own workspace: a description,
+pinned notes, a short "Up next" list of tasks, Materials (links and other
+course material) and every note, with folders and search. The description and
+materials are stored on the subject record (`description`, `materials`); a
+pinned note carries `pinnedAt` and sits at the top of note lists. The retiring
+Flutter app drops these fields if it saves the same record.
 
 ## Private GitHub backup
 

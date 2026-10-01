@@ -63,7 +63,21 @@ export interface Project {
   id: string;
   title: string;
   colorValue: number;
+  /** A short description shown under the subject's name. */
+  description?: string;
+  /** Course pages, readings, videos and other material, in the order shown. */
+  materials?: Material[];
   extra?: Json;
+}
+
+/** A subject's material: a link, or a plain item such as a textbook chapter. */
+export interface Material {
+  id: string;
+  title: string;
+  url?: string;
+  /** A line of detail, such as "Chapters 3–5" or a password hint. */
+  detail?: string;
+  addedAt: number;
 }
 
 export interface NoteAttachment {
@@ -85,6 +99,8 @@ export interface StudyNote {
   attachments: NoteAttachment[];
   createdAt: Date;
   updatedAt: Date;
+  /** When the note was pinned; pinned notes sit at the top of lists. */
+  pinnedAt?: number;
   extra?: Json;
 }
 
@@ -271,8 +287,15 @@ export function decodeProject(json: Json): Project {
     id: requireString(json, "id"),
     title: requireString(json, "title"),
     colorValue: json.colorValue,
-    extra: extras(json, ["id", "title", "colorValue"]),
+    ...(typeof json.description === "string" && json.description ? { description: json.description } : {}),
+    ...(Array.isArray(json.materials) ? { materials: json.materials.filter(isMaterial) } : {}),
+    extra: extras(json, ["id", "title", "colorValue", "description", "materials"]),
   };
+}
+
+function isMaterial(value: unknown): value is Material {
+  const m = value as Material;
+  return !!m && typeof m === "object" && typeof m.id === "string" && typeof m.title === "string" && typeof m.addedAt === "number";
 }
 
 function decodeAttachment(json: Json): NoteAttachment {
@@ -296,6 +319,7 @@ const NOTE_KEYS = [
   "attachments",
   "createdAt",
   "updatedAt",
+  "pinnedAt",
 ] as const;
 
 export function decodeNote(json: Json): StudyNote {
@@ -312,6 +336,7 @@ export function decodeNote(json: Json): StudyNote {
       .map(decodeAttachment),
     createdAt,
     updatedAt: parseDartDate(json.updatedAt) ?? createdAt,
+    ...(typeof json.pinnedAt === "number" ? { pinnedAt: json.pinnedAt } : {}),
     extra: extras(json, NOTE_KEYS),
   };
 }
@@ -431,6 +456,8 @@ export const encodeProject = (p: Project): Json => ({
   id: p.id,
   title: p.title,
   colorValue: p.colorValue,
+  ...(p.description ? { description: p.description } : {}),
+  ...(p.materials?.length ? { materials: p.materials } : {}),
   ...p.extra,
 });
 
@@ -451,6 +478,7 @@ export const encodeNote = (n: StudyNote): Json => ({
   })),
   createdAt: toDartIso(n.createdAt),
   updatedAt: toDartIso(n.updatedAt),
+  ...(n.pinnedAt ? { pinnedAt: n.pinnedAt } : {}),
   ...n.extra,
 });
 

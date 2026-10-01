@@ -1,13 +1,13 @@
 "use client";
 
-import { Folder } from "lucide-react";
+import { Folder, Pin } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { plainText } from "@/lib/delta";
 import type { StudyNote } from "@/lib/model";
 import { useNavigate } from "@/shell/nav";
 import { useWorkspace } from "@/store/workspace";
 import { ContextMenu } from "@/ui/overlay";
-import { editedLabel, removeNote } from "./noteActions";
+import { editedLabel, removeNote, togglePin } from "./noteActions";
 
 export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSubject?: boolean }) {
   const navigate = useNavigate();
@@ -18,6 +18,7 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
     <ContextMenu
       items={() => [
         { label: "Open", onSelect: () => navigate({ view: "note", id: note.id }) },
+        { label: note.pinnedAt ? "Unpin" : "Pin", onSelect: () => togglePin(note) },
         { separator: true },
         { label: "Delete note…", destructive: true, onSelect: () => void removeNote(note) },
       ]}
@@ -27,7 +28,8 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
         onClick={() => navigate({ view: "note", id: note.id })}
         className="card mb-2 block w-full px-4 py-3 text-left transition-colors hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] max-md:mb-2.5 max-md:rounded-[22px] max-md:border max-md:border-line max-md:px-[18px] max-md:py-4"
       >
-        <div className="flex items-baseline gap-3">
+        <div className="flex items-baseline gap-2">
+          {note.pinnedAt && <Pin aria-label="Pinned" className="size-3 shrink-0 -rotate-45 self-center fill-current text-ink-3" />}
           <span className="min-w-0 flex-1 truncate text-sm font-medium max-md:text-base max-md:tracking-[-0.01em]">{note.title || "Untitled note"}</span>
           <span className="shrink-0 text-2xs text-ink-3 max-md:font-mono max-md:text-[11px]">{editedLabel(note.updatedAt).replace("Edited ", "")}</span>
         </div>
