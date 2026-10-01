@@ -7,7 +7,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis } from "./restrict";
 import { ChevronRight, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
-import { argbToCss } from "@/lib/dart";
+import { argbToCss, argbToHex } from "@/lib/dart";
 import { setThemeMode, useAppearance } from "@/lib/appearance";
 import { firebaseConfigured } from "@/lib/firebase";
 import { getBool } from "@/lib/prefs";
@@ -34,7 +34,7 @@ import { toast } from "@/ui/toast";
 import { isNative } from "@/lib/native";
 import { AiError, chatJson, DEFAULT_MODEL, setAiKey, setAiModel, useAiKey } from "@/lib/ai";
 import { ensureMonths, modeOf, setCalendarMode, useGoogleEvents, type CalendarMode, type GCalendar } from "@/lib/googleEvents";
-import { LEAD_OPTIONS, requestReminderPermission, setReminderPrefs, useReminderPrefs, type ReminderPrefs } from "@/lib/reminders";
+import { LEAD_OPTIONS, requestReminderPermission, sendSampleReminder, setReminderPrefs, useReminderPrefs, type ReminderPrefs } from "@/lib/reminders";
 import { springs } from "@/ui/motion";
 import { BackgroundPicker } from "@/glass/GlassSettings";
 import { setGlassPrefs, useGlassPrefs } from "@/glass/prefs";
@@ -575,6 +575,12 @@ function RemindersSection() {
   const summary = useReminderPrefs((s) => s.summary);
   const summaryAt = useReminderPrefs((s) => s.summaryAt);
   const native = isNative();
+  const sample = async () => {
+    const { tasks, projects } = useWorkspace.getState();
+    const subjects = new Map(projects.map((p) => [p.id, { title: p.title, color: argbToHex(p.colorValue) }]));
+    const sent = await sendSampleReminder(tasks, useReminderPrefs.getState(), (id) => (id ? subjects.get(id) ?? null : null));
+    toast(sent ? "A sample reminder arrives in a few seconds." : "Allow notifications for Todo in Android settings to see it.");
+  };
   const enable = async (patch: Partial<ReminderPrefs>) => {
     setReminderPrefs(patch);
     if ((patch.timed || patch.summary) && !(await requestReminderPermission())) {
@@ -618,6 +624,11 @@ function RemindersSection() {
           />
         )}
         <Switch checked={summary} label="Morning summary" onChange={(v) => void enable({ summary: v })} />
+      </Item>
+      <Item title="See how they look" detail="Sends the reminder for your next timed task in a few seconds.">
+        <Button size="sm" onClick={() => void sample()}>
+          Send a sample
+        </Button>
       </Item>
     </Group>
   );

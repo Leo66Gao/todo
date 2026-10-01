@@ -6,6 +6,7 @@ const notifications = vi.hoisted(() => ({ cancel: vi.fn(), opened: vi.fn() }));
 vi.mock("../native", () => ({ isNative: () => true }));
 vi.mock("@capacitor/local-notifications", () => ({ LocalNotifications: {
   createChannel: async () => {},
+  registerActionTypes: async () => {},
   getPending: async () => ({ notifications: [1999000001, 1999000002, 1999000040, 42].map((id) => ({ id })) }),
   cancel: notifications.cancel,
   addListener: (_name: string, handler: unknown) => { notifications.opened(handler); },
