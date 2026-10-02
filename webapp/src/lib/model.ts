@@ -160,6 +160,8 @@ export interface WorkspaceSettings {
   showLabels: boolean;
   labels: TaskLabel[];
   fieldOrder: FieldId[];
+  /** Google Calendar alerts for the events tasks are exported as (off when the app's own reminders are enough). */
+  calendarAlerts: boolean;
   extra?: Json;
 }
 
@@ -191,6 +193,7 @@ export const defaultSettings = (): WorkspaceSettings => ({
   showLabels: true,
   labels: [],
   fieldOrder: [...DEFAULT_FIELD_ORDER],
+  calendarAlerts: true,
 });
 
 // ---------------------------------------------------------------------------
@@ -369,6 +372,7 @@ const SETTINGS_KEYS = [
   "showLabels",
   "labels",
   "fieldOrder",
+  "calendarAlerts",
 ] as const;
 
 export function decodeSettings(json: Json): WorkspaceSettings {
@@ -412,6 +416,7 @@ export function decodeSettings(json: Json): WorkspaceSettings {
     showLabels: bool(json.showLabels, true),
     labels,
     fieldOrder: order,
+    calendarAlerts: bool(json.calendarAlerts, true),
     extra: extras(json, SETTINGS_KEYS),
   };
 }
@@ -509,6 +514,8 @@ export const encodeSettings = (s: WorkspaceSettings): Json => ({
   showLabels: s.showLabels,
   labels: s.labels.map((l) => ({ id: l.id, name: l.name, colorValue: l.colorValue })),
   fieldOrder: s.fieldOrder,
+  // Only stored once turned off, so older apps' payloads stay as they were.
+  ...(s.calendarAlerts ? {} : { calendarAlerts: false }),
   ...s.extra,
 });
 

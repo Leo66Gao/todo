@@ -467,9 +467,31 @@ function CalendarSection() {
           </Button>
         )}
       </Item>
+      {connected && <CalendarAlerts />}
       {connected && <CalendarList />}
       {error && <div className="px-4 py-2.5 text-xs text-danger">{error}</div>}
     </Group>
+  );
+}
+
+/** Google Calendar's own alert on task events: off when the app's reminders are enough. */
+function CalendarAlerts() {
+  const settings = useWorkspace((s) => s.settings);
+  return (
+    <Item
+      title="Calendar alerts for tasks"
+      detail={
+        settings.calendarAlerts
+          ? "Google Calendar alerts you 5 minutes before each task. Turn this off if the app’s reminders are enough."
+          : "Task events have no alert in Google Calendar; the app’s reminders still come."
+      }
+    >
+      <Switch
+        checked={settings.calendarAlerts}
+        label="Calendar alerts for tasks"
+        onChange={(v) => updateSettings({ ...settings, calendarAlerts: v })}
+      />
+    </Item>
   );
 }
 

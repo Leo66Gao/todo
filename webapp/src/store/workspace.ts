@@ -627,6 +627,7 @@ function upsertAction(uid: string, task: Task): CalendarAction {
     isAllDay: task.startTime == null,
     durationMinutes:
       task.startTime != null && task.durationMinutes === 0 ? 30 : task.durationMinutes,
+    ...(get().settings.calendarAlerts ? {} : { alerts: false }),
   };
 }
 
@@ -650,6 +651,8 @@ const exportFingerprint = (action: CalendarAction) =>
     action.startTime,
     action.isAllDay,
     action.durationMinutes,
+    // Only when silenced, so events exported before the setting existed match.
+    ...(action.alerts === false ? ["silent"] : []),
   ]);
 function markExported(uid: string, taskId: string, fingerprint: string | null) {
   const exported = prefs.getLocal<Record<string, string>>(exportedKey(uid), {});
@@ -749,6 +752,7 @@ async function flushCalendarOutbox(uid: string) {
         isAllDay: (action.isAllDay as boolean | undefined) ?? task.startTime == null,
         taskId,
         ownerUid: uid,
+        alerts: action.alerts !== false,
       };
       success = await calendar.updateEvent(input);
       if (!success && (calendar.lastErrorStatus === 404 || calendar.lastErrorStatus === 410)) {
@@ -1460,8 +1464,17 @@ export function deleteFolder(id: string) {
 }
 
 export function updateSettings(settings: WorkspaceSettings) {
+  const alertsChanged = settings.calendarAlerts !== get().settings.calendarAlerts;
   set({ settings });
   void saveData();
+  // Exported events take the new alert setting.
+  const uid = get().user?.uid;
+  if (alertsChanged && uid && calendarEnabled) {
+    for (const task of get().tasks) {
+      if (!task.isDone && !task.isConflictCopy && hasCalendarExport(task)) storeCalendarAction(uid, upsertAction(uid, task));
+    }
+    void scheduleCalendarFlush();
+  }
 }
 
 /** The deletion is stored on this device but hasn't reached the cloud yet. */
