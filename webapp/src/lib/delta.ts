@@ -74,6 +74,18 @@ export function plainText(content: string): string {
     .trim();
 }
 
+/** Plain text of stored content, line by line (empty lines dropped), for notifications and the like. */
+export function plainLines(content: string): string[] {
+  const ops = parseDelta(content);
+  const text = ops
+    ? ops.map((op) => (typeof op.insert === "string" ? op.insert : "")).join("")
+    : content;
+  return text
+    .split("\n")
+    .map((line) => (ops ? line.replace(/\s+/g, " ").trim() : stripMarkdown(line)))
+    .filter(Boolean);
+}
+
 const BARE_URL = /(https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
 
 /** Turns bare URLs into links, as the Flutter editor does on save. */
