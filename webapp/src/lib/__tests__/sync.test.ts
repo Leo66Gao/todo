@@ -107,12 +107,15 @@ it("moves only the tasks after the edited one in a domino shift", async () => {
   const ws = await import("@/store/workspace");
   ws.loadGuestRecords({ "task:a": task("a", 9), "task:b": task("b", 11), "task:c": task("c", 13), "task:d": task("d", 12, true) });
   const day = new Date(2026, 8, 28);
-  ws.applyDominoShift("a", day, new Date(2026, 8, 28, 10), 30 * 60000);
+  const shift = ws.applyDominoShift("a", day, new Date(2026, 8, 28, 10), 30 * 60000);
   const hours = Object.fromEntries(
     ws.useWorkspace.getState().tasks.map((t) => [t.id, t.startTime!.getHours() + t.startTime!.getMinutes() / 60]),
   );
   // The completed task keeps its time.
   expect(hours).toEqual({ a: 9, b: 11.5, c: 13.5, d: 12 });
+  // Undo puts the moved tasks back.
+  ws.undoDominoShift(shift);
+  expect(ws.useWorkspace.getState().tasks.map((t) => t.startTime!.getHours() + t.startTime!.getMinutes() / 60)).toEqual([9, 11, 13, 12]);
 });
 
 it("fails a workspace deletion that could not be stored", async () => {

@@ -1239,21 +1239,44 @@ export function rescheduleTask(id: string, day: Date) {
  * [afterTime] by [deltaMs] — the amount the edited task moved. Completed
  * tasks keep the time they were done at.
  */
-export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, deltaMs: number) {
-  if (deltaMs === 0) return;
+export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, deltaMs: number): DominoShift {
+  if (deltaMs === 0) return [];
   const moved: Task[] = [];
+  const before: DominoShift = [];
   const tasks = get().tasks.map((other) => {
     if (other.id === excludeId || other.isDone || !other.startTime || !sameDay(other.date, day)) return other;
     if (other.startTime.getTime() <= afterTime.getTime()) return other;
     const shifted = new Date(other.startTime.getTime() + deltaMs);
     const next = { ...other, date: startOfDay(shifted), startTime: shifted };
+    before.push({ id: other.id, date: other.date, startTime: other.startTime });
+    moved.push(next);
+    return next;
+  });
+  if (moved.length === 0) return [];
+  set({ tasks });
+  // Only the tasks that moved change in Calendar (including any whose first
+  // export is still queued).
+  if (calendarEnabled) for (const t of moved) syncTaskToCalendar(t);
+  void saveData();
+  return before;
+}
+
+/** Where the tasks a domino shift moved were before it. */
+export type DominoShift = { id: string; date: Date; startTime: Date }[];
+
+/** Puts the tasks a domino shift moved back where they were (anything else changed since stays). */
+export function undoDominoShift(shift: DominoShift) {
+  const back = new Map(shift.map((s) => [s.id, s]));
+  const moved: Task[] = [];
+  const tasks = get().tasks.map((t) => {
+    const was = back.get(t.id);
+    if (!was) return t;
+    const next = { ...t, date: was.date, startTime: was.startTime };
     moved.push(next);
     return next;
   });
   if (moved.length === 0) return;
   set({ tasks });
-  // Only the tasks that moved change in Calendar (including any whose first
-  // export is still queued).
   if (calendarEnabled) for (const t of moved) syncTaskToCalendar(t);
   void saveData();
 }
