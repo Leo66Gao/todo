@@ -93,9 +93,10 @@ it("groups note typing into one upload, and sends task changes within a second",
   }
 });
 
-const task = (id: string, hour: number) =>
+const task = (id: string, hour: number, isDone = false) =>
   JSON.stringify({
     id,
+    isDone,
     title: id,
     date: "2026-09-28T00:00:00.000",
     startTime: `2026-09-28T${String(hour).padStart(2, "0")}:00:00.000`,
@@ -104,13 +105,14 @@ const task = (id: string, hour: number) =>
 it("moves only the tasks after the edited one in a domino shift", async () => {
   stubStorage();
   const ws = await import("@/store/workspace");
-  ws.loadGuestRecords({ "task:a": task("a", 9), "task:b": task("b", 11), "task:c": task("c", 13) });
+  ws.loadGuestRecords({ "task:a": task("a", 9), "task:b": task("b", 11), "task:c": task("c", 13), "task:d": task("d", 12, true) });
   const day = new Date(2026, 8, 28);
   ws.applyDominoShift("a", day, new Date(2026, 8, 28, 10), 30 * 60000);
   const hours = Object.fromEntries(
     ws.useWorkspace.getState().tasks.map((t) => [t.id, t.startTime!.getHours() + t.startTime!.getMinutes() / 60]),
   );
-  expect(hours).toEqual({ a: 9, b: 11.5, c: 13.5 });
+  // The completed task keeps its time.
+  expect(hours).toEqual({ a: 9, b: 11.5, c: 13.5, d: 12 });
 });
 
 it("fails a workspace deletion that could not be stored", async () => {

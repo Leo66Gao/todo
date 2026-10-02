@@ -1235,14 +1235,15 @@ export function rescheduleTask(id: string, day: Date) {
 }
 
 /**
- * Domino effect: shifts every timed task on [day] that starts after
- * [afterTime] by [deltaMs] — the amount the edited task moved.
+ * Domino effect: shifts every open timed task on [day] that starts after
+ * [afterTime] by [deltaMs] — the amount the edited task moved. Completed
+ * tasks keep the time they were done at.
  */
 export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, deltaMs: number) {
   if (deltaMs === 0) return;
   const moved: Task[] = [];
   const tasks = get().tasks.map((other) => {
-    if (other.id === excludeId || !other.startTime || !sameDay(other.date, day)) return other;
+    if (other.id === excludeId || other.isDone || !other.startTime || !sameDay(other.date, day)) return other;
     if (other.startTime.getTime() <= afterTime.getTime()) return other;
     const shifted = new Date(other.startTime.getTime() + deltaMs);
     const next = { ...other, date: startOfDay(shifted), startTime: shifted };

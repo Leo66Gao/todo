@@ -207,7 +207,8 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
 
   const askDomino = async (task: Task, newStart: Date) => {
     const oldStart = task.startTime!;
-    const timedSameDay = tasks.filter((t) => t.startTime && sameDay(t.date, task.date));
+    // Completed tasks stay where they were done; only open ones shift.
+    const timedSameDay = tasks.filter((t) => !t.isDone && t.startTime && sameDay(t.date, task.date));
     if (timedSameDay.length < 3) return false;
     const affected = timedSameDay
       .filter((t) => t.id !== task.id && t.startTime!.getTime() > oldStart.getTime())
