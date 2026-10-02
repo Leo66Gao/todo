@@ -25,11 +25,16 @@ export function useGlassDocumentClasses() {
 
   // Overlays drawn in CSS follow the frost setting too: whiter, and grained.
   const frost = useGlassPrefs((s) => s.frost);
+  const blur = useGlassPrefs((s) => s.blur);
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--glass-frost", String(enabled ? frost : 0));
     root.classList.toggle("glass-frosty", enabled && frost > 0.15);
-  }, [enabled, frost]);
+    // The rendered panels' blur, for the CSS glass used while pinch-zoomed
+    // (the shader's radius, as a CSS blur's standard deviation).
+    const radius = Math.pow(0.04 + 0.96 * blur, 1.4) * 44 + frost * 30;
+    root.style.setProperty("--glass-zoom-blur", `${Math.round(radius * 0.5 * 10) / 10}px`);
+  }, [enabled, frost, blur]);
 
   const lightText = useGlassPrefs((s) => s.lightText);
   useEffect(() => {
