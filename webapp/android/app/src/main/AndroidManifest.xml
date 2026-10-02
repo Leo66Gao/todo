@@ -24,6 +24,11 @@
 
         </activity>
 
+        <!-- The focus timer's notification buttons and round-end alarms. -->
+        <receiver
+            android:name=".FocusTimerReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

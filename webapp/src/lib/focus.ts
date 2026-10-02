@@ -1,9 +1,12 @@
 "use client";
 
 // The focus timer: one session at a time, for a task or on its own. It
-// survives reloads, and on the phone the end is a scheduled notification, so
-// it arrives even with the app closed. Nothing is recorded afterwards.
+// survives reloads. On the phone it also runs outside the app: an ongoing
+// notification counts down (with Pause and Stop), and each round's end
+// alerts and moves on with the app closed (FocusTimer.java). Nothing is
+// recorded afterwards.
 
+import { registerPlugin } from "@capacitor/core";
 import { create } from "zustand";
 import { isNative } from "./native";
 import { getLocal, setLocal } from "./prefs";
@@ -171,40 +174,91 @@ async function requestAlerts() {
 export const MAX_FOCUS_NOTIFICATIONS = 40;
 export const isFocusNotification = (id: number) => id >= FOCUS_NOTIFICATION_ID && id < FOCUS_NOTIFICATION_ID + MAX_FOCUS_NOTIFICATIONS;
 
+// ---------------------------------------------------------------------------
+// On the phone: the notification and the round ends live natively
+
+interface NativeFocusState {
+  title: string;
+  blocks: FocusBlock[];
+  index: number;
+  endsAt: number;
+  left: number;
+  paused: boolean;
+}
+
+interface FocusTimerPlugin {
+  update(options: { state: NativeFocusState | null }): Promise<void>;
+  get(): Promise<{ rev: number; state: NativeFocusState | null; opened: boolean }>;
+  addListener(event: "changed" | "open", listener: () => void): Promise<{ remove: () => void }>;
+}
+const FocusTimer = registerPlugin<FocusTimerPlugin>("FocusTimer");
+
+/** The session as the phone's timer keeps it: every round, which one is on, and when it ends. */
+export function toNative(s: FocusSession): NativeFocusState {
+  const blocks = s.plan ? s.plan.blocks.map((b, i) => (i === s.plan!.index ? { ...b, ms: s.length } : b)) : [{ kind: s.kind, ms: s.length }];
+  const paused = s.endsAt == null;
+  return { title: s.title, blocks, index: s.plan?.index ?? 0, endsAt: s.endsAt ?? 0, left: paused ? (s.left ?? 0) : 0, paused };
+}
+
+/** What the phone's timer did (a button in the notification, rounds that ended) as the app's session. */
+export function fromNative(n: NativeFocusState, current: FocusSession | null): FocusSession {
+  const index = Math.min(n.index, n.blocks.length - 1);
+  const block = n.blocks[index];
+  return {
+    taskId: current?.taskId ?? null,
+    title: n.title,
+    length: block.ms,
+    endsAt: n.paused ? null : n.endsAt,
+    left: n.paused ? n.left : null,
+    kind: block.kind,
+    plan: n.blocks.length > 1 ? { blocks: n.blocks, index } : null,
+  };
+}
+
+const REV = "focus.nativeRev";
+let legacyCleared = false;
+
 async function scheduleEnd(session: FocusSession | null) {
   if (!isNative()) return;
-  const { LocalNotifications } = await import("@capacitor/local-notifications");
-  await LocalNotifications.cancel({
-    notifications: Array.from({ length: MAX_FOCUS_NOTIFICATIONS }, (_, i) => ({ id: FOCUS_NOTIFICATION_ID + i })),
-  }).catch(() => {});
-  if (!session?.endsAt || session.endsAt <= Date.now()) return;
-  if ((await LocalNotifications.checkPermissions()).display !== "granted") return;
-  // The end of this round, and of each round after it, so they arrive with the app closed.
-  const ends: { at: number; kind: FocusBlock["kind"]; last: boolean }[] = [];
-  const blocks = session.plan?.blocks ?? [];
-  const index = session.plan?.index ?? 0;
-  let at = session.endsAt;
-  ends.push({ at, kind: session.kind, last: !session.plan || index === blocks.length - 1 });
-  for (let i = index + 1; i < blocks.length && ends.length < MAX_FOCUS_NOTIFICATIONS; i++) {
-    at += blocks[i].ms;
-    ends.push({ at, kind: blocks[i].kind, last: i === blocks.length - 1 });
+  // Before the native timer, round ends were scheduled local notifications.
+  if (!legacyCleared) {
+    legacyCleared = true;
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+    await LocalNotifications.cancel({
+      notifications: Array.from({ length: MAX_FOCUS_NOTIFICATIONS }, (_, i) => ({ id: FOCUS_NOTIFICATION_ID + i })),
+    }).catch(() => {});
   }
-  await LocalNotifications.schedule({
-    notifications: ends.map((end, i) => ({
-      id: FOCUS_NOTIFICATION_ID + i,
-      title: end.kind === "break" ? "Break’s over" : end.last ? "Time’s up" : `Take ${POMODORO_BREAK} minutes`,
-      body:
-        end.kind === "break"
-          ? `Back to ${session.title || "it"}.`
-          : end.last
-            ? session.title || "Your focus session has ended."
-            : `Round done${session.title ? ` on ${session.title}` : ""}. A short break starts now.`,
-      channelId: "tasks",
-      smallIcon: "ic_stat_todo",
-      iconColor: "#2F5FD0",
-      schedule: { at: new Date(end.at), allowWhileIdle: true },
-      extra: { focus: true },
-    })),
+  const live = session && (session.endsAt == null ? (session.left ?? 0) > 0 : totalLeft(session) > 0);
+  await FocusTimer.update({ state: live ? toNative(session) : null }).catch(() => {});
+}
+
+/** Takes in what was done from the notification since the app last looked. */
+async function syncFromNative() {
+  const result = await FocusTimer.get().catch(() => null);
+  if (!result) return;
+  if (result.opened && useFocus.getState().session) useFocus.setState({ expanded: true });
+  const known = getLocal<number | null>(REV, null);
+  setLocal(REV, result.rev);
+  const current = useFocus.getState().session;
+  // Changed from the notification; or the app lost its copy (the web view
+  // keeps storage a moment before writing it, and a killed app loses that).
+  const adopt = (known != null && known !== result.rev) || (!current && result.state != null);
+  if (!adopt) return;
+  const session = result.state ? fromNative(result.state, current) : null;
+  setLocal(STORE, session);
+  useFocus.setState({ session, ...(session ? {} : { expanded: false }) });
+}
+
+/** On the phone: keeps the app's timer and the notification's in step. */
+export function startFocusBridge() {
+  if (!isNative()) return;
+  void syncFromNative().then(() => scheduleEnd(useFocus.getState().session));
+  void FocusTimer.addListener("changed", () => void syncFromNative());
+  void FocusTimer.addListener("open", () => {
+    if (useFocus.getState().session) useFocus.setState({ expanded: true });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void syncFromNative();
   });
 }
 

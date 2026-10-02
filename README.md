@@ -132,6 +132,19 @@ review sessions spread over the days before it, subject tiles show the
 countdown, and Today lists exams in the next two weeks. The retiring
 Flutter app drops these fields if it saves the same record.
 
+## Focus timer on the phone
+
+On Android the focus timer also runs outside the app (`FocusTimer.java`,
+`FocusTimerPlugin.java`, `FocusTimerReceiver.java`): an ongoing notification
+with a live countdown, the round and Pause/Resume and Stop, and an exact alarm
+at the end of each round that alerts and moves on to the next one with the app
+closed. The app sends the session whenever it changes (`lib/focus.ts`) and
+takes back what was done from the notification when it returns.
+
+Settings → Google Calendar → "Calendar alerts for tasks" turns off Google
+Calendar's own 5-minute alert on exported task events (`calendarAlerts` in the
+synced settings) for anyone relying on the app's reminders.
+
 ## Quick add
 
 A new task's title is read for its details (`lib/quickAdd.ts`): a day

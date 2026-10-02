@@ -12,3 +12,29 @@ describe("pomodoroBlocks", () => {
     expect(minutes(pomodoroBlocks(40))).toEqual(["f40"]);
   });
 });
+
+it("hands the phone's timer every round, and takes back what it did", async () => {
+  const { fromNative, pomodoroBlocks, toNative } = await import("../focus");
+  const blocks = pomodoroBlocks(90);
+  const session = {
+    taskId: "t",
+    title: "Essay",
+    length: blocks[0].ms + 5 * 60_000,
+    endsAt: 1_000_000,
+    left: null,
+    kind: "focus" as const,
+    plan: { blocks, index: 0 },
+  };
+  const native = toNative(session);
+  // "+5 min" on this round goes with it.
+  expect(native.blocks[0].ms).toBe(45 * 60_000);
+  expect(native).toMatchObject({ title: "Essay", index: 0, endsAt: 1_000_000, paused: false });
+  // Paused from the notification on the break.
+  const back = fromNative({ ...native, index: 1, endsAt: 0, left: 120_000, paused: true }, session);
+  expect(back).toMatchObject({ taskId: "t", kind: "break", endsAt: null, left: 120_000, length: 5 * 60_000 });
+  expect(back.plan?.index).toBe(1);
+  // A single session has no plan.
+  const single = toNative({ ...session, plan: null, length: 25 * 60_000 });
+  expect(single.blocks).toEqual([{ kind: "focus", ms: 25 * 60_000 }]);
+  expect(fromNative(single, null).plan).toBeNull();
+});

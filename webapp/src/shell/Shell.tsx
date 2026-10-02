@@ -58,6 +58,7 @@ import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
 import { haptic, hideSplash, startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
+import { startFocusBridge } from "@/lib/focus";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileTabBar } from "./MobileBar";
 import { startOffline } from "@/lib/offline";
@@ -79,6 +80,7 @@ export function Shell() {
     restoreGlassPrefs();
     void startNative();
     startReminders();
+    startFocusBridge();
     startAssignmentImport();
     startOffline();
     startPressFeedback();
