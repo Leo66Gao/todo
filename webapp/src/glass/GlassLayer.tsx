@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { GlassEngine, ShapeTracker } from "./engine";
+import { GlassEngine, IDENTITY_VIEW, ShapeTracker, type ViewMap } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
 import { noteScroll } from "./registry";
@@ -25,16 +25,11 @@ export function useGlassDocumentClasses() {
 
   // Overlays drawn in CSS follow the frost setting too: whiter, and grained.
   const frost = useGlassPrefs((s) => s.frost);
-  const blur = useGlassPrefs((s) => s.blur);
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--glass-frost", String(enabled ? frost : 0));
     root.classList.toggle("glass-frosty", enabled && frost > 0.15);
-    // The rendered panels' blur, for the CSS glass used while pinch-zoomed
-    // (the shader's radius, as a CSS blur's standard deviation).
-    const radius = Math.pow(0.04 + 0.96 * blur, 1.4) * 44 + frost * 30;
-    root.style.setProperty("--glass-zoom-blur", `${Math.round(radius * 0.5 * 10) / 10}px`);
-  }, [enabled, frost, blur]);
+  }, [enabled, frost]);
 
   const lightText = useGlassPrefs((s) => s.lightText);
   useEffect(() => {
@@ -157,34 +152,32 @@ function GlassCanvas() {
     let influence = 0;
     let frame = 0;
     let visible = !document.hidden;
-    // Pinch zoom (Safari, trackpads) scales the page but not the glass drawn
-    // on this fixed canvas, so the panels would stay put while the page grows.
-    // While zoomed in, the canvas keeps painting the background alone (at its
-    // unzoomed size) and the panels switch to CSS glass, which zooms with the
-    // page and blurs that background.
-    let zoomed = false;
+    // Pinch zoom: Chrome and Firefox scale this fixed canvas with the page,
+    // but desktop Safari leaves it as it is on screen while the page grows,
+    // so there the shapes are mapped through the zoom to stay under their
+    // elements. (The background stays put, as Safari's own fixed layers do.)
+    const safariDesktop =
+      /^((?!chrome|chromium|crios|fxios|edg|android).)*safari/i.test(navigator.userAgent) && navigator.maxTouchPoints === 0;
+    const viewMap = (): ViewMap => {
+      const vv = window.visualViewport;
+      if (!safariDesktop || !vv || Math.abs(vv.scale - 1) < 0.001) return IDENTITY_VIEW;
+      return { scale: vv.scale, x: vv.offsetLeft, y: vv.offsetTop };
+    };
     const tick = () => {
       frame = requestAnimationFrame(tick);
       if (!visible) return;
-      const scale = window.visualViewport?.scale ?? 1;
-      if (Math.abs(scale - 1) > 0.01 !== zoomed) {
-        zoomed = !zoomed;
-        root.classList.toggle("glass-css", zoomed);
-        root.classList.toggle("glass-zoomed", zoomed);
-      }
-      if (zoomed) {
-        engine.render([], [], [-1e4, -1e4, 0]);
-        return;
-      }
-      engine.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+      // The layout viewport's size: unlike innerWidth in Safari, a pinch doesn't change it.
+      const { clientWidth, clientHeight } = document.documentElement;
+      engine.resize(clientWidth || window.innerWidth, clientHeight || window.innerHeight, window.devicePixelRatio || 1);
       // The highlight leans towards a mouse; it eases back when the mouse leaves.
       const wantLight = useGlassPrefs.getState().pointerLight && finePointer.matches && pointer.inside && pointer.fine ? 1 : 0;
       influence += (wantLight - influence) * 0.12;
       if (Math.abs(wantLight - influence) < 0.002) influence = wantLight;
       pointer.influence = influence;
-      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer);
-      const px = Math.round(pointer.x);
-      const py = Math.round(pointer.y);
+      const view = viewMap();
+      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer, view);
+      const px = Math.round((pointer.x - view.x) * view.scale);
+      const py = Math.round((pointer.y - view.y) * view.scale);
       engine.render(level1, level2, [px, py, Math.round(influence * 500) / 500]);
     };
     frame = requestAnimationFrame(tick);
@@ -216,7 +209,7 @@ function GlassCanvas() {
       canvas.removeEventListener("webglcontextlost", onLost);
       engine.dispose();
       canvas.remove();
-      root.classList.remove("glass-css", "glass-zoomed");
+      root.classList.remove("glass-css");
     };
   }, []);
 

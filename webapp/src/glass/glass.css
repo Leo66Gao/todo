@@ -295,32 +295,6 @@ html.glass.glass-css.dark [data-glass-kind="control"] {
   background: rgb(255 255 255 / 0.12) !important;
 }
 
-/* Pinch-zoomed: the canvas still paints the real background, so the CSS
-   panels match the rendered glass: the same blur and frost (from the
-   settings), a light legibility tint, no extra saturation. Task plates,
-   pills and buttons stay clear lenses. */
-html.glass.glass-zoomed [data-glass] {
-  -webkit-backdrop-filter: blur(var(--glass-zoom-blur, 12px)) !important;
-  backdrop-filter: blur(var(--glass-zoom-blur, 12px)) !important;
-  box-shadow: var(--glass-rim) !important;
-}
-html.glass.glass-zoomed :is([data-glass-kind="card"], [data-glass-kind="control"], [data-glass-kind="ink"]) {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-html.glass.glass-zoomed :is([data-glass-kind="slab"], [data-glass-kind="chrome"]) {
-  background: color-mix(in srgb, rgb(250 252 255) calc(var(--glass-frost, 0) * 40%), rgb(255 255 255 / 0.1)) !important;
-}
-html.glass.glass-zoomed:is(.dark, .glass-light-text) :is([data-glass-kind="slab"], [data-glass-kind="chrome"]) {
-  background: color-mix(in srgb, rgb(150 160 175 / 0.5) calc(var(--glass-frost, 0) * 30%), rgb(8 12 16 / 0.12)) !important;
-}
-html.glass.glass-zoomed [data-glass-kind="control"] {
-  background: rgb(255 255 255 / 0.14) !important;
-}
-html.glass.glass-zoomed [data-glass-kind="ink"] {
-  background: rgb(255 255 255 / 0.1) !important;
-}
-
 /* Gradient renditions of each background: the fallback, and what shows for
  * the instant before the renderer's first frame. */
 html.glass.glass-bg-harbour {
