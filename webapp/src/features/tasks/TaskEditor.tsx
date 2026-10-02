@@ -12,7 +12,7 @@ import { hasExplicitDifficulty, isFieldVisible, type FieldId, type Task } from "
 import { formatClock, formatDuration, relativeDay, sameDay, startOfDay, today } from "@/lib/time";
 import { clockOf, withClock, type ClockTime } from "@/lib/timeParse";
 import { ui, useUI, type EditorState } from "@/shell/ui";
-import { addTask, applyDominoShift, captureWorkspaceSession, newTask, updateTask, useWorkspace } from "@/store/workspace";
+import { addTask, applyDominoShift, captureWorkspaceSession, newTask, undoDominoShift, updateTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, Kbd, Segmented } from "@/ui/controls";
 import { confirmDialog, Modal } from "@/ui/overlay";
@@ -200,7 +200,15 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     if (!currentSession()) return;
     updateTask(updated);
     if (domino) {
-      applyDominoShift(updated.id, existing.date, existing.startTime!, startTime!.getTime() - existing.startTime!.getTime());
+      const delta = startTime!.getTime() - existing.startTime!.getTime();
+      const shift = applyDominoShift(updated.id, existing.date, existing.startTime!, delta);
+      if (shift.length > 0) {
+        const n = shift.length === 1 ? "1 later task" : `${shift.length} later tasks`;
+        toast(`Moved ${n} ${formatShift(delta)} ${delta > 0 ? "later" : "earlier"}`, {
+          label: "Undo",
+          run: () => undoDominoShift(shift),
+        });
+      }
     }
     ui.closeEditor();
   };
@@ -215,8 +223,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       .sort((a, b) => a.startTime!.getTime() - b.startTime!.getTime());
     if (affected.length === 0) return false;
     const delta = newStart.getTime() - oldStart.getTime();
-    const mins = Math.round(Math.abs(delta) / 60000);
-    const shift = mins >= 60 ? `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ""}` : `${mins}m`;
+    const shift = formatShift(delta);
     return confirmDialog({
       title: "Shift later tasks too?",
       message: (
@@ -407,7 +414,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
               void save();
             }
           }}
-          placeholder={existing ? "What needs to be done?" : "What needs to be done? Try “essay due fri 3pm 2h”"}
+          placeholder={existing ? "What needs to be done?" : "What needs to be done? Try “physics review fri 18-20 urgent”"}
           className="field-sizing-content block max-h-28 w-full resize-none bg-transparent text-lg font-medium outline-none placeholder:text-ink-4"
         />
         <motion.div
@@ -512,4 +519,10 @@ function Row({ label, children, top }: { label: string; children: ReactNode; top
       <div className="min-w-0">{children}</div>
     </div>
   );
+}
+
+/** "30m", "1h", "1h 15m": how far a domino shift moves tasks. */
+function formatShift(deltaMs: number) {
+  const mins = Math.round(Math.abs(deltaMs) / 60000);
+  return mins >= 60 ? `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ""}` : `${mins}m`;
 }
