@@ -713,7 +713,10 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       const dy = t.clientY - s.y;
       if (!s.axis) {
         if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
-        s.axis = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+        // A touch that rested first is a long press: it picks a task up to
+        // drag, and a drag to the right mustn't pull the menu in too.
+        const held = performance.now() - s.t > 240;
+        s.axis = !held && dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
         if (s.axis === "y") {
           s = null;
           return;

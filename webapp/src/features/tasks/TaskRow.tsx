@@ -172,7 +172,9 @@ const TaskRowView = memo(function TaskRowView({
   const dragEndedAt = useRef(0);
   useEffect(() => {
     if (!dragging) dragEndedAt.current = performance.now();
-  }, [dragging]);
+    // A drag owns the touch: any swipe it began with is dropped.
+    else swipe.cancel();
+  }, [dragging]); // eslint-disable-line react-hooks/exhaustive-deps
   const checkToggle = () => {
     if (dragging || performance.now() - dragEndedAt.current < 350) return;
     toggle();
@@ -215,14 +217,6 @@ const TaskRowView = memo(function TaskRowView({
   if (showDate && !isAssignment) {
     meta.push(<span key="date">{relativeDay(task.date)}</span>);
   }
-  if (priority && !done) {
-    meta.push(
-      <span key="priority" className="flex items-center gap-1" style={{ color: priorityColor(priority) }}>
-        <Flag className="size-3 fill-current" />
-        {PRIORITY_LABEL[priority]}
-      </span>,
-    );
-  }
   if (minutes > 0 && settings.showDuration) {
     meta.push(
       <span key="dur" className="flex items-center gap-1 max-md:font-mono max-md:text-[12px]">
@@ -244,6 +238,15 @@ const TaskRowView = memo(function TaskRowView({
       <span key="label" className="flex items-center gap-1 rounded-[5px] bg-fill px-1.5 py-px text-2xs font-medium text-ink-2">
         <span className="size-[5px] rounded-full" style={{ background: argbToCss(label.colorValue) }} />
         {label.name}
+      </span>,
+    );
+  }
+  // Priority stays quiet: a small tinted flag with the label in the meta grey.
+  if (priority && !done) {
+    meta.push(
+      <span key="priority" className="flex items-center gap-1">
+        <Flag className="size-[11px]" strokeWidth={2.2} style={{ color: priorityColor(priority), fill: `color-mix(in srgb, ${priorityColor(priority)} 35%, transparent)` }} />
+        {PRIORITY_LABEL[priority]}
       </span>,
     );
   }

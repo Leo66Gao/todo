@@ -152,9 +152,20 @@ function GlassCanvas() {
     let influence = 0;
     let frame = 0;
     let visible = !document.hidden;
+    // Pinch zoom (Safari, trackpads) scales the page but not this fixed
+    // canvas, so the drawn glass would stay put while the page grows. While
+    // zoomed in, the surfaces use the CSS glass, which zooms with the page.
+    let zoomed = false;
     const tick = () => {
       frame = requestAnimationFrame(tick);
       if (!visible) return;
+      const scale = window.visualViewport?.scale ?? 1;
+      if (Math.abs(scale - 1) > 0.01 !== zoomed) {
+        zoomed = !zoomed;
+        root.classList.toggle("glass-css", zoomed);
+        canvas.classList.toggle("is-ready", !zoomed);
+      }
+      if (zoomed) return;
       engine.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
       // The highlight leans towards a mouse; it eases back when the mouse leaves.
       const wantLight = useGlassPrefs.getState().pointerLight && finePointer.matches && pointer.inside && pointer.fine ? 1 : 0;
