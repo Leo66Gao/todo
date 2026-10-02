@@ -559,28 +559,6 @@ export interface TrackedPointer {
   influence: number;
 }
 
-/**
- * Page coordinates to canvas coordinates. Identity, except under Safari's
- * pinch zoom: there the page scales while this fixed canvas stays as it is
- * on screen, so shapes are scaled by the zoom about the visible area's corner.
- */
-export interface ViewMap {
-  scale: number;
-  x: number;
-  y: number;
-}
-export const IDENTITY_VIEW: ViewMap = { scale: 1, x: 0, y: 0 };
-
-function mapShape(shape: Shape, { scale, x, y }: ViewMap) {
-  shape.x = (shape.x - x) * scale;
-  shape.y = (shape.y - y) * scale;
-  shape.w *= scale;
-  shape.h *= scale;
-  shape.radius *= scale;
-  if (shape.clip) {
-    shape.clip = { x: (shape.clip.x - x) * scale, y: (shape.clip.y - y) * scale, w: shape.clip.w * scale, h: shape.clip.h * scale };
-  }
-}
 
 function scrollingAncestor(el: HTMLElement): HTMLElement | null {
   for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
@@ -615,7 +593,7 @@ export class ShapeTracker {
   private lastGeneration = -1;
   animating = false;
 
-  collect(pointer: TrackedPointer, view: ViewMap = IDENTITY_VIEW): [Shape[], Shape[]] {
+  collect(pointer: TrackedPointer): [Shape[], Shape[]] {
     const level1: Shape[] = [];
     const level2: Shape[] = [];
     this.animating = false;
@@ -625,7 +603,6 @@ export class ShapeTracker {
     const cards: Shape[] = [];
     for (const entry of glassEntries.values()) {
       const shape = this.shapeOf(entry, pointer, regenerated);
-      if (shape && view !== IDENTITY_VIEW) mapShape(shape, view);
       if (!shape) continue;
       if (entry.spec.level === 1) level1.push(shape);
       else (shape.kind === "card" ? cards : level2).push(shape);

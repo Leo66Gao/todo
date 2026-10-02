@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { GlassEngine, IDENTITY_VIEW, ShapeTracker, type ViewMap } from "./engine";
+import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
 import { noteScroll } from "./registry";
@@ -152,21 +152,11 @@ function GlassCanvas() {
     let influence = 0;
     let frame = 0;
     let visible = !document.hidden;
-    // Pinch zoom: Chrome and Firefox scale this fixed canvas with the page,
-    // but desktop Safari leaves it as it is on screen while the page grows,
-    // so there the shapes are mapped through the zoom to stay under their
-    // elements. (The background stays put, as Safari's own fixed layers do.)
-    const safariDesktop =
-      /^((?!chrome|chromium|crios|fxios|edg|android).)*safari/i.test(navigator.userAgent) && navigator.maxTouchPoints === 0;
-    const viewMap = (): ViewMap => {
-      const vv = window.visualViewport;
-      if (!safariDesktop || !vv || Math.abs(vv.scale - 1) < 0.001) return IDENTITY_VIEW;
-      return { scale: vv.scale, x: vv.offsetLeft, y: vv.offsetTop };
-    };
     const tick = () => {
       frame = requestAnimationFrame(tick);
       if (!visible) return;
-      // The layout viewport's size: unlike innerWidth in Safari, a pinch doesn't change it.
+      // The layout viewport's size. Safari's innerWidth shrinks to the visible
+      // area during a pinch zoom, which redrew the glass at the wrong scale.
       const { clientWidth, clientHeight } = document.documentElement;
       engine.resize(clientWidth || window.innerWidth, clientHeight || window.innerHeight, window.devicePixelRatio || 1);
       // The highlight leans towards a mouse; it eases back when the mouse leaves.
@@ -174,10 +164,9 @@ function GlassCanvas() {
       influence += (wantLight - influence) * 0.12;
       if (Math.abs(wantLight - influence) < 0.002) influence = wantLight;
       pointer.influence = influence;
-      const view = viewMap();
-      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer, view);
-      const px = Math.round((pointer.x - view.x) * view.scale);
-      const py = Math.round((pointer.y - view.y) * view.scale);
+      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer);
+      const px = Math.round(pointer.x);
+      const py = Math.round(pointer.y);
       engine.render(level1, level2, [px, py, Math.round(influence * 500) / 500]);
     };
     frame = requestAnimationFrame(tick);
