@@ -386,33 +386,15 @@ html.glass [data-task-card] {
 html.glass:is(.glass-css) [data-task-card],
 html.glass .glass-scrolling [data-task-card] {
   background: rgb(255 255 255 / 0.2) !important;
-  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.45), var(--card-lift) !important;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.45) !important;
 }
 html.glass.dark:is(.glass-css) [data-task-card],
 html.glass.dark .glass-scrolling [data-task-card] {
   background: rgb(255 255 255 / 0.04) !important;
-  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.08), var(--card-lift) !important;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.08) !important;
 }
 html.glass [data-task-card] > [data-task-id] {
   margin: 0;
-}
-
-/* Each plate lifts off the panel on a soft, rounded shadow: tucked in at the
-   sides (negative spread) and falling mostly below, so the shadows of
-   stacked tasks stay separate instead of pooling into one dark block. */
-html.glass {
-  --card-lift: 0 1px 1.5px rgb(10 20 40 / 0.05), 0 4px 10px -5px rgb(10 20 40 / 0.22);
-  --card-lift-done: 0 3px 8px -5px rgb(10 20 40 / 0.1);
-}
-html.glass:is(.dark, .glass-light-text) {
-  --card-lift: 0 1px 1.5px rgb(0 0 0 / 0.1), 0 5px 12px -5px rgb(0 0 0 / 0.38);
-  --card-lift-done: 0 3px 8px -5px rgb(0 0 0 / 0.16);
-}
-html.glass:not(.glass-css) [data-glass][data-task-card] {
-  box-shadow: var(--card-lift) !important;
-}
-html.glass:not(.glass-css) [data-glass][data-task-card="done"] {
-  box-shadow: var(--card-lift-done) !important;
 }
 
 /* The search palette: heavily frosted glass. */
