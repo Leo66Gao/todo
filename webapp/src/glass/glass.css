@@ -295,6 +295,23 @@ html.glass.glass-css.dark [data-glass-kind="control"] {
   background: rgb(255 255 255 / 0.12) !important;
 }
 
+/* Pinch-zoomed: the canvas still paints the real background, so the CSS
+   panels can stay as clear as the rendered glass. */
+html.glass.glass-zoomed [data-glass-kind="slab"] {
+  background: rgb(255 255 255 / 0.16) !important;
+}
+html.glass.glass-zoomed [data-glass-kind="chrome"] {
+  background: rgb(255 255 255 / 0.12) !important;
+}
+html.glass.glass-zoomed.dark [data-glass-kind="slab"],
+html.glass.glass-zoomed.glass-light-text [data-glass-kind="slab"] {
+  background: rgb(14 16 20 / 0.28) !important;
+}
+html.glass.glass-zoomed.dark [data-glass-kind="chrome"],
+html.glass.glass-zoomed.glass-light-text [data-glass-kind="chrome"] {
+  background: rgb(14 16 20 / 0.2) !important;
+}
+
 /* Gradient renditions of each background: the fallback, and what shows for
  * the instant before the renderer's first frame. */
 html.glass.glass-bg-harbour {

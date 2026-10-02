@@ -152,9 +152,11 @@ function GlassCanvas() {
     let influence = 0;
     let frame = 0;
     let visible = !document.hidden;
-    // Pinch zoom (Safari, trackpads) scales the page but not this fixed
-    // canvas, so the drawn glass would stay put while the page grows. While
-    // zoomed in, the surfaces use the CSS glass, which zooms with the page.
+    // Pinch zoom (Safari, trackpads) scales the page but not the glass drawn
+    // on this fixed canvas, so the panels would stay put while the page grows.
+    // While zoomed in, the canvas keeps painting the background alone (at its
+    // unzoomed size) and the panels switch to CSS glass, which zooms with the
+    // page and blurs that background.
     let zoomed = false;
     const tick = () => {
       frame = requestAnimationFrame(tick);
@@ -163,9 +165,12 @@ function GlassCanvas() {
       if (Math.abs(scale - 1) > 0.01 !== zoomed) {
         zoomed = !zoomed;
         root.classList.toggle("glass-css", zoomed);
-        canvas.classList.toggle("is-ready", !zoomed);
+        root.classList.toggle("glass-zoomed", zoomed);
       }
-      if (zoomed) return;
+      if (zoomed) {
+        engine.render([], [], [-1e4, -1e4, 0]);
+        return;
+      }
       engine.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
       // The highlight leans towards a mouse; it eases back when the mouse leaves.
       const wantLight = useGlassPrefs.getState().pointerLight && finePointer.matches && pointer.inside && pointer.fine ? 1 : 0;
@@ -206,7 +211,7 @@ function GlassCanvas() {
       canvas.removeEventListener("webglcontextlost", onLost);
       engine.dispose();
       canvas.remove();
-      root.classList.remove("glass-css");
+      root.classList.remove("glass-css", "glass-zoomed");
     };
   }, []);
 
