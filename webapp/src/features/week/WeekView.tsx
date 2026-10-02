@@ -7,7 +7,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
-import { CornerDownRight, GraduationCap, Plus } from "lucide-react";
+import { CornerDownRight, Flag, GraduationCap, Plus } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { addDays, formatClock, formatDuration, sameDay, startOfWeek, today } from "@/lib/time";
@@ -245,7 +245,6 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
           <TaskCheck
             size={15}
             checked={task.isDone}
-            color={showPriority && task.priority !== "none" ? priorityColor(task.priority) : undefined}
             onToggle={() => toggleTask(task.id)}
           />
           <div className="min-w-0 flex-1">
@@ -254,6 +253,9 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
             </p>
             <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-ink-3">
               {task.startTime && <span className="tnum">{formatClock(task.startTime)}</span>}
+              {showPriority && task.priority !== "none" && !task.isDone && (
+                <Flag aria-label={`${task.priority} priority`} className="size-3 shrink-0 fill-current" style={{ color: priorityColor(task.priority) }} />
+              )}
               {task.type === "assignment" && <GraduationCap className="size-3 text-accent" />}
               {task.parentTaskId && <CornerDownRight className="size-3" />}
               {project && (

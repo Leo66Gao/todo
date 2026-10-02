@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   Code2,
   FilePlus2,
+  File as FileGlyph,
   FileText,
   Folder,
   FolderPlus,
@@ -40,6 +41,7 @@ import { confirmDialog, ContextMenu, Menu, Modal, promptDialog, type MenuItem } 
 import { toast } from "@/ui/toast";
 import { PHONE, useMedia } from "@/ui/useMedia";
 import {
+  looksLikePath,
   looksLikeUrl,
   materialKind,
   moveMaterial,
@@ -48,9 +50,11 @@ import {
   saveMaterial,
   setDescription,
   siteOf,
+  titleFromPath,
   titleFromUrl,
   type MaterialKind,
 } from "./materials";
+import { canLinkFiles, closeFileViewer, copyPath, forgetFile, linkFile, loadLinkedFiles, openFile, useFileViewer, useLinkedFiles } from "./localFiles";
 import { deleteSubject, editSubject } from "./subjectActions";
 
 /** How many open tasks show before "Show all" (fewer on phones, where rows are taller). */
@@ -130,9 +134,9 @@ export function SubjectView({ id }: { id: string }) {
         actions={
           <>
             <Button
-              variant="secondary"
+              variant="primary"
               aria-label="New note"
-              icon={<FilePlus2 className="size-4 md:hidden" />}
+              icon={<FilePlus2 className="size-4" />}
               className="max-md:w-[30px] max-md:px-0"
               onClick={newNote}
             >
@@ -439,6 +443,7 @@ const KIND_ICON: Record<MaterialKind, LucideIcon> = {
   pdf: FileText,
   code: Code2,
   link: Link2,
+  file: FileGlyph,
   item: BookOpen,
 };
 
@@ -446,17 +451,36 @@ function MaterialsPanel({ project }: { project: Project }) {
   const materials = project.materials ?? [];
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<Material | null>(null);
+  const linked = useLinkedFiles((s) => s.handles);
+  useEffect(() => void loadLinkedFiles(), []);
 
   const add = () => {
     const text = adding.trim();
     if (!text) return;
-    const saved = looksLikeUrl(text) ? saveMaterial(project.id, { title: titleFromUrl(text), url: text }) : saveMaterial(project.id, { title: text });
+    const saved = looksLikePath(text)
+      ? saveMaterial(project.id, { title: titleFromPath(text), path: text })
+      : looksLikeUrl(text)
+        ? saveMaterial(project.id, { title: titleFromUrl(text), url: text })
+        : saveMaterial(project.id, { title: text });
     setAdding("");
     toast(`Added “${saved.title}”`, { label: "Edit", run: () => setEditing(saved) });
   };
 
   const menu = (m: Material, index: number): MenuItem[] => [
     ...(m.url ? [{ label: "Open link", onSelect: () => openLink(m.url!) }, { label: "Copy link", onSelect: () => void copy(m.url!) }] : []),
+    ...(m.path
+      ? [
+          ...(canLinkFiles() ? [{ label: "Open file", onSelect: () => openFile(m) }] : []),
+          { label: "Copy path", onSelect: () => void copyPath(m) },
+          ...(canLinkFiles()
+            ? [
+                linked.has(m.id)
+                  ? { label: "Forget the file on this computer", onSelect: () => forgetFile(m.id) }
+                  : { label: "Choose the file on this computer…", onSelect: () => void linkFile(m) },
+              ]
+            : []),
+        ]
+      : []),
     { label: "Edit…", onSelect: () => setEditing(m) },
     { separator: true },
     { label: "Move up", disabled: index === 0, onSelect: () => moveMaterial(project.id, m.id, index - 1) },
@@ -485,16 +509,18 @@ function MaterialsPanel({ project }: { project: Project }) {
                   <div className="group flex items-center rounded-[10px] transition-colors hover:bg-fill/70">
                     <button
                       type="button"
-                      onClick={() => (m.url ? openLink(m.url) : setEditing(m))}
+                      onClick={() => (m.url ? openLink(m.url) : m.path ? openFile(m) : setEditing(m))}
                       className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
-                      title={m.url}
+                      title={m.url ?? m.path}
                     >
                       <span className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-card text-ink-2 shadow-card">
                         <Icon className="size-4" strokeWidth={1.8} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{m.title}</span>
-                        {(m.detail || m.url) && <span className="block truncate text-xs text-ink-3">{m.detail ?? siteOf(m.url!)}</span>}
+                        {(m.detail || m.url || m.path) && (
+                          <span className="block truncate text-xs text-ink-3">{m.detail ?? (m.url ? siteOf(m.url) : shortPath(m.path!))}</span>
+                        )}
                       </span>
                     </button>
                     <Menu
@@ -530,7 +556,7 @@ function MaterialsPanel({ project }: { project: Project }) {
         <input
           value={adding}
           onChange={(e) => setAdding(e.target.value)}
-          placeholder={materials.length ? "Paste a link or name a book" : "Add course pages, readings, videos…"}
+          placeholder={materials.length ? "Paste a link, a file path, or name a book" : "Add course pages, files, readings, videos…"}
           aria-label="Add material: paste a link or type a name"
           enterKeyHint="done"
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-3"
@@ -542,6 +568,7 @@ function MaterialsPanel({ project }: { project: Project }) {
         )}
       </form>
       <MaterialDialog subjectId={project.id} material={editing} onClose={() => setEditing(null)} />
+      <FileViewer />
     </section>
   );
 }
@@ -556,11 +583,11 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
   if (material && material !== shown) {
     setShown(material);
     setTitle(material.title);
-    setUrl(material.url ?? "");
+    setUrl(material.url ?? material.path ?? "");
     setDetail(material.detail ?? "");
     setSession(() => captureWorkspaceSession());
   }
-  const urlOk = !url.trim() || looksLikeUrl(url);
+  const urlOk = !url.trim() || looksLikeUrl(url) || looksLikePath(url);
   const valid = title.trim().length > 0 && urlOk;
   const input =
     "mt-1 h-9 w-full rounded-ctl border border-line-strong bg-card px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft";
@@ -571,7 +598,8 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
         onSubmit={(e) => {
           e.preventDefault();
           if (!valid || !shown) return;
-          if (session?.()) saveMaterial(subjectId, { ...shown, title, url: url.trim() ? normalizeUrl(url) : undefined, detail });
+          const isPath = looksLikePath(url);
+          if (session?.()) saveMaterial(subjectId, { ...shown, title, url: url.trim() && !isPath ? normalizeUrl(url) : undefined, path: isPath ? url : undefined, detail });
           onClose();
         }}
       >
@@ -581,8 +609,8 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
           <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} className={input} />
         </label>
         <label className="mt-3 block text-xs font-medium text-ink-2">
-          Link
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Optional" inputMode="url" className={cn(input, !urlOk && "border-danger")} />
+          Link or file path
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… or /Users/…" inputMode="url" className={cn(input, !urlOk && "border-danger")} />
         </label>
         <label className="mt-3 block text-xs font-medium text-ink-2">
           Detail
@@ -597,6 +625,50 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
           </Button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+/** "~/Physics/notes.pdf" for "/Users/leo/Physics/notes.pdf". */
+function shortPath(path: string) {
+  return path.replace(/^\/Users\/[^/]+/, "~").replace(/^[A-Z]:\\Users\\[^\\]+/i, "~");
+}
+
+/** PDFs, pictures, text and video from a linked file, shown in the app. */
+function FileViewer() {
+  const file = useFileViewer((s) => s.file);
+  const [shown, setShown] = useState(file);
+  if (file && file !== shown) setShown(file);
+  const f = file ?? shown;
+  return (
+    <Modal open={file != null} onOpenChange={(o) => !o && closeFileViewer()} width={980} label={f?.name ?? "File"} className="h-[min(86vh,900px)]">
+      {f && (
+        <>
+          <div className="flex h-12 shrink-0 items-center gap-3 border-b border-line px-4">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{f.name}</span>
+            <Button size="sm" onClick={() => window.open(f.url, "_blank")}>
+              Open in a new tab
+            </Button>
+            <Button size="sm" variant="ghost" onClick={closeFileViewer}>
+              Close
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 bg-fill">
+            {f.type.startsWith("image/") ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={f.url} alt={f.name} className="size-full object-contain" />
+            ) : f.type.startsWith("video/") ? (
+              <video src={f.url} controls className="size-full" />
+            ) : f.type.startsWith("audio/") ? (
+              <div className="flex size-full items-center justify-center">
+                <audio src={f.url} controls />
+              </div>
+            ) : (
+              <iframe src={f.url} title={f.name} className="size-full border-0 bg-white" />
+            )}
+          </div>
+        </>
+      )}
     </Modal>
   );
 }

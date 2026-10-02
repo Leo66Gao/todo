@@ -75,6 +75,8 @@ export interface Material {
   id: string;
   title: string;
   url?: string;
+  /** A file on a computer, e.g. "/Users/leo/Physics/notes.pdf" (shown, and opened where the file was picked). */
+  path?: string;
   /** A line of detail, such as "Chapters 3–5" or a password hint. */
   detail?: string;
   addedAt: number;

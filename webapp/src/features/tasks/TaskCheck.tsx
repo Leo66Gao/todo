@@ -6,18 +6,16 @@ import { cn } from "@/ui/cn";
 import { haptic } from "@/lib/native";
 
 /**
- * The completion box. Its outline carries the task's priority colour (as in
- * the original app); checking fills it with ink and draws the tick.
+ * The completion box: a quiet outline; checking fills it with ink and draws
+ * the tick. (Priority shows as a flag beside the task, not here.)
  */
 export function TaskCheck({
   checked,
-  color,
   onToggle,
   size = 18,
   className,
 }: {
   checked: boolean;
-  color?: string;
   onToggle: () => void;
   size?: number;
   className?: string;
@@ -48,7 +46,7 @@ export function TaskCheck({
         initial={false}
         animate={{
           backgroundColor: checked ? "var(--ink)" : "rgba(0,0,0,0)",
-          borderColor: checked ? "var(--ink)" : (color ?? "var(--ink-4)"),
+          borderColor: checked ? "var(--ink)" : "var(--ink-4)",
           scale: checked && animateIn ? [1, 0.84, 1] : 1,
         }}
         transition={{

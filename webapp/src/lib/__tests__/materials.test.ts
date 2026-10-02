@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decodeNote, decodeProject, encodeNote, encodeProject } from "@/lib/model";
-import { looksLikeUrl, materialKind, normalizeUrl, titleFromUrl } from "@/features/subjects/materials";
+import { cleanPath, looksLikePath, looksLikeUrl, materialKind, normalizeUrl, titleFromPath, titleFromUrl } from "@/features/subjects/materials";
 
 describe("materials", () => {
   it("names a pasted link by what it is", () => {
@@ -38,5 +38,19 @@ describe("materials", () => {
     expect(note.pinnedAt).toBe(5);
     expect(encodeNote(note).pinnedAt).toBe(5);
     expect("pinnedAt" in encodeNote({ ...note, pinnedAt: undefined })).toBe(false);
+  });
+
+  it("takes file paths from a Mac, Windows or a file: link", () => {
+    expect(looksLikePath("/Users/leo/Physics/lab-report_v2.pdf")).toBe(true);
+    expect(looksLikePath("~/Documents/notes.docx")).toBe(true);
+    expect(looksLikePath("C:\\Users\\leo\\essay.docx")).toBe(true);
+    expect(looksLikePath("file:///Users/leo/My%20Notes.pdf")).toBe(true);
+    expect(looksLikePath("example.com/x")).toBe(false);
+    expect(looksLikePath("Campbell Biology")).toBe(false);
+    expect(cleanPath("'/Users/leo/a b.pdf'")).toBe("/Users/leo/a b.pdf");
+    expect(cleanPath("file:///Users/leo/My%20Notes.pdf")).toBe("/Users/leo/My Notes.pdf");
+    expect(titleFromPath("/Users/leo/Physics/lab-report_v2.pdf")).toBe("Lab report v2");
+    expect(materialKind({ path: "/a/b/slides.key" })).toBe("slides");
+    expect(materialKind({ path: "/a/b/thing.zip" })).toBe("file");
   });
 });

@@ -131,7 +131,6 @@ export function CalendarView() {
         eyebrow={String(month.getFullYear())}
         actions={
           <>
-            {listToggle}
             <Stepper
               prev={prevLabel}
               next={nextLabel}
@@ -144,6 +143,8 @@ export function CalendarView() {
                 pick(today());
               }}
             />
+            {/* Next to New task in both views, so it stays put while switching. */}
+            {listToggle}
             <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: selected })}>
               <span className="max-sm:hidden">New task</span>
             </Button>

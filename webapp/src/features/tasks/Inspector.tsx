@@ -294,7 +294,6 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
         <div className="flex h-[52px] shrink-0 items-center gap-1 px-3">
           <TaskCheck
             checked={task.isDone}
-            color={task.priority !== "none" ? priorityColor(task.priority) : undefined}
             onToggle={() => toggleTask(task.id)}
           />
           <span className={cn("text-xs", task.isDone ? "text-ink-3" : isAssignment ? "text-accent" : "text-ink-3")}>

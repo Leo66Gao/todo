@@ -6,7 +6,7 @@ import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Trash2, ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
+import { Check, Trash2, ChevronDown, CornerDownRight, FileText, Flag, GraduationCap, ListChecks, Timer } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
@@ -21,7 +21,7 @@ import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
 import { useMedia } from "@/ui/useMedia";
 import { editTask, openTask, removeTask, taskMenu } from "./actions";
-import { priorityColor, useLabelMap, useProjectMap } from "./meta";
+import { PRIORITY_LABEL, priorityColor, useLabelMap, useProjectMap } from "./meta";
 import { TaskCheck } from "./TaskCheck";
 import { useSwipe } from "./useSwipe";
 
@@ -115,7 +115,7 @@ const TaskRowView = memo(function TaskRowView({
   const minutes = task.remainingMinutes > 0 ? task.remainingMinutes : task.durationMinutes;
   const isAssignment = task.type === "assignment";
   const isMilestone = task.parentTaskId != null;
-  const check = settings.showPriority && task.priority !== "none" ? priorityColor(task.priority) : undefined;
+  const priority = settings.showPriority && task.priority !== "none" ? task.priority : null;
 
   const toggle = () => {
     if (task.isDone || completing) {
@@ -214,6 +214,14 @@ const TaskRowView = memo(function TaskRowView({
   }
   if (showDate && !isAssignment) {
     meta.push(<span key="date">{relativeDay(task.date)}</span>);
+  }
+  if (priority && !done) {
+    meta.push(
+      <span key="priority" className="flex items-center gap-1" style={{ color: priorityColor(priority) }}>
+        <Flag className="size-3 fill-current" />
+        {PRIORITY_LABEL[priority]}
+      </span>,
+    );
   }
   if (minutes > 0 && settings.showDuration) {
     meta.push(
@@ -354,7 +362,7 @@ const TaskRowView = memo(function TaskRowView({
           )}
         >
           <span data-drag-handle className="-my-1 flex shrink-0" onTouchStart={dragTouchStart}>
-            <TaskCheck checked={done} color={check} onToggle={checkToggle} size={phone ? 22 : 18} />
+            <TaskCheck checked={done} onToggle={checkToggle} size={phone ? 22 : 18} />
           </span>
           <div className="min-w-0 flex-1">
             {/* Long titles wrap onto a second line rather than being cut short. */}
