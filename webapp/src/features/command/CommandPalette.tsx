@@ -9,6 +9,8 @@ import {
   CornerDownLeft,
   FileText,
   GraduationCap,
+  Link2,
+  Paperclip,
   Moon,
   Plus,
   Search,
@@ -26,6 +28,8 @@ import { openTask } from "@/features/tasks/actions";
 import { useAllTasks } from "@/features/tasks/meta";
 import { createNote } from "@/features/notes/noteActions";
 import { createSubject } from "@/features/subjects/subjectActions";
+import { materialMatches } from "@/features/subjects/materials";
+import { canLinkFiles, copyPath, openFile } from "@/features/subjects/localFiles";
 import { useWorkspace } from "@/store/workspace";
 import { Kbd } from "@/ui/controls";
 import { springs } from "@/ui/motion";
@@ -145,6 +149,30 @@ function Palette() {
         run: () => go({ view: "note", id: n.id }),
       });
     }
+    // Materials saved on subjects: links open, files open (or their path is
+    // copied), anything else shows its subject.
+    if (q.length > 1) {
+      const found = projects.flatMap((p) => (p.materials ?? []).filter((m) => materialMatches(m, q)).map((m) => ({ p, m })));
+      for (const { p, m } of found.sort((a, b) => score(b.m.title, q) - score(a.m.title, q)).slice(0, 5)) {
+        out.push({
+          id: `material:${m.id}`,
+          group: "Materials",
+          title: m.title,
+          hint: p.title,
+          icon: m.url ? <Link2 /> : <Paperclip />,
+          run: () => {
+            if (m.url) {
+              close();
+              window.open(m.url, "_blank", "noopener");
+            } else if (m.path) {
+              close();
+              if (canLinkFiles()) openFile(m);
+              else void copyPath(m);
+            } else go({ view: "subject", id: p.id });
+          },
+        });
+      }
+    }
     const actions: Command[] = [
       { id: "a:new", group: "Actions", title: "New task", hint: "N", icon: <Plus />, run: () => { close(); ui.newTask({}); } },
       { id: "a:assignment", group: "Actions", title: "New assignment", icon: <GraduationCap />, run: () => { close(); ui.newTask({ type: "assignment", durationMinutes: 120 }); } },
@@ -193,7 +221,7 @@ function Palette() {
               commands[active]?.run();
             }
           }}
-          placeholder="Search tasks, subjects and notes"
+          placeholder="Search tasks, subjects, notes and materials"
           className="h-full flex-1 bg-transparent text-base outline-none placeholder:text-ink-3"
         />
         <Kbd>esc</Kbd>

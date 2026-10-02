@@ -84,3 +84,13 @@ it("lists the day in order in the morning summary", () => {
   expect(plan[0].lines).toEqual(["08.00–08.30 · Lab", "10.00–11.30 · Lecture · Physics", "Problem set"]);
   expect(plan[0].summary).toBe("2 h planned");
 });
+
+it("shows notes as plain text, whether stored as rich text or Markdown", () => {
+  const rich = task("Lab", at(20), { notes: JSON.stringify([{ insert: "Bring the " }, { insert: "goggles", attributes: { bold: true } }, { insert: "\nThen weigh\n" }]) });
+  const md = task("Essay", at(20, 30), { notes: "## **Plan**\n- [ ] intro" });
+  const [lab, essay] = planReminders([rich, md], prefs, now, noSubject);
+  expect(lab.largeBody).toContain("Bring the goggles");
+  expect(lab.largeBody).not.toContain("insert");
+  expect(essay.largeBody).toContain("Plan");
+  expect(essay.largeBody).not.toMatch(/[#*]/);
+});

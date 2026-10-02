@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decodeNote, decodeProject, encodeNote, encodeProject } from "@/lib/model";
-import { cleanPath, looksLikePath, looksLikeUrl, materialKind, normalizeUrl, titleFromPath, titleFromUrl } from "@/features/subjects/materials";
+import { cleanPath, looksLikePath, materialMatches, looksLikeUrl, materialKind, normalizeUrl, titleFromPath, titleFromUrl } from "@/features/subjects/materials";
 
 describe("materials", () => {
   it("names a pasted link by what it is", () => {
@@ -52,5 +52,14 @@ describe("materials", () => {
     expect(titleFromPath("/Users/leo/Physics/lab-report_v2.pdf")).toBe("Lab report v2");
     expect(materialKind({ path: "/a/b/slides.key" })).toBe("slides");
     expect(materialKind({ path: "/a/b/thing.zip" })).toBe("file");
+  });
+
+  it("finds materials by title, link, path or note", () => {
+    const m = { id: "m", title: "Lecture notes", path: "/Users/leo/Chem/week4.pdf", detail: "Kinetics", addedAt: 1 };
+    expect(materialMatches(m, "lecture")).toBe(true);
+    expect(materialMatches(m, "week4")).toBe(true);
+    expect(materialMatches(m, "kinetics chem")).toBe(true);
+    expect(materialMatches(m, "physics")).toBe(false);
+    expect(materialMatches({ id: "u", title: "Course page", url: "https://moodle.example.edu/course", addedAt: 1 }, "moodle")).toBe(true);
   });
 });

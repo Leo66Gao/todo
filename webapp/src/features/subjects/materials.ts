@@ -186,3 +186,11 @@ export function materialKind(material: Pick<Material, "url" | "path">): Material
   if (/github\.com|gitlab\.com|replit\.com|colab\.research/.test(host)) return "code";
   return "link";
 }
+
+/** Whether a material matches a search: its title, link, file path or note. */
+export function materialMatches(material: Material, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const text = [material.title, material.url, material.path, material.detail].filter(Boolean).join(" ").toLowerCase();
+  return q.split(/\s+/).every((word) => text.includes(word));
+}
