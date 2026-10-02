@@ -125,8 +125,23 @@ pinned note carries `pinnedAt` and sits at the top of note lists. A material
 can be a file path (`path`): Chrome and Edge open it once the file has been
 picked on that computer (the handle stays in that browser's IndexedDB, never
 synced), showing PDFs, pictures, text and video in the app; other browsers copy
-the path to paste into Finder or Explorer. The retiring
+the path to paste into Finder or Explorer. Materials can be searched on the
+subject (title, link, path or note) and from ⌘K. A subject can carry an exam
+day (`examDate`, "YYYY-MM-DD"): the subject shows a countdown and can add
+review sessions spread over the days before it, subject tiles show the
+countdown, and Today lists exams in the next two weeks. The retiring
 Flutter app drops these fields if it saves the same record.
+
+## Quick add
+
+A new task's title is read for its details (`lib/quickAdd.ts`): a day
+("fri", "tomorrow", "12 oct", "due 3/10"), a time or a time range ("18-20",
+"6-8pm", "from 4 to 5:30", which also sets the length), a length ("2h",
+"45 min"), a subject ("#physics", or its name in passing) and a priority
+("!!", "p1", "urgent", "high priority", "asap", or "critical" at the end).
+Each recognised phrase shows as a chip that can be dismissed. Moving a timed
+task offers to shift the open tasks after it (the domino effect); completed
+tasks stay put, and the shift can be undone from its toast.
 
 ## Private GitHub backup
 

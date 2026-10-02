@@ -67,6 +67,8 @@ export interface Project {
   description?: string;
   /** Course pages, readings, videos and other material, in the order shown. */
   materials?: Material[];
+  /** The exam's day, "YYYY-MM-DD" (a calendar day, the same in every time zone). */
+  examDate?: string;
   extra?: Json;
 }
 
@@ -291,7 +293,8 @@ export function decodeProject(json: Json): Project {
     colorValue: json.colorValue,
     ...(typeof json.description === "string" && json.description ? { description: json.description } : {}),
     ...(Array.isArray(json.materials) ? { materials: json.materials.filter(isMaterial) } : {}),
-    extra: extras(json, ["id", "title", "colorValue", "description", "materials"]),
+    ...(typeof json.examDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(json.examDate) ? { examDate: json.examDate } : {}),
+    extra: extras(json, ["id", "title", "colorValue", "description", "materials", "examDate"]),
   };
 }
 
@@ -460,6 +463,7 @@ export const encodeProject = (p: Project): Json => ({
   colorValue: p.colorValue,
   ...(p.description ? { description: p.description } : {}),
   ...(p.materials?.length ? { materials: p.materials } : {}),
+  ...(p.examDate ? { examDate: p.examDate } : {}),
   ...p.extra,
 });
 

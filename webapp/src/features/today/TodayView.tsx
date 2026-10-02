@@ -18,6 +18,10 @@ import { springs } from "@/ui/motion";
 import { Tooltip } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { useMedia } from "@/ui/useMedia";
+import { useNavigate } from "@/shell/nav";
+import { argbToCss } from "@/lib/dart";
+import { useWorkspace } from "@/store/workspace";
+import { examLabel, upcomingExams } from "@/features/subjects/exams";
 import { DayStrip } from "./DayStrip";
 import { ScheduleRail } from "./ScheduleRail";
 
@@ -125,6 +129,8 @@ export function TodayView() {
                 </span>
               )}
             </div>
+
+            {isToday && <ExamsSoon />}
 
             <AnimatePresence initial={false}>
               {overdue.length > 0 && (
@@ -252,6 +258,30 @@ function EmptyDay({ day }: { day: Date }) {
       <Button variant="secondary" className="mt-4" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: day })}>
         New task
       </Button>
+    </div>
+  );
+}
+
+/** Exams in the next two weeks, soonest first; each opens its subject. */
+function ExamsSoon() {
+  const navigate = useNavigate();
+  const projects = useWorkspace((s) => s.projects);
+  const exams = upcomingExams(projects, 14);
+  if (exams.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5 px-1">
+      {exams.map(({ project, days }) => (
+        <button
+          key={project.id}
+          type="button"
+          onClick={() => navigate({ view: "subject", id: project.id })}
+          className="flex h-7 items-center gap-1.5 rounded-full bg-fill px-2.5 text-xs text-ink-2 transition-colors hover:bg-fill-strong hover:text-ink"
+        >
+          <span className="size-[7px] rounded-full" style={{ background: argbToCss(project.colorValue) }} />
+          <span className="font-medium text-ink">{project.title}</span>
+          <span className={days <= 3 ? "font-medium text-ink" : undefined}>{examLabel(days)!.replace(/^Exam/, "exam")}</span>
+        </button>
+      ))}
     </div>
   );
 }

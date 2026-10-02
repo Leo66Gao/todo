@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   BookOpen,
+  CalendarClock,
   ChevronLeft,
   Code2,
   FilePlus2,
@@ -25,7 +26,8 @@ import { argbToCss } from "@/lib/dart";
 import { plainText } from "@/lib/delta";
 import type { Material, Project, StudyNote } from "@/lib/model";
 import { uuid } from "@/lib/model";
-import { isOverdue } from "@/lib/time";
+import { isOverdue, pluralize } from "@/lib/time";
+import { format } from "date-fns";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { ui } from "@/shell/ui";
@@ -37,13 +39,15 @@ import { addFolder, captureWorkspaceSession, deleteFolder, renameFolder, useWork
 import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
-import { confirmDialog, ContextMenu, Menu, Modal, promptDialog, type MenuItem } from "@/ui/overlay";
+import { confirmDialog, ContextMenu, Menu, Modal, Popover, promptDialog, type MenuItem } from "@/ui/overlay";
+import { DatePanel } from "@/ui/pickers";
 import { toast } from "@/ui/toast";
 import { PHONE, useMedia } from "@/ui/useMedia";
 import {
   looksLikePath,
   looksLikeUrl,
   materialKind,
+  materialMatches,
   moveMaterial,
   normalizeUrl,
   removeMaterial,
@@ -54,6 +58,7 @@ import {
   titleFromUrl,
   type MaterialKind,
 } from "./materials";
+import { examDay, examIn, planReviews, reviewDays, setExamDate, unplanReviews } from "./exams";
 import { canLinkFiles, closeFileViewer, copyPath, forgetFile, linkFile, loadLinkedFiles, openFile, useFileViewer, useLinkedFiles } from "./localFiles";
 import { deleteSubject, editSubject } from "./subjectActions";
 
@@ -189,6 +194,7 @@ export function SubjectView({ id }: { id: string }) {
             )}
 
             <aside className={cn("flex flex-col gap-8 lg:col-start-2 lg:row-start-1", pinned.length > 0 && "lg:row-span-2")}>
+              <ExamPanel project={project} color={color} />
               <TasksPanel subjectId={id} open={open} done={done} />
               <MaterialsPanel project={project} />
             </aside>
@@ -392,6 +398,102 @@ function PinnedCard({ note, color }: { note: StudyNote; color: string }) {
 // ---------------------------------------------------------------------------
 // Tasks: what's next, kept short.
 
+/**
+ * The exam countdown: how many days are left, the day itself, and review
+ * sessions spread over the days before it. Without a date, a quiet way to add one.
+ */
+function ExamPanel({ project, color }: { project: Project; color: string }) {
+  const [picking, setPicking] = useState(false);
+  const tasks = useWorkspace((s) => s.tasks);
+  const exam = examDay(project);
+  const days = examIn(project);
+  const plan = useMemo(() => (exam && days != null && days > 0 ? reviewDays(project, tasks) : []), [project, tasks, exam, days]);
+  const reviewsDone = tasks.filter((t) => t.projectId === project.id && t.isDone && /review|revis/i.test(t.title)).length;
+  const reviewsOpen = tasks.filter((t) => t.projectId === project.id && !t.isDone && /review|revis/i.test(t.title)).length;
+
+  const picker = (trigger: ReactNode) => (
+    <Popover open={picking} onOpenChange={setPicking} align="end" trigger={trigger}>
+      <DatePanel
+        value={exam}
+        clearLabel="No exam date"
+        onPick={(d) => {
+          setExamDate(project.id, d);
+          setPicking(false);
+        }}
+        onClear={
+          exam
+            ? () => {
+                setExamDate(project.id, null);
+                setPicking(false);
+              }
+            : undefined
+        }
+      />
+    </Popover>
+  );
+
+  if (!exam || days == null) {
+    return (
+      <div className="-mb-4">
+        {picker(
+          <button
+            type="button"
+            className="flex h-9 w-full items-center gap-2 rounded-[10px] border border-dashed border-line-strong px-3 text-sm text-ink-3 transition-colors hover:border-ink-4 hover:text-ink-2"
+          >
+            <CalendarClock className="size-4" />
+            Add exam date
+          </button>,
+        )}
+      </div>
+    );
+  }
+
+  const add = () => {
+    const ids = planReviews(project);
+    if (!ids.length) return;
+    toast(`Added ${pluralize(ids.length, "review session")} before the exam`, { label: "Undo", run: () => unplanReviews(ids) });
+  };
+
+  const past = days < 0;
+  return (
+    <section
+      className="relative overflow-hidden rounded-card border border-line bg-card px-4 pt-3.5 pb-3 shadow-card"
+      style={{ backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${color} 14%, transparent), transparent 70%)` }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {past ? (
+            <p className="text-sm font-medium text-ink-2">The exam was {format(exam, "EEEE d MMMM")}.</p>
+          ) : (
+            <>
+              <p className="flex items-baseline gap-2">
+                <span className="text-[34px] leading-none font-semibold tracking-[-0.03em] tnum" style={{ color: days <= 3 ? color : undefined }}>
+                  {days === 0 ? "Today" : days}
+                </span>
+                {days > 0 && <span className="text-sm text-ink-2">{days === 1 ? "day to the exam" : "days to the exam"}</span>}
+              </p>
+              <p className="mt-1.5 text-xs text-ink-3">
+                {format(exam, "EEEE d MMMM")}
+                {reviewsOpen + reviewsDone > 0 && ` · ${reviewsDone} of ${reviewsOpen + reviewsDone} reviews done`}
+              </p>
+            </>
+          )}
+        </div>
+        {picker(
+          <button type="button" className="-mt-1 -mr-1.5 rounded-[7px] px-2 py-1 text-xs font-medium text-ink-3 transition-colors hover:bg-fill hover:text-ink">
+            {past ? "New date" : "Change"}
+          </button>,
+        )}
+      </div>
+      {plan.length > 0 && (
+        <Button variant="secondary" size="sm" className="mt-3 w-full" icon={<Plus className="size-3.5" />} onClick={add}>
+          Plan {pluralize(plan.length, "review session")}
+        </Button>
+      )}
+    </section>
+  );
+}
+
 function TasksPanel({ subjectId, open, done }: { subjectId: string; open: ReturnType<typeof useAllTasks>; done: ReturnType<typeof useAllTasks> }) {
   const [expanded, setExpanded] = useState(false);
   const [showDone, setShowDone] = useState(false);
@@ -451,6 +553,10 @@ function MaterialsPanel({ project }: { project: Project }) {
   const materials = project.materials ?? [];
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<Material | null>(null);
+  // A longer list gets a search over titles, links, file paths and notes.
+  const [searching, setSearching] = useState(false);
+  const [find, setFind] = useState("");
+  const shown = searching ? materials.filter((m) => materialMatches(m, find)) : materials;
   const linked = useLinkedFiles((s) => s.handles);
   useEffect(() => void loadLinkedFiles(), []);
 
@@ -498,10 +604,44 @@ function MaterialsPanel({ project }: { project: Project }) {
 
   return (
     <section>
-      <PanelHeading title="Materials" count={materials.length || undefined} />
+      <PanelHeading
+        title="Materials"
+        count={materials.length || undefined}
+        action={
+          materials.length >= 4 ? (
+            <PanelAction
+              icon={<Search className="size-3.5" />}
+              onClick={() => {
+                setSearching(!searching);
+                setFind("");
+              }}
+            >
+              {searching ? "Done" : "Search"}
+            </PanelAction>
+          ) : undefined
+        }
+      />
+      {searching && (
+        <input
+          autoFocus
+          value={find}
+          onChange={(e) => setFind(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearching(false);
+              setFind("");
+            }
+          }}
+          placeholder="Search titles, links and file paths"
+          aria-label="Search materials"
+          className="mb-1.5 h-8 w-full rounded-[9px] bg-fill px-3 text-sm outline-none placeholder:text-ink-3 focus:bg-fill-strong"
+        />
+      )}
+      {searching && find.trim() && shown.length === 0 && <p className="px-1 py-1.5 text-sm text-ink-3">No materials match “{find.trim()}”.</p>}
       <ul className="flex flex-col">
         <AnimatePresence initial={false}>
-          {materials.map((m, i) => {
+          {shown.map((m) => {
+            const i = materials.indexOf(m);
             const Icon = KIND_ICON[materialKind(m)];
             return (
               <motion.li key={m.id} layout="position" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={springs.layout}>
