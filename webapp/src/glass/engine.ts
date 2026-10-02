@@ -593,7 +593,13 @@ export class ShapeTracker {
   private lastGeneration = -1;
   animating = false;
 
-  collect(pointer: TrackedPointer): [Shape[], Shape[]] {
+  /**
+   * `origin` is where the canvas's corner is in the coordinates elements
+   * report. It is (0, 0) except while Safari is pinch-zoomed: there element
+   * positions are measured from the visible area, while the canvas stays
+   * attached to the page's viewport.
+   */
+  collect(pointer: TrackedPointer, origin = { x: 0, y: 0 }): [Shape[], Shape[]] {
     const level1: Shape[] = [];
     const level2: Shape[] = [];
     this.animating = false;
@@ -604,6 +610,11 @@ export class ShapeTracker {
     for (const entry of glassEntries.values()) {
       const shape = this.shapeOf(entry, pointer, regenerated);
       if (!shape) continue;
+      if (origin.x || origin.y) {
+        shape.x -= origin.x;
+        shape.y -= origin.y;
+        if (shape.clip) shape.clip = { ...shape.clip, x: shape.clip.x - origin.x, y: shape.clip.y - origin.y };
+      }
       if (entry.spec.level === 1) level1.push(shape);
       else (shape.kind === "card" ? cards : level2).push(shape);
     }

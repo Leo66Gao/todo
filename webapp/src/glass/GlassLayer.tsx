@@ -155,8 +155,12 @@ function GlassCanvas() {
     const tick = () => {
       frame = requestAnimationFrame(tick);
       if (!visible) return;
-      // The layout viewport's size. Safari's innerWidth shrinks to the visible
-      // area during a pinch zoom, which redrew the glass at the wrong scale.
+      // The canvas measured like the elements it draws under: during a pinch
+      // zoom Safari reports positions from the visible area's corner (and its
+      // innerWidth shrinks), while the canvas stays attached to the page's
+      // viewport and zooms with it. Shapes are placed relative to the canvas.
+      const at = canvas.getBoundingClientRect();
+      const origin = { x: Math.round(at.x * 4) / 4, y: Math.round(at.y * 4) / 4 };
       const { clientWidth, clientHeight } = document.documentElement;
       engine.resize(clientWidth || window.innerWidth, clientHeight || window.innerHeight, window.devicePixelRatio || 1);
       // The highlight leans towards a mouse; it eases back when the mouse leaves.
@@ -164,9 +168,9 @@ function GlassCanvas() {
       influence += (wantLight - influence) * 0.12;
       if (Math.abs(wantLight - influence) < 0.002) influence = wantLight;
       pointer.influence = influence;
-      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer);
-      const px = Math.round(pointer.x);
-      const py = Math.round(pointer.y);
+      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer, origin);
+      const px = Math.round(pointer.x - origin.x);
+      const py = Math.round(pointer.y - origin.y);
       engine.render(level1, level2, [px, py, Math.round(influence * 500) / 500]);
     };
     frame = requestAnimationFrame(tick);
