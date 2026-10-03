@@ -95,6 +95,26 @@ final class FocusTimer {
         refresh(context, state);
     }
 
+    /**
+     * After a restart (or an app update) Android has dropped the alarm and the
+     * notification: put them back, first catching up on rounds that ended meanwhile.
+     */
+    static void restore(Context context) {
+        JSONObject state = load(context);
+        if (state == null) return;
+        long now = System.currentTimeMillis();
+        if (!state.optBoolean("paused") && state.optLong("endsAt") <= now + 1500) {
+            try {
+                roundEnded(context, state, now);
+            } catch (JSONException e) {
+                refresh(context, state);
+            }
+        } else {
+            refresh(context, state);
+        }
+        FocusTimerPlugin.changed();
+    }
+
     private static void refresh(Context context, JSONObject state) {
         cancelEnd(context);
         if (state == null) {

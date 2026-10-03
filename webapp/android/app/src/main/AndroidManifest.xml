@@ -24,10 +24,16 @@
 
         </activity>
 
-        <!-- The focus timer's notification buttons and round-end alarms. -->
+        <!-- The focus timer's notification buttons and round-end alarms; after a
+             restart or update it puts the timer back. -->
         <receiver
             android:name=".FocusTimerReceiver"
-            android:exported="false" />
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -45,4 +51,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Reminders fire on the minute (a calendar app may use exact alarms). -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- A running focus timer comes back after the phone restarts. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>
