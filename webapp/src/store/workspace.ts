@@ -1252,7 +1252,7 @@ export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, 
     if (other.startTime.getTime() <= afterTime.getTime()) return other;
     const shifted = new Date(other.startTime.getTime() + deltaMs);
     const next = { ...other, date: startOfDay(shifted), startTime: shifted };
-    before.push({ id: other.id, date: other.date, startTime: other.startTime });
+    before.push({ id: other.id, date: other.date, startTime: other.startTime, movedTo: shifted });
     moved.push(next);
     return next;
   });
@@ -1265,16 +1265,19 @@ export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, 
   return before;
 }
 
-/** Where the tasks a domino shift moved were before it. */
-export type DominoShift = { id: string; date: Date; startTime: Date }[];
+/** Where the tasks a domino shift moved were before it, and where it put them. */
+export type DominoShift = { id: string; date: Date; startTime: Date; movedTo: Date }[];
 
-/** Puts the tasks a domino shift moved back where they were (anything else changed since stays). */
+/**
+ * Puts the tasks a domino shift moved back where they were. A task you have
+ * since rescheduled or completed stays as you left it; other edits are kept.
+ */
 export function undoDominoShift(shift: DominoShift) {
   const back = new Map(shift.map((s) => [s.id, s]));
   const moved: Task[] = [];
   const tasks = get().tasks.map((t) => {
     const was = back.get(t.id);
-    if (!was) return t;
+    if (!was || t.isDone || t.startTime?.getTime() !== was.movedTo.getTime()) return t;
     const next = { ...t, date: was.date, startTime: was.startTime };
     moved.push(next);
     return next;

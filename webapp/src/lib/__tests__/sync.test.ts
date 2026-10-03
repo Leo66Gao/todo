@@ -118,6 +118,23 @@ it("moves only the tasks after the edited one in a domino shift", async () => {
   expect(ws.useWorkspace.getState().tasks.map((t) => t.startTime!.getHours() + t.startTime!.getMinutes() / 60)).toEqual([9, 11, 13, 12]);
 });
 
+it("leaves tasks rescheduled or completed since a domino shift when undoing it", async () => {
+  stubStorage();
+  const ws = await import("@/store/workspace");
+  ws.loadGuestRecords({ "task:a": task("a", 9), "task:b": task("b", 11), "task:c": task("c", 13), "task:e": task("e", 15) });
+  const day = new Date(2026, 8, 28);
+  const shift = ws.applyDominoShift("a", day, new Date(2026, 8, 28, 10), 30 * 60000);
+  const get = (id: string) => ws.useWorkspace.getState().tasks.find((t) => t.id === id)!;
+  // b moved again by hand, c completed, e renamed.
+  ws.updateTask({ ...get("b"), startTime: new Date(2026, 8, 28, 16) });
+  ws.updateTask({ ...get("c"), isDone: true });
+  ws.updateTask({ ...get("e"), title: "renamed" });
+  ws.undoDominoShift(shift);
+  const hour = (id: string) => get(id).startTime!.getHours() + get(id).startTime!.getMinutes() / 60;
+  expect([hour("b"), hour("c"), hour("e")]).toEqual([16, 13.5, 15]);
+  expect(get("e").title).toBe("renamed");
+});
+
 it("fails a workspace deletion that could not be stored", async () => {
   stubStorage();
   const ws = await import("@/store/workspace");
