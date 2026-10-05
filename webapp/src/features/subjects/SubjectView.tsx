@@ -26,7 +26,7 @@ import { argbToCss } from "@/lib/dart";
 import { plainText } from "@/lib/delta";
 import type { Material, Project, StudyNote } from "@/lib/model";
 import { uuid } from "@/lib/model";
-import { isOverdue, pluralize } from "@/lib/time";
+import { addDays, isOverdue, pluralize } from "@/lib/time";
 import { format } from "date-fns";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
@@ -408,8 +408,12 @@ function ExamPanel({ project, color }: { project: Project; color: string }) {
   const exam = examDay(project);
   const days = examIn(project);
   const plan = useMemo(() => (exam && days != null && days > 0 ? reviewDays(project, tasks) : []), [project, tasks, exam, days]);
-  const reviewsDone = tasks.filter((t) => t.projectId === project.id && t.isDone && /review|revis/i.test(t.title)).length;
-  const reviewsOpen = tasks.filter((t) => t.projectId === project.id && !t.isDone && /review|revis/i.test(t.title)).length;
+  // Reviews for this exam: the weeks before it, not ones from an earlier exam.
+  const reviews = exam
+    ? tasks.filter((t) => t.projectId === project.id && /review|revis/i.test(t.title) && t.date <= exam && t.date >= addDays(exam, -30))
+    : [];
+  const reviewsDone = reviews.filter((t) => t.isDone).length;
+  const reviewsOpen = reviews.length - reviewsDone;
 
   const picker = (trigger: ReactNode) => (
     <Popover open={picking} onOpenChange={setPicking} align="end" trigger={trigger}>
