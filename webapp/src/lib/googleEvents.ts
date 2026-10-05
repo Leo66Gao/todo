@@ -10,6 +10,7 @@ import { useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { ApiError, type RawCalendar, type RawEvent } from "./calendar";
 import { getLocal, setLocal, getBool } from "./prefs";
+import { addDays } from "./time";
 import { calendarClient, captureWorkspaceSession, useWorkspace } from "@/store/workspace";
 
 export type CalendarMode = "show" | "hide" | "assignments";
@@ -108,7 +109,7 @@ export function decodeEvent(raw: RawEvent, calendar: GCalendar): GEvent | null {
   const start = parseTime(raw.start);
   const end = parseTime(raw.end);
   if (!start) return null;
-  const endAt = end?.at ?? new Date(start.at.getTime() + (start.allDay ? 86_400_000 : 30 * 60_000));
+  const endAt = end?.at ?? (start.allDay ? addDays(start.at, 1) : new Date(start.at.getTime() + 30 * 60_000));
   return {
     key: `${calendar.id}|${raw.id}`,
     id: raw.id,

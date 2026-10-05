@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { format } from "date-fns";
 import { ExternalLink, MapPin, Trash2 } from "lucide-react";
 import { deleteEvent, updateEvent, useGoogleEvents, type EventPatch, type GEvent } from "@/lib/googleEvents";
-import { formatClock, relativeDay, sameDay } from "@/lib/time";
+import { addDays, formatClock, relativeDay, sameDay, startOfDay } from "@/lib/time";
 import { clockOf, withClock } from "@/lib/timeParse";
 import { DateField, TimeField } from "@/features/tasks/fields";
 import { cn } from "@/ui/cn";
@@ -22,7 +22,8 @@ useWorkspace.subscribe((state, previous) => { if (state.user?.uid !== previous.u
 /** "09.00–10.30", "All day", or a span across days. */
 export function eventTimeLabel(event: GEvent) {
   if (event.allDay) {
-    const last = new Date(event.end.getTime() - 86_400_000);
+    // By calendar day, not 24 hours: a day can be 23 or 25 hours long.
+    const last = addDays(startOfDay(event.end), -1);
     return sameDay(event.start, last) ? "All day" : `${format(event.start, "d MMM")} – ${format(last, "d MMM")}`;
   }
   if (!sameDay(event.start, event.end) && event.end.getTime() - event.start.getTime() > 86_400_000 / 2) {
@@ -78,8 +79,10 @@ export function EventSheet() {
                     className="flex-1"
                     value={e.start}
                     onChange={(d) => {
-                      const shift = d.getTime() - new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate()).getTime();
-                      void save({ start: new Date(e.start.getTime() + shift), end: new Date(e.end.getTime() + shift) });
+                      // Moved by whole calendar days, so times stay put across a clock change.
+                      const days = Math.round((startOfDay(d).getTime() - startOfDay(e.start).getTime()) / 86_400_000);
+                      const move = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate() + days, t.getHours(), t.getMinutes(), t.getSeconds());
+                      void save({ start: move(e.start), end: move(e.end) });
                     }}
                   />
                   {!e.allDay && (
@@ -110,7 +113,7 @@ export function EventSheet() {
                   onChange={(t) => {
                     if (!t) return;
                     let end = withClock(e.start, t);
-                    if (end.getTime() <= e.start.getTime()) end = new Date(end.getTime() + 86_400_000);
+                    if (end.getTime() <= e.start.getTime()) end = withClock(addDays(e.start, 1), t);
                     void save({ end });
                   }}
                 />
