@@ -218,8 +218,16 @@ export function fromNative(n: NativeFocusState, current: FocusSession | null): F
 const REV = "focus.nativeRev";
 let legacyCleared = false;
 
-async function scheduleEnd(session: FocusSession | null) {
-  if (!isNative()) return;
+let nativeQueue: Promise<void> = Promise.resolve();
+
+/** Sends the session to the phone's timer, in order (a quick pause and resume can't arrive swapped). */
+function scheduleEnd(session: FocusSession | null) {
+  if (!isNative()) return Promise.resolve();
+  nativeQueue = nativeQueue.then(() => sendToNative(session)).catch(() => {});
+  return nativeQueue;
+}
+
+async function sendToNative(session: FocusSession | null) {
   // Before the native timer, round ends were scheduled local notifications.
   if (!legacyCleared) {
     legacyCleared = true;
