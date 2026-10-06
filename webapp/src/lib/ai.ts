@@ -28,10 +28,17 @@ export function setAiModel(model: string) {
 
 export class AiError extends Error {}
 
+/** Text and pictures in one message (pictures only in the student's messages). */
+export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ContentPart[];
 }
+
+/** The model that can see pictures. */
+export const VISION_MODEL = "deepseek-flash";
+const hasImage = (messages: ChatMessage[]) => messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === "image_url"));
 
 /**
  * How much the model thinks first. "fast" answers straight away (rewrites,
@@ -43,7 +50,8 @@ export type AiMode = "fast" | "think";
 function body(messages: ChatMessage[], mode: AiMode, extra: Record<string, unknown>) {
   const { model } = useAiKey.getState();
   return JSON.stringify({
-    model: model || DEFAULT_MODEL,
+    // Pictures go to the model that can see them, whichever is chosen.
+    model: hasImage(messages) ? VISION_MODEL : model || DEFAULT_MODEL,
     messages,
     ...(mode === "think"
       ? { thinking: { type: "enabled" }, reasoning_effort: "low", max_tokens: 8000 }
