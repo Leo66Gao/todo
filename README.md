@@ -168,7 +168,19 @@ Markdown, so headings, lists and formulas keep their shape
 (`lib/noteMarkdown.ts`). Ask opens a conversation with follow-ups, about the
 selection, the section the cursor is in, or the whole note. The prompts live
 in `lib/notePrompts.ts`. Answers come back as Markdown and go into the note as
-rich text.
+rich text. Quiz me lets you write an answer and have it checked.
+
+Beyond one note (`features/ai/StudyAi.tsx`):
+
+- **Ask your notes**, from search (⌘K): a question is answered from the notes
+  that best match it (`lib/noteSearch.ts`), with links to the notes it used.
+- **Exam revision**, on a subject's exam card: a revision sheet (which can be
+  saved as a note) or practice questions, made from all of that subject's
+  notes.
+
+Tasks from a photo send the photo itself to DeepSeek (`deepseek-flash` reads
+images, handwriting included), scaled down on the device first
+(`lib/photoData.ts`).
 
 ## Private GitHub backup
 

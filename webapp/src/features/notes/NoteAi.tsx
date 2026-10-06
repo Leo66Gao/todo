@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type QuillType from "quill";
 import { format } from "date-fns";
-import { ArrowUp, BookOpen, CircleHelp, Lightbulb, ListChecks, MessageCircle, PenLine, Sparkles, SpellCheck, Wand2 } from "lucide-react";
+import { BookOpen, RotateCcw, CircleHelp, Lightbulb, ListChecks, MessageCircle, PenLine, Sparkles, SpellCheck, Wand2 } from "lucide-react";
 import { AiError, chatJson, chatStream, useAiKey, type AiMode, type ChatMessage } from "@/lib/ai";
 import type { DeltaOp } from "@/lib/delta";
-import { deltaToHtml } from "@/lib/deltaHtml";
 import { markdownToDelta } from "@/lib/markdownPaste";
 import type { StudyNote } from "@/lib/model";
 import { markdownLines, sectionAt, toMarkdown } from "@/lib/noteMarkdown";
@@ -31,9 +30,9 @@ import { Button, IconButton, Spinner } from "@/ui/controls";
 import { Menu, Modal, type MenuItem } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { TaskCheck } from "@/features/tasks/TaskCheck";
+import { ChatPanel, Markdown, QuizView, readQuestions, useKatex, type Katex, type QuizQuestion } from "@/features/ai/AiViews";
 
 type Range = { index: number; length: number };
-type Katex = typeof import("katex").default;
 
 /** The note when the menu opened: as Markdown, where the cursor was, and what it's in. */
 interface Snapshot {
@@ -50,7 +49,7 @@ type WriteVerb = "explain" | "continue" | "clearer" | "fix";
 type Result =
   | { kind: "summary"; points: string[] }
   | { kind: "terms"; terms: { term: string; meaning: string }[] }
-  | { kind: "quiz"; questions: { q: string; a: string; shown: boolean }[] }
+  | { kind: "quiz"; questions: QuizQuestion[] }
   | { kind: "chat"; focus: Focus; options: Focus[]; turns: { q: string; a: string }[]; at: number; added?: number }
   | { kind: "write"; verb: WriteVerb; text: string; range: Range | null; at: number }
   | { kind: "tasks"; tasks: { title: string; date: Date; minutes: number; include: boolean }[] };
@@ -109,25 +108,9 @@ function selectedOps(quill: QuillType, range: Range): DeltaOp[] {
   return [...ops, { insert: "\n", ...(lineEnd?.attributes ? { attributes: lineEnd.attributes } : {}) }];
 }
 
-function useKatex(active: boolean) {
-  const [katex, setKatex] = useState<Katex | null>(null);
-  useEffect(() => {
-    if (active && !katex) void import("katex").then((m) => setKatex(() => m.default));
-  }, [active, katex]);
-  return katex;
-}
-
-/** The AI's Markdown, rendered the way the note shows it (formulas included). */
-function Markdown({ text, katex, className }: { text: string; katex: Katex | null; className?: string }) {
-  const html = useMemo(
-    () =>
-      deltaToHtml(markdownToDelta(text), {
-        formula: (tex, display) => (katex ? katex.renderToString(tex, { displayMode: display, throwOnError: false, strict: "ignore" }) : null),
-      }),
-    [text, katex],
-  );
-  return <div className={cn("doc-preview", className)} dangerouslySetInnerHTML={{ __html: html }} />;
-}
+/** A list result with something in it, worth adding to the note. */
+const hasContent = (r: Result) =>
+  (r.kind === "summary" && r.points.length > 0) || (r.kind === "terms" && r.terms.length > 0) || (r.kind === "quiz" && r.questions.length > 0);
 
 const focusLabel = (f: Focus) => (f.kind === "selection" ? "The selection" : f.kind === "section" ? f.title || "This section" : "The whole note");
 
@@ -144,7 +127,11 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
   const [error, setError] = useState<string | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [draft, setDraft] = useState("");
+  /** The Ask conversation, kept while the note is open so it can be picked up again. */
+  const [kept, setKept] = useState<Extract<Result, { kind: "chat" }> | null>(null);
   const abort = useRef<AbortController | null>(null);
+  /** Runs the last request again (after an error). */
+  const [retry, setRetry] = useState<(() => void) | null>(null);
   const lastRange = useRef<Range | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const input = useRef<HTMLTextAreaElement | null>(null);
@@ -212,6 +199,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   /** A JSON answer (lists of points, terms, questions, tasks). */
   const runJson = async <T,>(label: string, messages: ChatMessage[], mode: AiMode, read: (answer: T) => Result) => {
+    setRetry(() => () => void runJson(label, messages, mode, read));
     const controller = start(label);
     setResult(null);
     try {
@@ -225,6 +213,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   /** Written text, shown as it arrives. */
   const runWrite = async (verb: WriteVerb, label: string, messages: ChatMessage[], mode: AiMode, range: Range | null, at: number) => {
+    setRetry(() => () => void runWrite(verb, label, messages, mode, range, at));
     const controller = start(label);
     setResult({ kind: "write", verb, text: "", range, at });
     try {
@@ -261,9 +250,9 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     }));
 
   const quiz = (s: Snapshot) =>
-    runJson<{ questions?: { q?: string; a?: string }[] }>("Writing questions", quizMessages(s.note), "think", (a) => ({
+    runJson<{ questions?: { q?: unknown; a?: unknown }[] }>("Writing questions", quizMessages(s.note), "think", (a) => ({
       kind: "quiz",
-      questions: (a.questions ?? []).filter((x) => x.q && x.a).slice(0, 8).map((x) => ({ q: x.q!, a: x.a!, shown: false })),
+      questions: readQuestions(a),
     }));
 
   const toTasks = (s: Snapshot) => {
@@ -309,6 +298,23 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   /** Opens the conversation: about the selection, the section the cursor is in, or the whole note. */
   const openAsk = (s: Snapshot) => {
+    abort.current?.abort();
+    setError(null);
+    setBusy(null);
+    setDraft("");
+    // Pick a kept conversation up where it was (its answers go where they went before).
+    if (kept?.turns.length) {
+      setResult(kept);
+      setTimeout(() => input.current?.focus(), 50);
+    } else openFresh(s);
+  };
+
+  /** Starts over: a new conversation about what's selected now. */
+  const newChat = () => {
+    setKept(null);
+    if (snap && result?.kind === "chat") openFresh(snap);
+  };
+  const openFresh = (s: Snapshot) => {
     if (!quill) return;
     const options: Focus[] = [];
     if (s.selection) options.push({ kind: "selection", text: s.selection });
@@ -316,9 +322,6 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     options.push({ kind: "note" });
     const focus = options[0];
     const at = focus.kind === "selection" && s.range ? s.range.index + s.range.length - 1 : focus.kind === "section" && s.section ? s.section.end : quill.getLength() - 1;
-    abort.current?.abort();
-    setError(null);
-    setBusy(null);
     setDraft("");
     setResult({ kind: "chat", focus, options, turns: [], at });
     setTimeout(() => input.current?.focus(), 50);
@@ -329,6 +332,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     if (!question || !snap || result?.kind !== "chat" || busy) return;
     const chat = result;
     setDraft("");
+    setRetry(null);
     const controller = start("Thinking");
     const messages = askMessages(snap.note, chat.focus, chat.turns, question);
     setResult({ ...chat, turns: [...chat.turns, { q: question, a: "" }] });
@@ -370,6 +374,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   const close = () => {
     abort.current?.abort();
+    if (result?.kind === "chat" && result.turns.some((t) => t.a)) setKept({ ...result, turns: result.turns.filter((t) => t.a) });
     setBusy(null);
     setResult(null);
     setError(null);
@@ -424,7 +429,13 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
   };
   const items: MenuItem[] = [
     {
-      label: snap?.selection ? "Ask about the selection…" : snap?.section ? `Ask about “${snap.section.title}”…` : "Ask about this note…",
+      label: kept?.turns.length
+        ? "Continue asking…"
+        : snap?.selection
+          ? "Ask about the selection…"
+          : snap?.section
+            ? `Ask about “${snap.section.title}”…`
+            : "Ask about this note…",
       icon: <MessageCircle />,
       onSelect: () => runTool(openAsk),
     },
@@ -473,28 +484,72 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
               {busy}…
             </div>
           )}
-          {error && <p className="py-6 text-sm text-danger">{error}</p>}
+          {error && (
+            <div className={cn("flex items-center gap-3 text-sm text-danger", result?.kind === "chat" ? "mt-3" : "py-6")}>
+              <span className="flex-1">{error}</span>
+              {(retry || result?.kind === "chat") && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<RotateCcw className="size-3.5" />}
+                  onClick={() => (result?.kind === "chat" ? void ask() : retry?.())}
+                >
+                  Retry
+                </Button>
+              )}
+            </div>
+          )}
           {result?.kind === "chat" ? (
-            <ChatView
-              result={result}
-              busy={busy}
+            <ChatPanel
+              turns={result.turns}
+              busy={busy != null}
               katex={katex}
               scroller={scroller}
               input={input}
               draft={draft}
               setDraft={setDraft}
               onAsk={() => void ask()}
-              onFocus={setFocus}
+              placeholder={
+                result.focus.kind === "note"
+                  ? "Ask anything about this note…"
+                  : result.focus.kind === "selection"
+                    ? "Ask about the selection…"
+                    : `Ask about “${focusLabel(result.focus)}”…`
+              }
+              before={
+                result.options.length > 1 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {result.options.map((f, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setFocus(f)}
+                        className={cn(
+                          "max-w-[220px] truncate rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          f.kind === result.focus.kind ? "border-transparent bg-ink text-on-ink" : "border-line-strong text-ink-2 hover:bg-fill",
+                        )}
+                      >
+                        {focusLabel(f)}
+                      </button>
+                    ))}
+                  </div>
+                )
+              }
             />
           ) : (
-            result && !waiting && <ResultView result={result} katex={katex} scroller={scroller} onChange={setResult} />
+            result && !waiting && <ResultView result={result} katex={katex} scroller={scroller} material={snap?.note ?? null} onChange={setResult} />
           )}
           <div className="mt-4 flex flex-wrap justify-end gap-2">
+            {result?.kind === "chat" && result.turns.length > 0 && !busy && (
+              <Button variant="ghost" className="mr-auto" onClick={newChat}>
+                New chat
+              </Button>
+            )}
             <Button variant="ghost" onClick={close}>
-              {result && result.kind !== "chat" ? "Discard" : "Close"}
+              {result && result.kind !== "chat" && result.kind !== "quiz" ? "Discard" : "Close"}
             </Button>
-            {!busy && result?.kind === "summary" && <Button onClick={() => apply("top")}>Add at the top</Button>}
-            {!busy && result && (result.kind === "summary" || result.kind === "terms" || result.kind === "quiz") && (
+            {!busy && result?.kind === "summary" && result.points.length > 0 && <Button onClick={() => apply("top")}>Add at the top</Button>}
+            {!busy && result && hasContent(result) && (
               <Button variant="primary" onClick={() => apply("end")}>
                 Add to the note
               </Button>
@@ -519,137 +574,37 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
   );
 }
 
-function ChatView({
-  result,
-  busy,
-  katex,
-  scroller,
-  input,
-  draft,
-  setDraft,
-  onAsk,
-  onFocus,
-}: {
-  result: Extract<Result, { kind: "chat" }>;
-  busy: string | null;
-  katex: Katex | null;
-  scroller: React.RefObject<HTMLDivElement | null>;
-  input: React.RefObject<HTMLTextAreaElement | null>;
-  draft: string;
-  setDraft: (s: string) => void;
-  onAsk: () => void;
-  onFocus: (f: Focus) => void;
-}) {
-  const started = result.turns.length > 0;
-  return (
-    <div className="flex min-h-0 flex-col">
-      {!started && result.options.length > 1 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {result.options.map((f, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onFocus(f)}
-              className={cn(
-                "max-w-[220px] truncate rounded-full border px-2.5 py-1 text-xs transition-colors",
-                f.kind === result.focus.kind ? "border-transparent bg-ink text-on-ink" : "border-line-strong text-ink-2 hover:bg-fill",
-              )}
-            >
-              {focusLabel(f)}
-            </button>
-          ))}
-        </div>
-      )}
-      {started && (
-        <div ref={scroller} className="scroll-area mt-3 max-h-[52dvh] space-y-4 pr-1">
-          {result.turns.map((t, i) => (
-            <div key={i} className="space-y-2">
-              <p className="ml-auto w-fit max-w-[85%] rounded-[14px] bg-fill-strong px-3 py-1.5 text-[15px] leading-snug whitespace-pre-wrap">{t.q}</p>
-              {t.a ? (
-                <Markdown text={t.a} katex={katex} className="text-[15px]" />
-              ) : (
-                busy && i === result.turns.length - 1 && (
-                  <div className="flex items-center gap-2 text-sm text-ink-3">
-                    <Spinner className="size-3.5" />
-                    Thinking…
-                  </div>
-                )
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      <form
-        className="mt-3 flex items-end gap-2 rounded-[14px] border border-line-strong bg-card py-1.5 pr-1.5 pl-3 focus-within:border-accent"
-        onSubmit={(e) => {
-          e.preventDefault();
-          onAsk();
-        }}
-      >
-        <textarea
-          ref={input}
-          value={draft}
-          rows={1}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              onAsk();
-            }
-          }}
-          placeholder={started ? "Ask a follow-up…" : result.focus.kind === "note" ? "Ask anything about this note…" : `Ask about ${focusLabel(result.focus).toLowerCase() === "the selection" ? "the selection" : `“${focusLabel(result.focus)}”`}…`}
-          className="field-sizing-content max-h-32 min-h-[30px] flex-1 resize-none bg-transparent py-1 text-[15px] leading-snug outline-none placeholder:text-ink-4"
-        />
-        <IconButton label="Ask" type="submit" disabled={!draft.trim() || busy != null} className="rounded-full bg-accent text-white hover:bg-accent hover:text-white active:bg-accent">
-          <ArrowUp className="size-4" />
-        </IconButton>
-      </form>
-    </div>
-  );
-}
-
 function ResultView({
   result,
   katex,
   scroller,
+  material,
   onChange,
 }: {
   result: Result;
   katex: Katex | null;
   scroller: React.RefObject<HTMLDivElement | null>;
+  material: NoteContext | null;
   onChange: (r: Result) => void;
 }) {
   const box = "scroll-area mt-3 max-h-[52dvh] text-[15px] leading-relaxed";
   switch (result.kind) {
     case "summary":
+      if (result.points.length === 0) return <p className="py-6 text-sm text-ink-3">Nothing came back. Try again.</p>;
       return <Markdown className={box} katex={katex} text={result.points.map((p) => `- ${p}`).join("\n")} />;
     case "terms":
+      if (result.terms.length === 0) return <p className="py-6 text-sm text-ink-3">No key terms came back. Try again.</p>;
       return <Markdown className={box} katex={katex} text={result.terms.map((t) => `- **${t.term}**: ${t.meaning}`).join("\n")} />;
     case "quiz":
-      if (result.questions.length === 0) return <p className="py-6 text-sm text-ink-3">No questions came back. Try again.</p>;
-      return (
-        <ol className={cn(box, "space-y-3")}>
-          {result.questions.map((x, i) => (
-            <li key={i} className="rounded-[12px] bg-fill px-3.5 py-3">
-              <div className="flex gap-1.5 font-medium">
-                <span className="tnum">{i + 1}.</span>
-                <Markdown katex={katex} className="min-w-0 flex-1" text={x.q} />
-              </div>
-              {x.shown ? (
-                <Markdown katex={katex} className="mt-1.5 text-ink-2" text={x.a} />
-              ) : (
-                <button
-                  type="button"
-                  className="mt-1.5 text-sm font-medium text-accent"
-                  onClick={() => onChange({ ...result, questions: result.questions.map((y, j) => (j === i ? { ...y, shown: true } : y)) })}
-                >
-                  Show answer
-                </button>
-              )}
-            </li>
-          ))}
-        </ol>
-      );
+      return material ? (
+        <QuizView
+          className={box}
+          questions={result.questions}
+          onChange={(questions) => onChange({ ...result, questions })}
+          material={material}
+          katex={katex}
+        />
+      ) : null;
     case "tasks":
       if (result.tasks.length === 0) return <p className="py-6 text-sm text-ink-3">No tasks were found in this note.</p>;
       return (

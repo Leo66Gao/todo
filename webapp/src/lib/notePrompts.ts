@@ -18,7 +18,7 @@ export type Focus =
   | { kind: "section"; title: string; text: string }
   | { kind: "note" };
 
-export const MAX_NOTE = 24_000;
+export const MAX_NOTE = 40_000;
 
 const clip = (s: string, max = MAX_NOTE) => (s.length > max ? `${s.slice(0, max)}\n…(the rest of the note is cut off)` : s);
 
@@ -115,16 +115,17 @@ List the key terms a student must know from this note, most important first, at 
 }
 
 /** Practice questions that test understanding. */
-export function quizMessages(note: NoteContext): ChatMessage[] {
+export function quizMessages(note: NoteContext, count = 5): ChatMessage[] {
   return [
     systemPrompt(note),
     {
       role: "user",
       content: `${noteBlock(note)}
 
-Write 5 practice questions that test whether the student understands this note, the kind a teacher would put on a test. Reply as JSON: {"questions": [{"q": "...", "a": "..."}]}.
+Write ${count} practice questions that test whether the student understands this material, the kind a teacher would put on a test. Reply as JSON: {"questions": [{"q": "...", "a": "..."}]}.
 - Mix them: recall of a key fact or definition, explaining why or how, and (if the note has formulas or methods) applying one to a small example with numbers.
 - Each question stands on its own; don't ask about the note's wording.
+- Cover the important ideas across all of the material, not just the start.
 - Each answer: 1 to 3 sentences, correct, based on the note (with the working for calculations). Maths in $…$.`,
     },
   ];
@@ -179,6 +180,83 @@ Find the things the student has to do that this note mentions: homework, assignm
 - minutes: a realistic estimate.`,
     },
   ];
+}
+
+/** Marks the student's answer to a practice question. */
+export function checkAnswerMessages(note: NoteContext, question: string, modelAnswer: string, attempt: string): ChatMessage[] {
+  return [
+    systemPrompt(note),
+    {
+      role: "user",
+      content: `${noteBlock(note)}
+
+Mark the student's answer to this practice question, like a fair teacher.
+Question: ${question}
+Model answer: ${modelAnswer}
+Student's answer: ${attempt}
+
+Reply as JSON: {"verdict": "right" | "partly" | "wrong", "feedback": "..."}.
+- "right" if it gets the key point, even in other words or with small slips; "partly" if something important is missing or slightly off; "wrong" if the key point is wrong or missing.
+- feedback: one to three sentences, to the student ("you"). Say what's right, then exactly what's missing or wrong and the correct version. For a right answer, one short sentence is enough. Maths in $…$.`,
+    },
+  ];
+}
+
+/** One page to revise from, made from all of a subject's notes. */
+export function revisionSheetMessages(material: NoteContext, examDay: string | null): ChatMessage[] {
+  return [
+    systemPrompt(material),
+    {
+      role: "user",
+      content: `${noteBlock(material)}
+
+Make a one-page revision sheet for ${material.subject ? `the ${material.subject} exam` : "the exam"}${examDay ? ` on ${examDay}` : ""} from these notes. This is what the student reads the night before.
+- Use "## " headings for the main topics, in a sensible order (not necessarily the notes' order), and short "- " bullet points under them.
+- Keep exactly what's worth remembering: definitions, key facts, formulas (in $…$ or $$…$$), causes and effects, methods, common mistakes. Bold the key terms.
+- Merge repeats across notes. No filler, no "the notes cover". Nothing that isn't in the notes, except to fix a clear mistake.
+- Aim for at most about 500 words.
+- Headings are allowed here. Reply with only the sheet.`,
+    },
+  ];
+}
+
+/** A question answered from the notes most likely to cover it. */
+export function askNotesMessages(sources: { title: string; subject?: string; markdown: string }[], turns: { q: string; a: string }[], question: string): ChatMessage[] {
+  const library = sources
+    .map((n, i) => `<source id="${i + 1}" title="${n.title.replace(/"/g, "'") || "Untitled"}"${n.subject ? ` subject="${n.subject}"` : ""}>
+${n.markdown}
+</source>`)
+    .join("\n\n");
+  const system: ChatMessage = {
+    role: "system",
+    content: `You are a sharp, friendly study tutor built into a student's notes app. You answer questions from the student's own notes, given as numbered <source> blocks (the notes that best match the question).
+
+How to answer:
+- Start with the answer itself in the first sentence. Fit the length to the question; at most about 250 words unless asked for more.
+- Use the notes as the main source. If they don't cover it, answer from your own knowledge and say "(not in your notes)" once.
+- Write in the language of the question. No preamble, no closing offers.
+- Format with Markdown: **bold** key terms, "- " lists, $…$ and $$…$$ for maths.
+- On the very last line, write which sources you used, as "SOURCES: 2, 5" (or "SOURCES: none"). Nothing after it.`,
+  };
+  const first = `<notes>\n${library || "(no notes match)"}\n</notes>`;
+  const messages: ChatMessage[] = [system];
+  turns.forEach((t, i) => {
+    messages.push({ role: "user", content: i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q });
+    messages.push({ role: "assistant", content: t.a });
+  });
+  messages.push({ role: "user", content: turns.length === 0 ? `${first}\n\nQuestion: ${question}` : question });
+  return messages;
+}
+
+/** Splits "SOURCES: 1, 3" off the end of an answer (also while it's still streaming in). */
+export function splitSources(text: string): { text: string; sources: number[] } {
+  const m = text.match(/(?:^|\n)\s*SOURCES?:[^\n]*$/);
+  if (!m) {
+    // A half-written "SOURC…" at the very end shouldn't flash up either.
+    return { text: text.replace(/\n\s*S(?:O(?:U(?:R(?:C(?:E(?:S)?)?)?)?)?)?$/, "").trimEnd(), sources: [] };
+  }
+  const sources = [...m[0].matchAll(/\d+/g)].map((x) => Number(x[0]));
+  return { text: text.slice(0, m.index).trimEnd(), sources };
 }
 
 /** Strips a code fence or a stray label the model sometimes wraps text in. */

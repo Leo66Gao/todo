@@ -6,6 +6,7 @@ import {
   BookOpen,
   CalendarClock,
   ChevronLeft,
+  CircleHelp,
   Code2,
   FilePlus2,
   File as FileGlyph,
@@ -18,11 +19,13 @@ import {
   Play,
   Plus,
   Presentation,
+  ScrollText,
   Search,
   Sheet,
   type LucideIcon,
 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
+import { studySubject } from "@/features/ai/StudyAi";
 import { plainText } from "@/lib/delta";
 import type { Material, Project, StudyNote } from "@/lib/model";
 import { uuid } from "@/lib/model";
@@ -405,6 +408,7 @@ function PinnedCard({ note, color }: { note: StudyNote; color: string }) {
 function ExamPanel({ project, color }: { project: Project; color: string }) {
   const [picking, setPicking] = useState(false);
   const tasks = useWorkspace((s) => s.tasks);
+  const hasNotes = useWorkspace((s) => s.notes.some((n) => n.subjectId === project.id && n.content.trim() !== ""));
   const exam = examDay(project);
   const days = examIn(project);
   const plan = useMemo(() => (exam && days != null && days > 0 ? reviewDays(project, tasks) : []), [project, tasks, exam, days]);
@@ -493,6 +497,16 @@ function ExamPanel({ project, color }: { project: Project; color: string }) {
         <Button variant="secondary" size="sm" className="mt-3 w-full" icon={<Plus className="size-3.5" />} onClick={add}>
           Plan {pluralize(plan.length, "review session")}
         </Button>
+      )}
+      {!past && hasNotes && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Button variant="secondary" size="sm" icon={<ScrollText className="size-3.5" />} onClick={() => studySubject(project.id, "sheet")}>
+            Revision sheet
+          </Button>
+          <Button variant="secondary" size="sm" icon={<CircleHelp className="size-3.5" />} onClick={() => studySubject(project.id, "quiz")}>
+            Quiz me
+          </Button>
+        </div>
       )}
     </section>
   );

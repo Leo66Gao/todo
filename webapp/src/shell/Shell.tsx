@@ -26,6 +26,7 @@ import { TaskEditorHost } from "@/features/tasks/TaskEditor";
 import { InspectorPanel, InspectorSheet } from "@/features/tasks/Inspector";
 import { EventSheet } from "@/features/events/EventSheet";
 import { CommandPalette } from "@/features/command/CommandPalette";
+import { AskNotesDialog, SubjectStudyDialog } from "@/features/ai/StudyAi";
 import { ShortcutsSheet } from "@/features/command/ShortcutsSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
 import { TodayView } from "@/features/today/TodayView";
@@ -125,6 +126,8 @@ export function Shell() {
         <Workspace />
         <TaskEditorHost />
         <CommandPalette />
+        <AskNotesDialog />
+        <SubjectStudyDialog />
         <ShortcutsSheet />
         <NameColorHost />
         <AskHost />
