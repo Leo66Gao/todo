@@ -23,3 +23,25 @@ export async function photoDataUrl(file: File): Promise<string> {
   bitmap.close();
   return canvas.toDataURL("image/jpeg", 0.85);
 }
+
+/** At most this many photos go in one request. */
+export const MAX_PHOTOS = 6;
+
+/** Opens the photo picker (on a phone: camera or gallery); resolves with what was chosen, or nothing. */
+export function choosePhotos(multiple = true): Promise<File[]> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.multiple = multiple;
+    input.style.display = "none";
+    const done = (files: File[]) => {
+      input.remove();
+      resolve(files.slice(0, MAX_PHOTOS));
+    };
+    input.addEventListener("change", () => done(Array.from(input.files ?? [])), { once: true });
+    input.addEventListener("cancel", () => done([]), { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+}

@@ -45,7 +45,7 @@ function focusBlock(focus: Focus) {
 }
 
 /** A question about the note, with the conversation so far. */
-export function askMessages(note: NoteContext, focus: Focus, turns: { q: string; a: string }[], question: string): ChatMessage[] {
+export function askMessages(note: NoteContext, focus: Focus, turns: AskTurn[], question: string, images?: string[]): ChatMessage[] {
   const about =
     focus.kind === "selection"
       ? "The question is about the selected part; use the rest of the note as context."
@@ -56,15 +56,23 @@ export function askMessages(note: NoteContext, focus: Focus, turns: { q: string;
 - Start with the answer itself in the first sentence, then support it.
 - Fit the length to the question: a quick fact gets one or two sentences; "why", "how" or "explain" gets a short explanation with an example or a worked step; at most about 200 words unless they ask for more.
 - If the note doesn't cover it, answer from your own knowledge and say "(not in your note)" once.
-- Don't summarise the note or the section.`;
+- Don't summarise the note or the section.
+- If the student attaches a photo (a problem, a diagram, a page), work from it: for a problem, solve it step by step and explain each step, using the note's methods where they apply.`;
   const first = [noteBlock(note), focusBlock(focus), rules].filter(Boolean).join("\n\n");
   const messages: ChatMessage[] = [systemPrompt(note)];
   turns.forEach((t, i) => {
-    messages.push({ role: "user", content: i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q });
+    messages.push({ role: "user", content: withImages(i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q, t.images) });
     messages.push({ role: "assistant", content: t.a });
   });
-  messages.push({ role: "user", content: turns.length === 0 ? `${first}\n\nQuestion: ${question}` : question });
+  messages.push({ role: "user", content: withImages(turns.length === 0 ? `${first}\n\nQuestion: ${question}` : question, images) });
   return messages;
+}
+
+/** A question and its answer, with any photos attached to the question. */
+export interface AskTurn {
+  q: string;
+  a: string;
+  images?: string[];
 }
 
 /** Explains the selected part as a tutor would. */
@@ -221,7 +229,7 @@ Make a one-page revision sheet for ${material.subject ? `the ${material.subject}
 }
 
 /** A question answered from the notes most likely to cover it. */
-export function askNotesMessages(sources: { title: string; subject?: string; markdown: string }[], turns: { q: string; a: string }[], question: string): ChatMessage[] {
+export function askNotesMessages(sources: { title: string; subject?: string; markdown: string }[], turns: AskTurn[], question: string, images?: string[]): ChatMessage[] {
   const library = sources
     .map((n, i) => `<source id="${i + 1}" title="${n.title.replace(/"/g, "'") || "Untitled"}"${n.subject ? ` subject="${n.subject}"` : ""}>
 ${n.markdown}
@@ -236,15 +244,16 @@ How to answer:
 - Use the notes as the main source. If they don't cover it, answer from your own knowledge and say "(not in your notes)" once.
 - Write in the language of the question. No preamble, no closing offers.
 - Format with Markdown: **bold** key terms, "- " lists, $…$ and $$…$$ for maths.
+- If the student attaches a photo (a problem, a diagram, a page), work from it: for a problem, solve it step by step and explain each step, using the methods in their notes where they apply.
 - On the very last line, write which sources you used, as "SOURCES: 2, 5" (or "SOURCES: none"). Nothing after it.`,
   };
   const first = `<notes>\n${library || "(no notes match)"}\n</notes>`;
   const messages: ChatMessage[] = [system];
   turns.forEach((t, i) => {
-    messages.push({ role: "user", content: i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q });
+    messages.push({ role: "user", content: withImages(i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q, t.images) });
     messages.push({ role: "assistant", content: t.a });
   });
-  messages.push({ role: "user", content: turns.length === 0 ? `${first}\n\nQuestion: ${question}` : question });
+  messages.push({ role: "user", content: withImages(turns.length === 0 ? `${first}\n\nQuestion: ${question}` : question, images) });
   return messages;
 }
 
@@ -257,6 +266,39 @@ export function splitSources(text: string): { text: string; sources: number[] } 
   }
   const sources = [...m[0].matchAll(/\d+/g)].map((x) => Number(x[0]));
   return { text: text.slice(0, m.index).trimEnd(), sources };
+}
+
+/** The question's text with its photos, as one message. */
+export function withImages(text: string, images?: string[]): ChatMessage["content"] {
+  if (!images?.length) return text;
+  return [{ type: "text", text }, ...images.map((url) => ({ type: "image_url" as const, image_url: { url } }))];
+}
+
+/**
+ * Photos of study material (a textbook page, a whiteboard, handwritten
+ * notes) written up as a note. With [into], the text is added to that note
+ * instead, so it fits in and skips the title.
+ */
+export function photoNoteMessages(images: string[], opts: { subject?: string; into?: NoteContext }): ChatMessage[] {
+  const many = images.length > 1;
+  const rules = `Turn ${many ? `these ${images.length} photos (in order, as one continuous piece)` : "this photo"} of study material into clean study notes in Markdown.
+- Read everything carefully, including handwriting and text at an angle. Keep all of the content: this is a write-up, not a summary. If a word can't be read, write [?].
+- Structure it: "## " headings for sections, "- " lists, numbered lists for steps, **bold** for key terms and definitions.
+- Formulas and equations in LaTeX: $…$ inline, $$…$$ on their own line. Tables become lists ("- **Column**: value").
+- For a diagram or graph, write one short line in italics saying what it shows and its labels.
+- Leave out page numbers, running headers, exercise numbering noise and anything that isn't content.
+- Write in the language of the page.
+${opts.into ? "- This is being added to the student's note shown above: no title, don't repeat what's already in it." : `- Start with a short title for the note on the first line as "# Title"${opts.subject ? ` (the subject is ${opts.subject})` : ""}.`}
+Reply with only the notes.`;
+  return [
+    {
+      role: "system",
+      content: "You turn photos of a secondary-school student's study material into accurate, well-organised notes for their notes app.",
+    },
+    { role: "user", content: withImages(opts.into ? `${noteBlock(opts.into)}
+
+${rules}` : rules, images) },
+  ];
 }
 
 /** Strips a code fence or a stray label the model sometimes wraps text in. */

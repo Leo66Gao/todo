@@ -76,6 +76,13 @@ async function send(messages: ChatMessage[], mode: AiMode, extra: Record<string,
     if ((error as Error).name === "AbortError") throw error;
     throw new AiError("DeepSeek couldn’t be reached. Check your connection.");
   }
+  // DeepSeek doesn't say whether reasoning or JSON mode work with pictures:
+  // if a request with a picture is refused, ask again plainly.
+  if (response.status === 400 && hasImage(messages) && (mode === "think" || "response_format" in extra)) {
+    const { response_format: _json, ...plain } = extra;
+    void _json;
+    return send(messages, "fast", plain, signal);
+  }
   if (response.status === 401) throw new AiError("DeepSeek didn’t accept the API key. Check it in Settings.");
   if (response.status === 402) throw new AiError("Your DeepSeek balance has run out. Top it up on the DeepSeek platform.");
   if (response.status === 429) throw new AiError("DeepSeek is busy right now. Try again in a moment.");

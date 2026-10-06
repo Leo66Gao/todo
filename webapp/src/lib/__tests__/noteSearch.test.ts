@@ -36,3 +36,17 @@ it("splits the sources line off an answer, also mid-stream", () => {
   expect(splitSources("Enzymes are catalysts.\nSOU")).toEqual({ text: "Enzymes are catalysts.", sources: [] });
   expect(splitSources("Sources of energy:\n- sun")).toEqual({ text: "Sources of energy:\n- sun", sources: [] });
 });
+
+it("sends photos with the question and writes them up as a note", async () => {
+  const { askNotesMessages, photoNoteMessages } = await import("@/lib/notePrompts");
+  const { splitTitle } = await import("@/features/ai/PhotoNote");
+  const ask = askNotesMessages([], [], "solve it", ["data:image/jpeg;base64,A"]);
+  expect(ask.at(-1)!.content).toEqual([
+    { type: "text", text: expect.stringContaining("Question: solve it") },
+    { type: "image_url", image_url: { url: "data:image/jpeg;base64,A" } },
+  ]);
+  const into = photoNoteMessages(["data:image/jpeg;base64,A"], { into: { title: "Waves", markdown: "# Waves" } });
+  expect((into[1].content as { text: string }[])[0].text).toContain("no title");
+  expect(splitTitle("# **Cell biology**\n## Organelles\n- nucleus")).toEqual({ title: "Cell biology", body: "## Organelles\n- nucleus" });
+  expect(splitTitle("No heading here")).toEqual({ title: "", body: "No heading here" });
+});

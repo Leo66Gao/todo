@@ -27,6 +27,7 @@ import { InspectorPanel, InspectorSheet } from "@/features/tasks/Inspector";
 import { EventSheet } from "@/features/events/EventSheet";
 import { CommandPalette } from "@/features/command/CommandPalette";
 import { AskNotesDialog, SubjectStudyDialog } from "@/features/ai/StudyAi";
+import { PhotoNoteDialog } from "@/features/ai/PhotoNote";
 import { ShortcutsSheet } from "@/features/command/ShortcutsSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
 import { TodayView } from "@/features/today/TodayView";
@@ -128,6 +129,7 @@ export function Shell() {
         <CommandPalette />
         <AskNotesDialog />
         <SubjectStudyDialog />
+        <PhotoNoteDialog />
         <ShortcutsSheet />
         <NameColorHost />
         <AskHost />

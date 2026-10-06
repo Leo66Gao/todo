@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { BookMarked, ChevronDown, FileUp, NotebookPen, Plus, Search } from "lucide-react";
+import { BookMarked, Camera, ChevronDown, FileUp, NotebookPen, Plus, Search } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { plainText } from "@/lib/delta";
 import { useNavigate } from "@/shell/nav";
@@ -14,6 +14,7 @@ import { Menu, Tooltip } from "@/ui/overlay";
 import { openSources } from "@/features/sources/library";
 import { createNote, importNote, noteGroup, pinnedFirst } from "./noteActions";
 import { NoteRow } from "./NoteRow";
+import { noteFromPhotos } from "@/features/ai/PhotoNote";
 
 export function NotesView() {
   const navigate = useNavigate();
@@ -64,6 +65,11 @@ export function NotesView() {
             <Tooltip label="Sources">
               <IconButton label="Sources" onClick={() => openSources()}>
                 <BookMarked className="size-4" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip label="Note from a photo">
+              <IconButton label="Note from a photo" onClick={() => void noteFromPhotos(navigate, { subjectId: subject?.id ?? null })}>
+                <Camera className="size-4" />
               </IconButton>
             </Tooltip>
             <Tooltip label="Import a Word document">

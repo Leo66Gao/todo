@@ -5,11 +5,13 @@
 // can answer and have checked.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ArrowUp, Check, CircleAlert, X } from "lucide-react";
+import { ArrowUp, Camera, Check, CircleAlert, X } from "lucide-react";
 import { AiError, chatJson } from "@/lib/ai";
 import { deltaToHtml } from "@/lib/deltaHtml";
 import { markdownToDelta } from "@/lib/markdownPaste";
 import { checkAnswerMessages, type NoteContext } from "@/lib/notePrompts";
+import { choosePhotos, photoDataUrl } from "@/lib/photoData";
+import { toast } from "@/ui/toast";
 import { cn } from "@/ui/cn";
 import { Button, IconButton, Spinner } from "@/ui/controls";
 
@@ -35,9 +37,37 @@ export function Markdown({ text, katex, className }: { text: string; katex: Kate
   return <div className={cn("doc-preview", className)} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+/** What's asked when only a photo is sent. */
+export const PHOTO_QUESTION = "Help me with this.";
+
+/** Photos waiting to go with the next question. */
+export function usePhotoAttachments(max = 4) {
+  const [images, setImages] = useState<string[]>([]);
+  const attach = async () => {
+    const files = await choosePhotos();
+    if (!files.length) return;
+    try {
+      const urls = await Promise.all(files.map(photoDataUrl));
+      setImages((prev) => [...prev, ...urls].slice(0, max));
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  return {
+    images,
+    attach,
+    remove: (i: number) => setImages((prev) => prev.filter((_, j) => j !== i)),
+    clear: () => setImages([]),
+    /** Puts a photo back (its question failed to send). */
+    restore: (url: string) => setImages((prev) => (prev.includes(url) ? prev : [...prev, url])),
+  };
+}
+
 export interface Turn {
   q: string;
   a: string;
+  /** Photos sent with the question. */
+  images?: string[];
 }
 
 /** A conversation: questions, answers as they stream in, and the box for the next question. */
@@ -53,6 +83,9 @@ export function ChatPanel({
   placeholder,
   before,
   after,
+  images,
+  onAttach,
+  onRemoveImage,
 }: {
   turns: Turn[];
   busy: boolean;
@@ -67,7 +100,13 @@ export function ChatPanel({
   before?: ReactNode;
   /** Shown under an answer once it's complete (its sources). */
   after?: (turn: Turn, index: number) => ReactNode;
+  /** Photos waiting to go with the next question. */
+  images?: string[];
+  /** Offers to add a photo (a problem, a diagram, a page). */
+  onAttach?: () => Promise<void>;
+  onRemoveImage?: (index: number) => void;
 }) {
+  const canSend = (!!draft.trim() || !!images?.length) && !busy;
   return (
     <div className="flex min-h-0 flex-col">
       {turns.length === 0 && before}
@@ -77,7 +116,15 @@ export function ChatPanel({
             const streaming = busy && i === turns.length - 1;
             return (
               <div key={i} className="space-y-2">
-                <p className="ml-auto w-fit max-w-[85%] rounded-[14px] bg-fill-strong px-3 py-1.5 text-[15px] leading-snug whitespace-pre-wrap">{t.q}</p>
+                {t.images?.length ? (
+                  <div className="ml-auto flex w-fit max-w-[85%] flex-wrap justify-end gap-1.5">
+                    {t.images.map((url, j) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={j} src={url} alt="" className="h-20 w-auto rounded-[10px] border border-line object-cover" />
+                    ))}
+                  </div>
+                ) : null}
+                {t.q && <p className="ml-auto w-fit max-w-[85%] rounded-[14px] bg-fill-strong px-3 py-1.5 text-[15px] leading-snug whitespace-pre-wrap">{t.q}</p>}
                 {t.a ? (
                   <Markdown text={t.a} katex={katex} className="text-[15px]" />
                 ) : (
@@ -94,13 +141,45 @@ export function ChatPanel({
           })}
         </div>
       )}
+      {images && images.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {images.map((url, i) => (
+            <div key={i} className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" className="h-14 w-auto rounded-[8px] border border-line object-cover" />
+              <button
+                type="button"
+                aria-label="Remove photo"
+                onClick={() => onRemoveImage?.(i)}
+                className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-on-ink"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <form
-        className="mt-3 flex items-end gap-2 rounded-[14px] border border-line-strong bg-card py-1.5 pr-1.5 pl-3 focus-within:border-accent"
+        className={cn(
+          "mt-3 flex items-end gap-1.5 rounded-[14px] border border-line-strong bg-card py-1.5 pr-1.5 focus-within:border-accent",
+          onAttach ? "pl-1.5" : "pl-3",
+        )}
         onSubmit={(e) => {
           e.preventDefault();
           onAsk();
         }}
       >
+        {onAttach && (
+          <IconButton
+            label="Add a photo"
+            disabled={busy}
+            className="rounded-full"
+            // Back to the question box afterwards, so Enter sends rather than picking again.
+            onClick={() => void onAttach().then(() => input.current?.focus())}
+          >
+            <Camera className="size-4" />
+          </IconButton>
+        )}
         <textarea
           ref={input}
           value={draft}
@@ -112,10 +191,10 @@ export function ChatPanel({
               onAsk();
             }
           }}
-          placeholder={turns.length ? "Ask a follow-up…" : placeholder}
+          placeholder={images?.length ? "Ask about the photo…" : turns.length ? "Ask a follow-up…" : placeholder}
           className="field-sizing-content max-h-32 min-h-[30px] flex-1 resize-none bg-transparent py-1 text-[15px] leading-snug outline-none placeholder:text-ink-4"
         />
-        <IconButton label="Ask" type="submit" disabled={!draft.trim() || busy} className="rounded-full bg-accent text-white hover:bg-accent hover:text-white active:bg-accent">
+        <IconButton label="Ask" type="submit" disabled={!canSend} className="rounded-full bg-accent text-white hover:bg-accent hover:text-white active:bg-accent">
           <ArrowUp className="size-4" />
         </IconButton>
       </form>

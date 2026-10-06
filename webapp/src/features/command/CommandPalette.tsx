@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import {
   BookOpen,
   CalendarDays,
+  Camera,
   Columns3,
   CornerDownLeft,
   FileText,
@@ -33,6 +34,7 @@ import { materialMatches } from "@/features/subjects/materials";
 import { canLinkFiles, copyPath, openFile } from "@/features/subjects/localFiles";
 import { useWorkspace } from "@/store/workspace";
 import { askNotes } from "@/features/ai/StudyAi";
+import { noteFromPhotos } from "@/features/ai/PhotoNote";
 import { useAiKey } from "@/lib/ai";
 import { Kbd } from "@/ui/controls";
 import { springs } from "@/ui/motion";
@@ -191,6 +193,7 @@ function Palette() {
       { id: "a:new", group: "Actions", title: "New task", hint: "N", icon: <Plus />, run: () => { close(); ui.newTask({}); } },
       { id: "a:assignment", group: "Actions", title: "New assignment", icon: <GraduationCap />, run: () => { close(); ui.newTask({ type: "assignment", durationMinutes: 120 }); } },
       { id: "a:note", group: "Actions", title: "New note", icon: <FileText />, run: () => { close(); createNote(navigate); } },
+      { id: "a:photo-note", group: "Actions", title: "Note from a photo", icon: <Camera />, run: () => { close(); void noteFromPhotos(navigate); } },
       { id: "a:subject", group: "Actions", title: "New subject", icon: <BookOpen />, run: () => { close(); void createSubject(); } },
       {
         id: "a:theme",

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type QuillType from "quill";
 import { format } from "date-fns";
-import { BookOpen, RotateCcw, CircleHelp, Lightbulb, ListChecks, MessageCircle, PenLine, Sparkles, SpellCheck, Wand2 } from "lucide-react";
+import { BookOpen, Camera, RotateCcw, CircleHelp, Lightbulb, ListChecks, MessageCircle, PenLine, Sparkles, SpellCheck, Wand2 } from "lucide-react";
 import { AiError, chatJson, chatStream, useAiKey, type AiMode, type ChatMessage } from "@/lib/ai";
 import type { DeltaOp } from "@/lib/delta";
 import { markdownToDelta } from "@/lib/markdownPaste";
@@ -15,6 +15,7 @@ import {
   continueMessages,
   editMessages,
   explainMessages,
+  photoNoteMessages,
   quizMessages,
   summaryMessages,
   tasksMessages,
@@ -30,7 +31,8 @@ import { Button, IconButton, Spinner } from "@/ui/controls";
 import { Menu, Modal, type MenuItem } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { TaskCheck } from "@/features/tasks/TaskCheck";
-import { ChatPanel, Markdown, QuizView, readQuestions, useKatex, type Katex, type QuizQuestion } from "@/features/ai/AiViews";
+import { ChatPanel, Markdown, PHOTO_QUESTION, QuizView, readQuestions, useKatex, usePhotoAttachments, type Katex, type QuizQuestion } from "@/features/ai/AiViews";
+import { choosePhotos, photoDataUrl } from "@/lib/photoData";
 
 type Range = { index: number; length: number };
 
@@ -43,14 +45,14 @@ interface Snapshot {
   section: { title: string; text: string; end: number } | null;
 }
 
-type WriteVerb = "explain" | "continue" | "clearer" | "fix";
+type WriteVerb = "explain" | "continue" | "clearer" | "fix" | "photo";
 
 /** What came back, and how it can go into the note. */
 type Result =
   | { kind: "summary"; points: string[] }
   | { kind: "terms"; terms: { term: string; meaning: string }[] }
   | { kind: "quiz"; questions: QuizQuestion[] }
-  | { kind: "chat"; focus: Focus; options: Focus[]; turns: { q: string; a: string }[]; at: number; added?: number }
+  | { kind: "chat"; focus: Focus; options: Focus[]; turns: { q: string; a: string; images?: string[] }[]; at: number; added?: number }
   | { kind: "write"; verb: WriteVerb; text: string; range: Range | null; at: number }
   | { kind: "tasks"; tasks: { title: string; date: Date; minutes: number; include: boolean }[] };
 
@@ -62,7 +64,7 @@ const RESULT_LABEL: Record<Result["kind"], string> = {
   write: "",
   tasks: "Tasks found in the note",
 };
-const WRITE_LABEL: Record<WriteVerb, string> = { explain: "Explanation", continue: "Continued", clearer: "Rewritten", fix: "Corrected" };
+const WRITE_LABEL: Record<WriteVerb, string> = { explain: "Explanation", continue: "Continued", clearer: "Rewritten", fix: "Corrected", photo: "From your photo" };
 
 const opsLength = (ops: DeltaOp[]) => ops.reduce((n, op) => n + (typeof op.insert === "string" ? op.insert.length : 1), 0);
 
@@ -127,6 +129,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
   const [error, setError] = useState<string | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [draft, setDraft] = useState("");
+  const photos = usePhotoAttachments();
   /** The Ask conversation, kept while the note is open so it can be picked up again. */
   const [kept, setKept] = useState<Extract<Result, { kind: "chat" }> | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -171,13 +174,13 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     };
   };
 
-  const ready = (s: Snapshot | null): s is Snapshot => {
+  const ready = (s: Snapshot | null, needsText = true): s is Snapshot => {
     if (!hasKey) {
       toast("Add your DeepSeek API key in Settings to use the AI tools.", { label: "Settings", run: () => navigate({ view: "settings" }) });
       return false;
     }
     if (!s || !quill) return false;
-    if (s.plain.length < 20) {
+    if (needsText && s.plain.length < 20) {
       toast("Write a little more first.");
       return false;
     }
@@ -296,6 +299,25 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     void runWrite("continue", "Writing", continueMessages(s.note, before, after && lineEnd ? `\n${after}` : after), "fast", null, at);
   };
 
+  /** Photos of a page or the board, written up and added where the cursor is. */
+  const fromPhoto = async (s: Snapshot) => {
+    if (!quill) return;
+    const files = await choosePhotos();
+    if (!files.length) return;
+    const at = s.range ? s.range.index + s.range.length : quill.getLength() - 1;
+    const controller = start("Reading the photos");
+    setResult(null);
+    try {
+      const images = await Promise.all(files.map(photoDataUrl));
+      if (controller.signal.aborted) return;
+      setBusy(null);
+      void runWrite("photo", "Reading the photos", photoNoteMessages(images, { into: s.note }), "fast", null, at);
+    } catch (e) {
+      setBusy(null);
+      setError((e as Error).message);
+    }
+  };
+
   /** Opens the conversation: about the selection, the section the cursor is in, or the whole note. */
   const openAsk = (s: Snapshot) => {
     abort.current?.abort();
@@ -329,13 +351,21 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   const ask = async () => {
     const question = draft.trim();
-    if (!question || !snap || result?.kind !== "chat" || busy) return;
+    const images = photos.images;
+    if ((!question && !images.length) || !snap || result?.kind !== "chat" || busy) return;
     const chat = result;
     setDraft("");
+    photos.clear();
     setRetry(null);
     const controller = start("Thinking");
-    const messages = askMessages(snap.note, chat.focus, chat.turns, question);
-    setResult({ ...chat, turns: [...chat.turns, { q: question, a: "" }] });
+    const messages = askMessages(
+      snap.note,
+      chat.focus,
+      chat.turns.map((t) => ({ ...t, q: t.q || PHOTO_QUESTION })),
+      question || PHOTO_QUESTION,
+      images,
+    );
+    setResult({ ...chat, turns: [...chat.turns, { q: question, a: "", images }] });
     const setAnswer = (a: string) =>
       setResult((r) => (r?.kind === "chat" ? { ...r, turns: r.turns.map((t, i) => (i === r.turns.length - 1 ? { ...t, a } : t)) } : r));
     try {
@@ -352,6 +382,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
       // Take the question back so it can be asked again.
       setResult((r) => (r?.kind === "chat" ? { ...r, turns: r.turns.slice(0, -1) } : r));
       setDraft(question);
+      for (const url of images) photos.restore(url);
       failed(e);
     } finally {
       if (abort.current === controller) setBusy(null);
@@ -382,6 +413,19 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   const apply = (where: "top" | "end" | "here") => {
     if (!quill || !result) return;
+    // A note being read (not edited) has its editor locked, which also drops
+    // changes made for you: unlock it just while the answer goes in.
+    const locked = !quill.isEnabled();
+    if (locked) quill.enable(true);
+    try {
+      applyTo(quill, where);
+    } finally {
+      if (locked) quill.enable(false);
+    }
+  };
+
+  const applyTo = (quill: QuillType, where: "top" | "end" | "here") => {
+    if (!result) return;
     const end = () => lineAfter(quill, quill.getLength() - 1);
     switch (result.kind) {
       case "summary":
@@ -397,7 +441,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
         const last = result.turns[result.turns.length - 1];
         if (!last?.a) return;
         const at = lineAfter(quill, result.at);
-        insertLines(quill, `**${last.q}**\n${last.a}`, at);
+        insertLines(quill, last.q ? `**${last.q}**\n${last.a}` : last.a, at);
         // The next answer goes after this one.
         setResult({ ...result, at: quill.getSelection()?.index ?? at, added: result.turns.length });
         toast("Added to the note");
@@ -424,8 +468,8 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   // ---- The menu
 
-  const runTool = (tool: (s: Snapshot) => unknown) => {
-    if (ready(snap)) void tool(snap);
+  const runTool = (tool: (s: Snapshot) => unknown, needsText = true) => {
+    if (ready(snap, needsText)) void tool(snap);
   };
   const items: MenuItem[] = [
     {
@@ -452,6 +496,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     { label: "Key terms", icon: <BookOpen />, onSelect: () => runTool(keyTerms) },
     { label: "Quiz me", icon: <CircleHelp />, onSelect: () => runTool(quiz) },
     { label: "Continue writing", icon: <PenLine />, onSelect: () => runTool(continueWriting) },
+    { label: "Add from a photo…", icon: <Camera />, onSelect: () => runTool(fromPhoto, false) },
     { label: "Turn into tasks", icon: <ListChecks />, onSelect: () => runTool(toTasks) },
   ];
 
@@ -509,6 +554,9 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
               draft={draft}
               setDraft={setDraft}
               onAsk={() => void ask()}
+              images={photos.images}
+              onAttach={photos.attach}
+              onRemoveImage={photos.remove}
               placeholder={
                 result.focus.kind === "note"
                   ? "Ask anything about this note…"

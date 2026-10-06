@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { studySubject } from "@/features/ai/StudyAi";
+import { noteFromPhotos } from "@/features/ai/PhotoNote";
 import { plainText } from "@/lib/delta";
 import type { Material, Project, StudyNote } from "@/lib/model";
 import { uuid } from "@/lib/model";
@@ -161,6 +162,8 @@ export function SubjectView({ id }: { id: string }) {
                 </IconButton>
               }
               items={[
+                { label: "Note from a photo…", onSelect: () => void noteFromPhotos(navigate, { subjectId: id, folderId: folderId === "all" ? null : folderId }) },
+                { separator: true },
                 { label: "Edit name and colour…", onSelect: () => void editSubject(project) },
                 { label: "New folder…", onSelect: () => void newFolder() },
                 { separator: true },

@@ -22,7 +22,7 @@ import { Button, Spinner } from "@/ui/controls";
 import { Modal } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { examDay } from "@/features/subjects/exams";
-import { ChatPanel, Markdown, QuizView, readQuestions, useKatex, type QuizQuestion, type Turn } from "./AiViews";
+import { ChatPanel, Markdown, PHOTO_QUESTION, QuizView, readQuestions, useKatex, usePhotoAttachments, type QuizQuestion, type Turn } from "./AiViews";
 
 function needKey(navigate: ReturnType<typeof useNavigate>) {
   if (useAiKey.getState().key) return false;
@@ -65,6 +65,7 @@ function AskNotes() {
   const scroller = useRef<HTMLDivElement | null>(null);
   const input = useRef<HTMLTextAreaElement | null>(null);
   const lastQuestion = useRef("");
+  const photos = usePhotoAttachments();
   const katex = useKatex(true);
 
   useEffect(() => {
@@ -75,9 +76,11 @@ function AskNotes() {
 
   const ask = async (text = draft) => {
     const question = text.trim();
-    if (!question || busy || needKey(navigate)) return;
+    const images = photos.images;
+    if ((!question && !images.length) || busy || needKey(navigate)) return;
     lastQuestion.current = question;
     setDraft("");
+    photos.clear();
     setError(null);
     setBusy(true);
     const controller = new AbortController();
@@ -86,14 +89,15 @@ function AskNotes() {
     const picked = pickNotes(notes, subjectOf, [...turns.map((t) => t.q), question].join(" "));
     const messages = askNotesMessages(
       picked.map((p) => ({ title: p.note.title, subject: subjectOf(p.note.subjectId), markdown: p.markdown })),
-      turns.map((t) => ({ q: t.q, a: t.raw })),
-      question,
+      turns.map((t) => ({ q: t.q || PHOTO_QUESTION, a: t.raw, images: t.images })),
+      question || PHOTO_QUESTION,
+      images,
     );
     const history = turns;
     const show = (raw: string, done: boolean) => {
       const { text: a, sources } = splitSources(cleanText(raw));
       const used = done ? sources.map((n) => picked[n - 1]?.note).filter((n): n is StudyNote => !!n) : [];
-      setTurns([...history, { q: question, a, raw, notes: used.map((n) => ({ id: n.id, title: n.title || "Untitled note" })) }]);
+      setTurns([...history, { q: question, a, raw, images, notes: used.map((n) => ({ id: n.id, title: n.title || "Untitled note" })) }]);
     };
     show("", false);
     try {
@@ -103,6 +107,7 @@ function AskNotes() {
       if ((e as Error).name === "AbortError") return;
       setTurns(history);
       setDraft(question);
+      for (const url of images) photos.restore(url);
       setError(failure(e));
     } finally {
       if (abort.current === controller) setBusy(false);
@@ -146,6 +151,9 @@ function AskNotes() {
         draft={draft}
         setDraft={setDraft}
         onAsk={() => void ask()}
+        images={photos.images}
+        onAttach={photos.attach}
+        onRemoveImage={photos.remove}
         placeholder={notes.length ? "Ask anything about your notes…" : "You have no notes yet. Ask anyway…"}
         before={
           <p className="mt-2 text-sm text-ink-3">

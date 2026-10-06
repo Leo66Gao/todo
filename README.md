@@ -178,9 +178,17 @@ Beyond one note (`features/ai/StudyAi.tsx`):
   saved as a note) or practice questions, made from all of that subject's
   notes.
 
-Tasks from a photo send the photo itself to DeepSeek (`deepseek-flash` reads
-images, handwriting included), scaled down on the device first
-(`lib/photoData.ts`).
+Photos go to DeepSeek themselves (`deepseek-flash` reads images, handwriting
+included), scaled down on the device first (`lib/photoData.ts`):
+
+- **Tasks from a photo** of an assignment sheet or the board.
+- **Note from a photo** (`features/ai/PhotoNote.tsx`), from Notes, a subject's
+  menu or search: pages written up as a new note. In a note, "Add from a
+  photo…" adds them where the cursor is.
+- **Photos in Ask**: attach a problem or a diagram to a question.
+
+If DeepSeek refuses reasoning or JSON mode together with a picture, the
+request is retried plainly (`lib/ai.ts`).
 
 ## Private GitHub backup
 
