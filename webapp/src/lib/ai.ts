@@ -63,7 +63,7 @@ function body(messages: ChatMessage[], mode: AiMode, extra: Record<string, unkno
 async function send(messages: ChatMessage[], mode: AiMode, extra: Record<string, unknown>, signal?: AbortSignal) {
   const { key } = useAiKey.getState();
   if (!key) throw new AiError("Add your DeepSeek API key in Settings first.");
-  if (typeof navigator !== "undefined" && !navigator.onLine) throw new AiError("You’re offline. Try again when you’re connected.");
+  if (typeof navigator !== "undefined" && navigator.onLine === false) throw new AiError("You’re offline. Try again when you’re connected.");
   let response: Response;
   try {
     response = await fetch("https://api.deepseek.com/chat/completions", {
@@ -76,9 +76,9 @@ async function send(messages: ChatMessage[], mode: AiMode, extra: Record<string,
     if ((error as Error).name === "AbortError") throw error;
     throw new AiError("DeepSeek couldn’t be reached. Check your connection.");
   }
-  // DeepSeek doesn't say whether reasoning or JSON mode work with pictures:
-  // if a request with a picture is refused, ask again plainly.
-  if (response.status === 400 && hasImage(messages) && (mode === "think" || "response_format" in extra)) {
+  // DeepSeek doesn't say whether reasoning or JSON mode work together (or
+  // with pictures): if such a request is refused, ask again plainly.
+  if (response.status === 400 && (mode === "think" || "response_format" in extra)) {
     const { response_format: _json, ...plain } = extra;
     void _json;
     return send(messages, "fast", plain, signal);
@@ -93,15 +93,30 @@ async function send(messages: ChatMessage[], mode: AiMode, extra: Record<string,
 /** Asks for a JSON answer and parses it. */
 export async function chatJson<T>(messages: ChatMessage[], signal?: AbortSignal, mode: AiMode = "fast"): Promise<T> {
   const response = await send(messages, mode, { response_format: { type: "json_object" } }, signal);
-  const data = (await response.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
-  const content = data.choices?.[0]?.message?.content ?? "";
-  if (!content.trim() && data.choices?.[0]?.finish_reason === "length") {
+  const data = (await response.json().catch(() => null)) as { choices?: { message?: { content?: string }; finish_reason?: string }[] } | null;
+  const content = data?.choices?.[0]?.message?.content ?? "";
+  if (!content.trim() && data?.choices?.[0]?.finish_reason === "length") {
     throw new AiError("DeepSeek ran out of room before answering. Try again, or switch to Flash in Settings.");
   }
+  const json = readJson(content);
+  if (json === undefined) throw new AiError("DeepSeek’s answer couldn’t be read. Try again.");
+  return json as T;
+}
+
+/** The JSON in an answer: bare, in a code fence, or (asked again plainly) with words around it. */
+export function readJson(content: string): unknown {
+  const text = content.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
   try {
-    return JSON.parse(content.replace(/^```(?:json)?\s*|\s*```$/g, "")) as T;
+    return JSON.parse(text);
   } catch {
-    throw new AiError("DeepSeek’s answer couldn’t be read. Try again.");
+    const from = text.indexOf("{");
+    const to = text.lastIndexOf("}");
+    if (from < 0 || to <= from) return undefined;
+    try {
+      return JSON.parse(text.slice(from, to + 1));
+    } catch {
+      return undefined;
+    }
   }
 }
 
@@ -122,12 +137,7 @@ export async function chatStream(
   let buffer = "";
   let text = "";
   let finish: string | null = null;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+  const take = (lines: string[]) => {
     for (const line of lines) {
       const data = line.startsWith("data:") ? line.slice(5).trim() : "";
       if (!data || data === "[DONE]") continue;
@@ -145,7 +155,23 @@ export async function chatStream(
       }
       if (choice?.finish_reason) finish = choice.finish_reason;
     }
+  };
+  for (;;) {
+    let chunk: ReadableStreamReadResult<Uint8Array>;
+    try {
+      chunk = await reader.read();
+    } catch (error) {
+      if ((error as Error).name === "AbortError") throw error;
+      throw new AiError("The connection to DeepSeek dropped. Try again.");
+    }
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    take(lines);
   }
+  // The last line may come without a line break after it.
+  take([buffer + decoder.decode()]);
   if (!text.trim()) {
     throw new AiError(finish === "length" ? "DeepSeek ran out of room before answering. Try again." : "Nothing came back. Try again.");
   }

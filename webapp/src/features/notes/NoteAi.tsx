@@ -53,7 +53,7 @@ type Result =
   | { kind: "terms"; terms: { term: string; meaning: string }[] }
   | { kind: "quiz"; questions: QuizQuestion[] }
   | { kind: "chat"; focus: Focus; options: Focus[]; turns: { q: string; a: string; images?: string[] }[]; at: number; added?: number }
-  | { kind: "write"; verb: WriteVerb; text: string; range: Range | null; at: number }
+  | { kind: "write"; verb: WriteVerb; text: string; range: Range | null; at: number; original?: string }
   | { kind: "tasks"; tasks: { title: string; date: Date; minutes: number; include: boolean }[] };
 
 const RESULT_LABEL: Record<Result["kind"], string> = {
@@ -79,12 +79,18 @@ function lineAfter(quill: QuillType, index: number) {
   return last;
 }
 
-/** Markdown from the AI as rich text (lists, bold, formulas), as whole lines at [at]. */
-function insertLines(quill: QuillType, markdown: string, at: number) {
+/**
+ * Markdown from the AI as rich text (lists, bold, formulas), as whole lines
+ * at [at]. Returns the index of the inserted text's last line break; the
+ * cursor goes there unless [keepCursor].
+ */
+function insertLines(quill: QuillType, markdown: string, at: number, keepCursor = false) {
   const ops = markdownToDelta(markdown);
-  if (!ops.length) return;
+  if (!ops.length) return at;
   quill.updateContents([{ retain: at }, ...ops] as never, "user");
-  quill.setSelection(at + opsLength(ops) - 1, 0, "silent");
+  const end = at + opsLength(ops) - 1;
+  if (!keepCursor) quill.setSelection(end, 0, "silent");
+  return end;
 }
 
 /** Replaces the selection, keeping the line ending it stopped before (and that line's format). */
@@ -218,7 +224,8 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
   const runWrite = async (verb: WriteVerb, label: string, messages: ChatMessage[], mode: AiMode, range: Range | null, at: number) => {
     setRetry(() => () => void runWrite(verb, label, messages, mode, range, at));
     const controller = start(label);
-    setResult({ kind: "write", verb, text: "", range, at });
+    const original = range && quill ? quill.getText(range.index, range.length) : undefined;
+    setResult({ kind: "write", verb, text: "", range, at, original });
     try {
       const text = await chatStream(messages, {
         signal: controller.signal,
@@ -231,7 +238,8 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
       });
       setResult((r) => (r?.kind === "write" ? { ...r, text: cleanText(text) } : r));
     } catch (e) {
-      setResult(null);
+      // A newer request may have taken over: leave its result alone.
+      if (abort.current === controller) setResult(null);
       failed(e);
     } finally {
       if (abort.current === controller) setBusy(null);
@@ -305,6 +313,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     const files = await choosePhotos();
     if (!files.length) return;
     const at = s.range ? s.range.index + s.range.length : quill.getLength() - 1;
+    setRetry(null);
     const controller = start("Reading the photos");
     setResult(null);
     try {
@@ -313,6 +322,7 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
       setBusy(null);
       void runWrite("photo", "Reading the photos", photoNoteMessages(images, { into: s.note }), "fast", null, at);
     } catch (e) {
+      if (controller.signal.aborted) return;
       setBusy(null);
       setError((e as Error).message);
     }
@@ -325,8 +335,9 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     setBusy(null);
     setDraft("");
     // Pick a kept conversation up where it was (its answers go where they went before).
-    if (kept?.turns.length) {
-      setResult(kept);
+    // The note may have changed since: its answers now go where the cursor is.
+    if (kept?.turns.length && quill) {
+      setResult({ ...kept, at: s.range ? s.range.index + s.range.length : quill.getLength() - 1 });
       setTimeout(() => input.current?.focus(), 50);
     } else openFresh(s);
   };
@@ -379,6 +390,8 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
       });
       setAnswer(cleanText(text));
     } catch (e) {
+      // Closed while answering: nothing to take back.
+      if ((e as Error).name === "AbortError") return;
       // Take the question back so it can be asked again.
       setResult((r) => (r?.kind === "chat" ? { ...r, turns: r.turns.slice(0, -1) } : r));
       setDraft(question);
@@ -405,7 +418,12 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
 
   const close = () => {
     abort.current?.abort();
-    if (result?.kind === "chat" && result.turns.some((t) => t.a)) setKept({ ...result, turns: result.turns.filter((t) => t.a) });
+    if (result?.kind === "chat") {
+      // An answer still being written isn't kept.
+      const done = (busy ? result.turns.slice(0, -1) : result.turns).filter((t) => t.a);
+      setKept(done.length ? { ...result, turns: done } : null);
+    }
+    photos.clear();
     setBusy(null);
     setResult(null);
     setError(null);
@@ -440,16 +458,22 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
       case "chat": {
         const last = result.turns[result.turns.length - 1];
         if (!last?.a) return;
-        const at = lineAfter(quill, result.at);
-        insertLines(quill, last.q ? `**${last.q}**\n${last.a}` : last.a, at);
-        // The next answer goes after this one.
-        setResult({ ...result, at: quill.getSelection()?.index ?? at, added: result.turns.length });
+        const at = lineAfter(quill, Math.min(result.at, quill.getLength() - 1));
+        // The next answer goes after this one (the panel stays open, so the cursor stays put).
+        const end = insertLines(quill, last.q ? `**${last.q}**\n${last.a}` : last.a, at, true);
+        setResult({ ...result, at: end, added: result.turns.length });
         toast("Added to the note");
         return;
       }
       case "write":
         if (result.verb === "clearer" || result.verb === "fix") {
-          if (result.range) replaceRange(quill, result.range, result.text);
+          if (!result.range) break;
+          // The note changed meanwhile (on another device): don't replace the wrong text.
+          if (result.original != null && quill.getText(result.range.index, result.range.length) !== result.original) {
+            toast("The note changed since. Select the text again and retry.");
+            return;
+          }
+          replaceRange(quill, result.range, result.text);
         } else {
           insertLines(quill, result.text, lineAfter(quill, result.at));
         }

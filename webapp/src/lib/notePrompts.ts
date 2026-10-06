@@ -59,9 +59,21 @@ export function askMessages(note: NoteContext, focus: Focus, turns: AskTurn[], q
 - Don't summarise the note or the section.
 - If the student attaches a photo (a problem, a diagram, a page), work from it: for a problem, solve it step by step and explain each step, using the note's methods where they apply.`;
   const first = [noteBlock(note), focusBlock(focus), rules].filter(Boolean).join("\n\n");
-  const messages: ChatMessage[] = [systemPrompt(note)];
+  return [systemPrompt(note), ...conversation(first, turns, question, images)];
+}
+
+/**
+ * The conversation after the system prompt: [first] (the material and the
+ * rules) goes with the first question. Photos are sent again only with the
+ * latest question that had any, so a long chat doesn't upload every photo
+ * on each follow-up.
+ */
+function conversation(first: string, turns: AskTurn[], question: string, images?: string[]): ChatMessage[] {
+  const lastPhotos = images?.length ? -1 : turns.findLastIndex((t) => t.images?.length);
+  const messages: ChatMessage[] = [];
   turns.forEach((t, i) => {
-    messages.push({ role: "user", content: withImages(i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q, t.images) });
+    const text = i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q;
+    messages.push({ role: "user", content: i === lastPhotos ? withImages(text, t.images) : t.images?.length ? `${text}\n(The photo sent with this question was shown earlier.)` : text });
     messages.push({ role: "assistant", content: t.a });
   });
   messages.push({ role: "user", content: withImages(turns.length === 0 ? `${first}\n\nQuestion: ${question}` : question, images) });
@@ -248,23 +260,18 @@ How to answer:
 - On the very last line, write which sources you used, as "SOURCES: 2, 5" (or "SOURCES: none"). Nothing after it.`,
   };
   const first = `<notes>\n${library || "(no notes match)"}\n</notes>`;
-  const messages: ChatMessage[] = [system];
-  turns.forEach((t, i) => {
-    messages.push({ role: "user", content: withImages(i === 0 ? `${first}\n\nQuestion: ${t.q}` : t.q, t.images) });
-    messages.push({ role: "assistant", content: t.a });
-  });
-  messages.push({ role: "user", content: withImages(turns.length === 0 ? `${first}\n\nQuestion: ${question}` : question, images) });
-  return messages;
+  return [system, ...conversation(first, turns, question, images)];
 }
 
 /** Splits "SOURCES: 1, 3" off the end of an answer (also while it's still streaming in). */
 export function splitSources(text: string): { text: string; sources: number[] } {
-  const m = text.match(/(?:^|\n)\s*SOURCES?:[^\n]*$/);
+  // "SOURCES: 2, 5", also as "**Sources:** 2 and 5" or "SOURCES: none".
+  const m = text.match(/(?:^|\n)[ \t*_]*SOURCES?[ \t*_]*:[ \t*_]*((?:none|n\/a|[\d\s,;&.]|and)*)[ \t*_.]*$/i);
   if (!m) {
     // A half-written "SOURC…" at the very end shouldn't flash up either.
-    return { text: text.replace(/\n\s*S(?:O(?:U(?:R(?:C(?:E(?:S)?)?)?)?)?)?$/, "").trimEnd(), sources: [] };
+    return { text: text.replace(/\n[ \t*_]*S(?:O(?:U(?:R(?:C(?:E(?:S)?)?)?)?)?)?$/, "").trimEnd(), sources: [] };
   }
-  const sources = [...m[0].matchAll(/\d+/g)].map((x) => Number(x[0]));
+  const sources = [...new Set([...m[1].matchAll(/\d+/g)].map((x) => Number(x[0])))];
   return { text: text.slice(0, m.index).trimEnd(), sources };
 }
 

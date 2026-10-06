@@ -44,10 +44,15 @@ export const PHOTO_QUESTION = "Help me with this.";
 export function usePhotoAttachments(max = 4) {
   const [images, setImages] = useState<string[]>([]);
   const attach = async () => {
+    if (images.length >= max) {
+      toast(`Up to ${max} photos per question.`);
+      return;
+    }
     const files = await choosePhotos();
     if (!files.length) return;
     try {
       const urls = await Promise.all(files.map(photoDataUrl));
+      if (images.length + urls.length > max) toast(`Up to ${max} photos per question: the first ${max} are attached.`);
       setImages((prev) => [...prev, ...urls].slice(0, max));
     } catch (e) {
       toast((e as Error).message);
@@ -209,6 +214,8 @@ export interface QuizQuestion {
   attempt?: string;
   checking?: boolean;
   check?: { verdict: "right" | "partly" | "wrong"; feedback: string } | null;
+  /** Why the last check didn't come back. */
+  checkError?: string | null;
 }
 
 /** Reads the questions out of a JSON answer. */
@@ -256,14 +263,14 @@ export function QuizView({
   const check = async (i: number) => {
     const x = latestRef.current[i];
     const attempt = x.attempt?.trim();
-    if (!attempt) return;
-    update(i, { checking: true, check: null });
+    if (!attempt || x.checking) return;
+    update(i, { checking: true, check: null, checkError: null });
     try {
       const answer = await chatJson<{ verdict?: string; feedback?: string }>(checkAnswerMessages(material, x.q, x.a, attempt), undefined, "fast");
       const verdict = answer.verdict === "right" || answer.verdict === "partly" || answer.verdict === "wrong" ? answer.verdict : "partly";
       update(i, { checking: false, check: { verdict, feedback: (answer.feedback ?? "").trim() }, shown: true });
     } catch (e) {
-      update(i, { checking: false, check: { verdict: "partly", feedback: e instanceof AiError ? e.message : "Couldn’t check that. Try again." } });
+      update(i, { checking: false, checkError: e instanceof AiError ? e.message : "Couldn’t check that. Try again." });
     }
   };
 
@@ -298,6 +305,7 @@ export function QuizView({
               {x.check.feedback && <Markdown katex={katex} className="mt-0.5 text-ink-2" text={x.check.feedback} />}
             </div>
           )}
+          {x.checkError && <p className="mt-2 text-[14px] text-danger">{x.checkError}</p>}
           {x.shown && (
             <div className="mt-2 border-t border-line pt-2 text-[14px]">
               <span className="text-xs font-medium text-ink-3">Model answer</span>

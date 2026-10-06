@@ -187,8 +187,9 @@ included), scaled down on the device first (`lib/photoData.ts`):
   photo…" adds them where the cursor is.
 - **Photos in Ask**: attach a problem or a diagram to a question.
 
-If DeepSeek refuses reasoning or JSON mode together with a picture, the
-request is retried plainly (`lib/ai.ts`).
+If DeepSeek refuses a request with reasoning or JSON mode (with or without a
+picture), it is retried plainly (`lib/ai.ts`). In a conversation, photos are
+sent again only with the latest question that had any.
 
 ## Private GitHub backup
 
