@@ -156,6 +156,20 @@ Each recognised phrase shows as a chip that can be dismissed. Moving a timed
 task offers to shift the open tasks after it (the domino effect); completed
 tasks stay put, and the shift can be undone from its toast.
 
+## AI
+
+The AI tools use DeepSeek with the user's own API key, kept on the device only
+(`lib/ai.ts`). Quick jobs (rewrites, summaries, smart add) run with thinking
+off so they answer in a second or two. Questions, explanations, quizzes and
+planning think briefly first. Written answers stream in as they arrive.
+
+In a note (`features/notes/NoteAi.tsx`), the note goes to the model as
+Markdown, so headings, lists and formulas keep their shape
+(`lib/noteMarkdown.ts`). Ask opens a conversation with follow-ups, about the
+selection, the section the cursor is in, or the whole note. The prompts live
+in `lib/notePrompts.ts`. Answers come back as Markdown and go into the note as
+rich text.
+
 ## Private GitHub backup
 
 Future coding agents must follow `AGENTS.md`: review, test, commit and push each

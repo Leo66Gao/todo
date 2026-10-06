@@ -678,8 +678,8 @@ function AiSection() {
   };
   return (
     <Group
-      title="Planning help"
-      description="Suggests the steps of an assignment, dated back from its deadline. Uses your own DeepSeek API key, kept on this device only."
+      title="AI"
+      description="Ask about your notes, get them explained, summarised or turned into questions, add tasks from a sentence or a photo, and plan an assignment back from its deadline. Uses your own DeepSeek API key, kept on this device only."
     >
       {key ? (
         <Item title="DeepSeek API key" detail={`Saved on this device, ending ${key.slice(-4)}`}>
@@ -712,7 +712,7 @@ function AiSection() {
           </form>
         </Item>
       )}
-      <Item title="Model" detail="Flash is quick; Pro thinks longer.">
+      <Item title="Model" detail="Flash is quick and good for most things; Pro is slower and smarter.">
         <Segmented
           size="sm"
           value={model === "deepseek-v4-pro" ? "deepseek-v4-pro" : DEFAULT_MODEL}
