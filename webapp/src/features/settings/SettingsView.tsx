@@ -29,6 +29,7 @@ import {
 } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, Segmented, Slider, Spinner, Switch } from "@/ui/controls";
+import { isMacBrowser, setMacOpener, useMacOpener } from "@/features/subjects/localFiles";
 import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { isNative } from "@/lib/native";
@@ -66,6 +67,7 @@ export function SettingsView() {
           <CalendarSection />
           <RemindersSection />
           <AiSection />
+          <FilesSection />
           <Group title="Keyboard">
             <Item title="Keyboard shortcuts" detail="Press ? anywhere to see them.">
               <Button size="sm" onClick={() => ui.set({ shortcutsOpen: true })}>
@@ -722,6 +724,29 @@ function AiSection() {
             { value: "deepseek-v4-pro", label: "Pro" },
           ]}
         />
+      </Item>
+    </Group>
+  );
+}
+
+/** Opening materials' files straight from their path, with the Mac helper. */
+function FilesSection() {
+  const on = useMacOpener((s) => s.on);
+  if (!isMacBrowser()) return null;
+  return (
+    <Group
+      title="Files"
+      description="Materials can point to a file on this Mac by its path. A web page can’t open those itself, so Todo File Opener, a small helper app on this Mac, does it for Todo."
+    >
+      <Item
+        title="Open files on this Mac"
+        detail={
+          on
+            ? "Clicking a material’s file opens it in its own app, as double-clicking it in Finder would. The browser may ask to allow Todo File Opener the first time."
+            : "Needs Todo File Opener installed on this Mac (run webapp/mac-file-opener/install.sh). Until then, clicking a file copies its path."
+        }
+      >
+        <Switch checked={on} label="Open files on this Mac" onChange={setMacOpener} />
       </Item>
     </Group>
   );

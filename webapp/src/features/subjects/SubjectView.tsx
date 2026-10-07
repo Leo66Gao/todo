@@ -63,7 +63,7 @@ import {
   type MaterialKind,
 } from "./materials";
 import { examDay, examIn, planReviews, reviewDays, setExamDate, unplanReviews } from "./exams";
-import { canLinkFiles, closeFileViewer, copyPath, forgetFile, linkFile, loadLinkedFiles, openFile, useFileViewer, useLinkedFiles } from "./localFiles";
+import { canLinkFiles, closeFileViewer, copyPath, forgetFile, linkFile, loadLinkedFiles, openFile, openOnMac, useFileViewer, useLinkedFiles, useMacOpener } from "./localFiles";
 import { deleteSubject, editSubject } from "./subjectActions";
 
 /** How many open tasks show before "Show all" (fewer on phones, where rows are taller). */
@@ -579,6 +579,7 @@ function MaterialsPanel({ project }: { project: Project }) {
   const [find, setFind] = useState("");
   const shown = searching ? materials.filter((m) => materialMatches(m, find)) : materials;
   const linked = useLinkedFiles((s) => s.handles);
+  const macOpener = useMacOpener((s) => s.on);
   useEffect(() => void loadLinkedFiles(), []);
 
   const add = () => {
@@ -597,9 +598,16 @@ function MaterialsPanel({ project }: { project: Project }) {
     ...(m.url ? [{ label: "Open link", onSelect: () => openLink(m.url!) }, { label: "Copy link", onSelect: () => void copy(m.url!) }] : []),
     ...(m.path
       ? [
-          ...(canLinkFiles() ? [{ label: "Open file", onSelect: () => openFile(m) }] : []),
+          ...(macOpener
+            ? [
+                { label: "Open file", onSelect: () => openFile(m) },
+                { label: "Show in Finder", onSelect: () => openOnMac(m.path!, "reveal") },
+              ]
+            : canLinkFiles()
+              ? [{ label: "Open file", onSelect: () => openFile(m) }]
+              : []),
           { label: "Copy path", onSelect: () => void copyPath(m) },
-          ...(canLinkFiles()
+          ...(canLinkFiles() && !macOpener
             ? [
                 linked.has(m.id)
                   ? { label: "Forget the file on this computer", onSelect: () => forgetFile(m.id) }

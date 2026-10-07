@@ -1,17 +1,47 @@
 "use client";
 
 // Opening a material's file from the web app. A web page can't open
-// "/Users/…" by its path (browsers block file: links), so the file is picked
-// once on each computer: Chrome and Edge keep a handle to it here, in this
-// browser only, and later clicks open it. PDFs, pictures, text and video show
-// in a viewer in the app; other kinds are saved as a copy. Browsers without
-// file handles (Safari, Firefox, the Android app) copy the path instead, to
-// paste into Finder or Explorer.
+// "/Users/…" by its path (browsers block file: links), so:
+// - On a Mac with Todo File Opener installed (webapp/mac-file-opener) and
+//   turned on in Settings, the path goes to that helper, which opens the file
+//   in its own app, as double-clicking it in Finder would.
+// - Otherwise the file is picked once on each computer: Chrome and Edge keep
+//   a handle to it here, in this browser only, and later clicks open it. PDFs,
+//   pictures, text and video show in a viewer in the app; other kinds are
+//   saved as a copy.
+// - Browsers without file handles (Safari, Firefox, the Android app) copy the
+//   path instead, to paste into Finder or Explorer.
 
 import { create } from "zustand";
 import type { Material } from "@/lib/model";
+import { isNative } from "@/lib/native";
+import { getLocal, setLocal } from "@/lib/prefs";
+import { routeHref } from "@/shell/nav";
 import { toast } from "@/ui/toast";
 import { fileName } from "./materials";
+
+// ---------------------------------------------------------------------------
+// Todo File Opener (a Mac helper)
+
+const OPENER = "files.macOpener";
+
+/** A Mac browser (not the phone app), where the helper can be installed. */
+export const isMacBrowser = () => typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) && !isNative();
+
+/** Whether paths open with Todo File Opener on this computer (set in Settings). */
+export const useMacOpener = create<{ on: boolean }>(() => ({ on: typeof window !== "undefined" && isMacBrowser() && getLocal<boolean>(OPENER, false) }));
+
+export function setMacOpener(on: boolean) {
+  setLocal(OPENER, on);
+  useMacOpener.setState({ on });
+}
+
+/** Hands the path to Todo File Opener: open the file, or show it in Finder. */
+export function openOnMac(path: string, how: "open" | "reveal" = "open") {
+  const a = document.createElement("a");
+  a.href = `todo-open://${how}?path=${encodeURIComponent(path)}`;
+  a.click();
+}
 
 const DB = "todo-files";
 const STORE = "handles";
@@ -132,6 +162,10 @@ const VIEWABLE = /^(application\/pdf|image\/|text\/|video\/|audio\/)/;
 
 /** Opens the material's file: from its link on this computer, or by asking for it once. */
 export function openFile(material: Material) {
+  if (material.path && useMacOpener.getState().on) {
+    openOnMac(material.path);
+    return;
+  }
   if (!canLinkFiles()) {
     void copyPath(material);
     return;
@@ -177,7 +211,11 @@ export async function copyPath(material: Material) {
   try {
     await navigator.clipboard.writeText(material.path);
     const mac = /Mac/i.test(navigator.platform);
-    toast(mac ? "Path copied. In Finder, press ⇧⌘G and paste to open it." : "Path copied. Paste it into File Explorer’s address bar to open it.");
+    toast(
+      mac ? "Path copied. In Finder, press ⇧⌘G and paste to open it." : "Path copied. Paste it into File Explorer’s address bar to open it.",
+      // Opening it straight away needs the helper (Settings → Files).
+      isMacBrowser() && !useMacOpener.getState().on ? { label: "Open directly", run: () => window.history.pushState(null, "", routeHref({ view: "settings" })) } : undefined,
+    );
   } catch {
     toast("Couldn’t copy the path.");
   }

@@ -125,7 +125,12 @@ pinned note carries `pinnedAt` and sits at the top of note lists. A material
 can be a file path (`path`): Chrome and Edge open it once the file has been
 picked on that computer (the handle stays in that browser's IndexedDB, never
 synced), showing PDFs, pictures, text and video in the app; other browsers copy
-the path to paste into Finder or Explorer. Materials can be searched on the
+the path to paste into Finder or Explorer. On a Mac, Todo File Opener
+(`webapp/mac-file-opener`, installed with its `install.sh`) opens the file
+itself, in its own app, once Settings → Files → "Open files on this Mac" is on:
+the app hands it a `todo-open://open?path=…` link. It only opens documents and
+folders in the home folder or on external drives; anything else, such as an
+app or a script, is only shown in Finder. Materials can be searched on the
 subject (title, link, path or note) and from ⌘K. A subject can carry an exam
 day (`examDate`, "YYYY-MM-DD"): the subject shows a countdown and can add
 review sessions spread over the days before it, subject tiles show the
