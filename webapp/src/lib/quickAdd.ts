@@ -6,6 +6,9 @@ import type { Priority } from "./dart";
 import { addDays, startOfDay } from "./time";
 import { parseTimeToken, type ClockTime } from "./timeParse";
 
+/** Words a trailing number counts rather than tells the time of. */
+const COUNTED = /^(?:ch|chap|chapter|chapters|p|pg|pp|page|pages|unit|units|section|sec|q|qs|question|questions|lesson|ex|exercise|exercises|topic|part|problem|problems|set|week|lecture|lab|test|quiz|no|nr|module|level|grade|year|paper|essay|draft|kapitel|seite|luku|sivu|tehtävä|tehtävät)$/;
+
 export type TokenKind = "date" | "time" | "duration" | "subject" | "priority";
 
 export interface Token {
@@ -174,10 +177,12 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     result.time = time;
     take("time", s, e);
   });
-  // Like the phone app: a bare hour at the very end ("Gym 18").
+  // Like the phone app: a bare hour at the very end ("Gym 18"), but not a
+  // number that counts something ("Revise ch 3", "Exercise 12").
   if (!result.time && !ignored.has("time")) {
     const last = /\s(\d{1,2})\s*$/.exec(text);
-    if (last && free(last.index + 1, text.trimEnd().length)) {
+    const before = last ? (/(\S+)\s*$/.exec(text.slice(0, last.index))?.[1] ?? "").toLowerCase().replace(/[.:#]+$/, "") : "";
+    if (last && !COUNTED.test(before) && free(last.index + 1, text.trimEnd().length)) {
       const time = parseTimeToken(last[1]);
       if (time) {
         result.time = time;

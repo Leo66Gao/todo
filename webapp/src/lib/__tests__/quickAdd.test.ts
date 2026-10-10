@@ -48,6 +48,9 @@ it("leaves ordinary words alone", () => {
   expect(parse("SAT prep").date).toBeUndefined();
   expect(parse("May the force").date).toBeUndefined();
   expect(parse("Read chapter 12 of Macbeth")).toMatchObject({ title: "Read chapter 12 of Macbeth" });
+  expect(parse("Revise physics ch 3").time).toBeUndefined();
+  expect(parse("Maths exercise 12").time).toBeUndefined();
+  expect(parse("Gym 18").time).toEqual({ hour: 18, minute: 0 });
   expect(parse("Buy 2 notebooks").minutes).toBeUndefined();
   expect(parse("Mark answers").date).toBeUndefined();
 });
