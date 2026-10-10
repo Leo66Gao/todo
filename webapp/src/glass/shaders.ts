@@ -250,8 +250,8 @@ void main() { frag = vec4(texture(uSrc, gl_FragCoord.xy / uDst).rgb, 1.0); }`;
  * convex squircle bevel around the rounded rectangle; its normal refracts the
  * view ray (IOR 1.5) through the glass thickness, and the three colour
  * channels are refracted slightly differently (dispersion). The backdrop is
- * sampled sharp at the rim and increasingly frosted towards the centre, then
- * tinted. Light adds a Fresnel reflection of the surroundings, a soft glow
+ * sampled nearly sharp across the bevel, so the bending reads clearly, and
+ * frosted inside it, then tinted. Light adds a Fresnel reflection of the surroundings, a soft glow
  * and glint along the bevel facing the light, and — on the backdrop — a soft
  * shadow. The shape count is fixed per device from its uniform budget.
  */
@@ -378,13 +378,19 @@ void main() {
     vec4 T = uTint[i];
     vec4 O = uOptic[i];
     vec4 st = uState[i];
-    vec2 g = gradRoundBox(q, R.zw, S.x);
-    float depth = max(-d, 0.0);
+    // The bevel can be wider than the corner is round: its height follows a
+    // rounder outline, so the corners curve smoothly instead of mitring.
+    float fieldR = min(max(S.x, S.y), min(R.z, R.w));
+    vec2 g = gradRoundBox(q, R.zw, fieldR);
+    float depth = max(-sdRoundBox(q, R.zw, fieldR), 0.0);
     float t = clamp(depth / S.y, 0.0, 1.0);
     float u = 1.0 - t;
-    float u4 = u * u * u * u;
-    float prof = pow(1.0 - u4, 0.25);
-    float slopeRaw = u * u * u * pow(max(1.0 - u4, 1e-4), -0.75);
+    // A superellipse profile. Wide bevels (the big panels) are rounder, so the
+    // bending spreads across the edge instead of crowding into the last pixels.
+    float nE = S.y > 28.0 * uDpr ? 2.6 : 4.0;
+    float un = pow(u, nE);
+    float prof = pow(1.0 - un, 1.0 / nE);
+    float slopeRaw = pow(u, nE - 1.0) * pow(max(1.0 - un, 1e-4), 1.0 / nE - 1.0);
     // Saturate softly: a hard cap leaves a visible seam along the rim.
     float slope = slopeRaw / (1.0 + slopeRaw / 7.0);
     float recess = st.w > 0.5 ? -0.6 : 1.0;
@@ -402,19 +408,26 @@ void main() {
     // Never let the offset grow faster than the surface moves: past that the
     // image folds over itself and the rim breaks into streaks.
     float offLen = length(off);
-    // (At most 2.5x compression at the rim: enough to read as a lens.)
-    float fold = 0.6 * S.y * u + 0.5 * uDpr;
+    // (At most about 4x compression at the rim: a clear lens, short of folding.)
+    float fold = 0.76 * S.y * u + 0.5 * uDpr;
     if (offLen > fold) off *= fold / offLen;
+    // The big panels act as a lens that draws in what lies just beyond their
+    // edge, as Liquid Glass does; that side squeezes the image far less too.
+    if (nE < 3.0) off = -off;
     float disp = O.y * 1.45 * mix(0.55, 1.0, clamp(O.x * 2.0, 0.0, 1.0)) * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
+    // The bevel stays clear so the bending shows: frost, blur and the
+    // legibility band ease in across it and are full inside it.
+    float clearRim = smoothstep(0.0, 0.85, t);
     // Frost: a smooth, milky blur (like frosted acrylic), with no grain.
-    float fr = uExtra[i].w;
-    // Blur: a true radius that grows smoothly with the setting and fills the
-    // whole shape. Where the lens squeezes the image near the rim it softens
-    // a little more, so fine detail can't alias into stripes.
-    float radius = (pow(O.x, 1.4) * 44.0 + fr * 30.0) * uDpr + 9.0 * uDpr * u * u;
+    float fr = uExtra[i].w * mix(0.1, 1.0, clearRim);
+    // Blur: a true radius that grows smoothly with the setting. At the rim
+    // only a touch remains, where the lens squeezes the image, so fine detail
+    // can't alias into stripes.
+    float full = (pow(O.x, 1.4) * 44.0 + fr * 30.0) * uDpr;
+    float radius = mix(min(full, (1.2 + 2.4 * u) * uDpr), full, clearRim);
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
     // Vibrancy.
@@ -437,7 +450,8 @@ void main() {
     float fres = pow(1.0 - n.z, 2.2) * (0.55 + 0.45 * u);
     vec3 env = texture(uHeavy, (p + g * S.y * 2.5) / uRes).rgb;
     env = mix(vec3(dot(env, vec3(0.333))), env, 1.5) * (uDark > 0.5 ? 1.25 : 1.1) + 0.06;
-    base = mix(base, env, clamp(fres * 0.6, 0.0, 0.55));
+    // (Kept light, so the refracted backdrop still shows through at the rim.)
+    base = mix(base, env, clamp(fres * 0.4, 0.0, 0.3));
 
     // Shading across the bevel: lit side brighter, far side slightly deeper.
     float facing = dot(g, L2);
@@ -451,7 +465,7 @@ void main() {
     // (+ light, - dark); the size how firmly (it follows the frost setting).
     float legible = uExtra[i].x;
     if (legible != 0.0) {
-      float k = abs(legible);
+      float k = abs(legible) * mix(0.3, 1.0, clearRim);
       float bl = dot(base, vec3(0.299, 0.587, 0.114));
       if (legible > 0.0) {
         float lo = uDark > 0.5 ? 0.56 : 0.66;

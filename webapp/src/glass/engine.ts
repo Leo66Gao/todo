@@ -381,13 +381,14 @@ export class GlassEngine {
     switch (kind) {
       case "slab":
         return {
-          bezel: Math.min(radius, 26 * dpr),
-          height: 36 * dpr,
+          // A wide, deep bevel (wider than the corners are round) for a clear lens edge.
+          bezel: Math.min(34 * dpr, halfShort * 0.4),
+          height: 52 * dpr,
           tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.92] : [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold,
           blur: mix(0.04, 1, b),
           frosted: f,
-          dispersion: 0.12,
+          dispersion: 0.16,
           rim: 0.75,
           shadow: dark ? 0.32 : 0.14,
           shadowBlur: 34 * dpr,
@@ -395,13 +396,13 @@ export class GlassEngine {
       case "chrome":
         return {
           // Small chrome (the phone tab bar) gets a proportionally gentler lens.
-          bezel: Math.min(radius, 26 * dpr, halfShort * 0.55),
-          height: Math.min(42 * dpr, halfShort * 0.9),
+          bezel: Math.min(32 * dpr, halfShort * 0.55),
+          height: Math.min(52 * dpr, halfShort * 0.9),
           tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.88] : [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold * 0.9,
           blur: mix(0.03, 0.95, b),
           frosted: f * 0.9,
-          dispersion: 0.12,
+          dispersion: 0.16,
           rim: 1,
           shadow: dark ? 0.34 : 0.16,
           shadowBlur: 30 * dpr,
