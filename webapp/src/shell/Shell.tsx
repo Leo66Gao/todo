@@ -20,7 +20,7 @@ import { ChevronLeft, ChevronRight, Menu as MenuIcon } from "lucide-react";
 import type { Task } from "@/lib/model";
 import { restoreAppearance, useAppearance } from "@/lib/appearance";
 import { addDays, formatClock, relativeDay, sameDay, today } from "@/lib/time";
-import { moveTask, openTask, removeTask } from "@/features/tasks/actions";
+import { duplicateTask, moveTask, openTask, removeTask } from "@/features/tasks/actions";
 import { TaskDragPreview, type TaskDragData } from "@/features/tasks/TaskRow";
 import { TaskEditorHost } from "@/features/tasks/TaskEditor";
 import { InspectorPanel, InspectorSheet } from "@/features/tasks/Inspector";
@@ -60,6 +60,7 @@ import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
 import { haptic, hideSplash, startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
+import { startRepeats } from "@/store/repeat";
 import { startFocusBridge } from "@/lib/focus";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileTabBar } from "./MobileBar";
@@ -82,6 +83,7 @@ export function Shell() {
     restoreGlassPrefs();
     void startNative();
     startReminders();
+    startRepeats();
     startFocusBridge();
     startAssignmentImport();
     startOffline();
@@ -550,9 +552,18 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
       }
       if (isTyping(e.target) || e.defaultPrevented) return;
       if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+      const state = ui.get();
+      if (mod && !e.altKey && !e.shiftKey && (e.key === "d" || e.key === "D")) {
+        // ⌘D duplicates the selected task (instead of bookmarking the page).
+        const id = state.selectedId;
+        const task = id ? useWorkspace.getState().tasks.find((t) => t.id === id) : undefined;
+        if (!task || !(state.visibleOrder.includes(task.id) || state.inspectorId === task.id)) return;
+        e.preventDefault();
+        duplicateTask(task);
+        return;
+      }
       if (e.altKey || (mod && e.key !== "Enter")) return;
 
-      const state = ui.get();
       const all = useWorkspace.getState().tasks;
       // Keys only act on a selected task that is on screen right now.
       const selected =

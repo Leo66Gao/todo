@@ -161,6 +161,28 @@ Each recognised phrase shows as a chip that can be dismissed. Moving a timed
 task offers to shift the open tasks after it (the domino effect); completed
 tasks stay put, and the shift can be undone from its toast.
 
+## Repeating and duplicating tasks
+
+Repeat (in the task editor and the task panel) opens a calendar: tap the
+exact days ("this Sunday and every day next week", with quick buttons for the
+rest of this week, next week, its weekdays, or the next 7 or 14 days), or pick
+a rule (every day, weekdays, every week on chosen days, every N days, weeks,
+months or years, optionally until a date) and see its days light up. Tapping a
+day while a rule is shown turns it into picked days to adjust.
+
+A repeating task is a series of ordinary tasks, one per day (`lib/repeat.ts`,
+`store/repeat.ts`), so each shows in Today, Week and Calendar and can be done,
+moved or deleted on its own. The series is stored on each task in
+`extra.repeat` (`series`, `rev`, `rule`). A rule's tasks are made three weeks
+ahead and topped up daily, only past the series' last task, so deleted days
+stay deleted; top-ups use IDs made from the series, its revision and the day,
+so two devices write the same record. Editing a repeating task asks whether
+to change only it or it and the upcoming ones; "Delete this and upcoming" is
+in its menu.
+
+Duplicate (⌘D, the panel's copy button, or the task menu, which also has
+"Duplicate to" a day) copies a task as a one-off, open, after the original.
+
 ## AI
 
 The AI tools use DeepSeek with the user's own API key, kept on the device only

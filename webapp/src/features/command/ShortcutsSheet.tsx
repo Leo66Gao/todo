@@ -25,6 +25,7 @@ const GROUPS: { title: string; items: [string, string[]][] }[] = [
       ["Focus on selected task", ["F"]],
       ["Open selected task", ["↩"]],
       ["Edit selected task", ["⌘", "↩"]],
+      ["Duplicate selected task", ["⌘", "D"]],
       ["Delete selected task", ["⌫"]],
       ["Close details", ["esc"]],
     ],

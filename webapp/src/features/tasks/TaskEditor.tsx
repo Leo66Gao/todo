@@ -20,6 +20,9 @@ import { RichText } from "@/ui/RichText";
 import { springs } from "@/ui/motion";
 import { toast } from "@/ui/toast";
 import { useAllTasks } from "./meta";
+import { RepeatField } from "./RepeatField";
+import { dayString, readRepeat, type RepeatRule } from "@/lib/repeat";
+import { applyToUpcoming, changesShared, repeatSummary, setRepeat, upcomingOf } from "@/store/repeat";
 import {
   DateField,
   DifficultyField,
@@ -76,6 +79,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     existing?.projectId ?? defaults.projectId ?? null,
   );
   const [category, setCategory] = useState(existing?.category ?? defaults.category ?? "General");
+  const [repeat, setRepeatDraft] = useState<RepeatRule | null>(() => (existing ? (readRepeat(existing)?.rule ?? null) : null));
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Words in the title can set the other fields ("essay due fri 3pm 2h").
@@ -173,9 +177,18 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       category,
       extra: Object.keys(extra).length ? extra : undefined,
     };
+    // Picked days always include the task's own day.
+    const finalRepeat: RepeatRule | null =
+      repeat?.kind === "days" ? { kind: "days", days: [...new Set([...repeat.days, dayString(fields.date)])].sort() } : repeat;
     if (!existing) {
-      addTask(newTask({ ...defaults, ...fields, remainingMinutes: finalMinutes }));
+      const task = newTask({ ...defaults, ...fields, remainingMinutes: finalMinutes });
+      addTask(task);
       ui.closeEditor();
+      if (finalRepeat) {
+        const { added } = setRepeat(task.id, finalRepeat);
+        toast(added ? `Added to ${added + 1} days` : "Added. It repeats.");
+        return;
+      }
       if (!sameDay(fields.date, ui.get().day)) {
         const when = fields.date;
         toast(`Added to ${when.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}`);
@@ -198,7 +211,26 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       domino = await askDomino(existing, startTime);
     }
     if (!currentSession()) return;
+    // A repeating task: the change can go to the upcoming ones too.
+    const upcoming = upcomingOf(existing);
+    const everyUpcoming =
+      upcoming.length > 0 &&
+      changesShared(existing, updated) &&
+      (await confirmDialog({
+        title: "Change the upcoming ones too?",
+        message: `This task repeats. Apply the changes to the ${upcoming.length === 1 ? "next one" : `${upcoming.length} upcoming ones`} as well?`,
+        confirmLabel: "This and upcoming",
+        cancelLabel: "Only this one",
+      }));
+    if (!currentSession()) return;
     updateTask(updated);
+    if (everyUpcoming) applyToUpcoming(updated);
+    if (sameRule(readRepeat(existing)?.rule ?? null, finalRepeat) === false) {
+      const { added, removed } = setRepeat(updated.id, finalRepeat);
+      const summary = repeatSummary({ added, removed });
+      if (summary) toast(summary);
+      else if (!finalRepeat) toast("Stopped repeating");
+    }
     if (domino) {
       const delta = startTime!.getTime() - existing.startTime!.getTime();
       const shift = applyDominoShift(updated.id, existing.date, existing.startTime!, delta);
@@ -354,6 +386,12 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     }
   };
 
+  const repeatRow = (
+    <Row key="repeat" label="Repeat">
+      <RepeatField value={repeat} day={effectiveDate} onChange={setRepeatDraft} className="w-[240px] max-w-full" />
+    </Row>
+  );
+
   // Date and time share a row when they sit next to each other in the order.
   const order = settings.fieldOrder.filter((id) => isFieldVisible(settings, id));
   const rows: ReactNode[] = [];
@@ -375,11 +413,14 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
         </Row>,
       );
       i++;
+      rows.push(repeatRow);
       continue;
     }
     const row = renderField(id);
     if (row) rows.push(<div key={id}>{row}</div>);
+    if (id === "date") rows.push(repeatRow);
   }
+  if (!rows.includes(repeatRow)) rows.push(repeatRow);
 
   return (
     <form
@@ -510,6 +551,12 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       </div>
     </form>
   );
+}
+
+/** Whether two repeat choices are the same (a rule's start follows the task's day). */
+function sameRule(a: RepeatRule | null, b: RepeatRule | null) {
+  const plain = (r: RepeatRule | null) => (r?.kind === "rule" ? { ...r, start: "", until: r.until ?? null, weekdays: r.weekdays ?? [] } : r);
+  return JSON.stringify(plain(a)) === JSON.stringify(plain(b));
 }
 
 function Row({ label, children, top }: { label: string; children: ReactNode; top?: boolean }) {

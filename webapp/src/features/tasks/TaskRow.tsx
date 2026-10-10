@@ -6,7 +6,7 @@ import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Trash2, ChevronDown, CornerDownRight, FileText, Flag, GraduationCap, ListChecks, Timer } from "lucide-react";
+import { Check, Trash2, ChevronDown, CornerDownRight, FileText, Flag, GraduationCap, ListChecks, Repeat, Timer } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
@@ -216,6 +216,13 @@ const TaskRowView = memo(function TaskRowView({
   }
   if (showDate && !isAssignment) {
     meta.push(<span key="date">{relativeDay(task.date)}</span>);
+  }
+  if (task.extra?.repeat) {
+    meta.push(
+      <span key="repeat" className="flex items-center" title="Repeats">
+        <Repeat className="size-3" aria-label="Repeats" />
+      </span>,
+    );
   }
   if (minutes > 0 && settings.showDuration) {
     meta.push(
