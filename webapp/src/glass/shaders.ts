@@ -411,10 +411,18 @@ void main() {
     // (At most about 4x compression at the rim: a clear lens, short of folding.)
     float fold = 0.76 * S.y * u + 0.5 * uDpr;
     if (offLen > fold) off *= fold / offLen;
-    // The big panels act as a lens that draws in what lies just beyond their
-    // edge, as Liquid Glass does; that side squeezes the image far less too.
-    if (nE < 3.0) off = -off;
-    float disp = O.y * 1.45 * mix(0.55, 1.0, clamp(O.x * 2.0, 0.0, 1.0)) * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
+    // The big panels are thick glass with a rounded edge, as on macOS: the
+    // edge draws in a wide strip of what lies beyond it (up to 1.6 bevel
+    // widths out), squeezed hardest at the very rim like the side of a glass
+    // block. Pulling from outside never folds the image, however strong.
+    bool lens = nE < 3.0;
+    float squeeze = 1.0;
+    if (lens) {
+      float reach = 1.6 * S.y * (1.0 + st.y * 0.25);
+      off = g * reach * pow(u, 2.2);
+      squeeze = 1.0 + 1.6 * 2.2 * pow(u, 1.2);
+    }
+    float disp = O.y * (lens ? 0.7 : 1.45) * mix(0.55, 1.0, clamp(O.x * 2.0, 0.0, 1.0)) * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
@@ -427,7 +435,9 @@ void main() {
     // only a touch remains, where the lens squeezes the image, so fine detail
     // can't alias into stripes.
     float full = (pow(O.x, 1.4) * 44.0 + fr * 30.0) * uDpr;
-    float radius = mix(min(full, (1.2 + 2.4 * u) * uDpr), full, clearRim);
+    // (Where the lens squeezes the image, a blur as wide as the squeeze keeps
+    // fine detail from breaking into stripes.)
+    float radius = mix(min(full, max((1.2 + 2.4 * u) * uDpr, 0.55 * squeeze * uDpr)), full, clearRim);
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
     // Vibrancy.
