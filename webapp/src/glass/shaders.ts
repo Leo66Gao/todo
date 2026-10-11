@@ -463,12 +463,12 @@ void main() {
     // Frost: a smooth, milky blur (like frosted acrylic) over the whole
     // surface, rim included.
     float fr = uExtra[i].w;
-    // Blur: a true radius that grows smoothly with the setting. The frost is
-    // on the surface, so where the lens squeezes the image the blur widens
-    // with it: the rim looks as frosted as the middle, and fine detail can't
-    // alias into thin stripes (it never samples the sharp image there).
+    // Blur: a true radius that grows smoothly with the setting, the same
+    // across the whole surface, rim included. Only where the lens squeezes
+    // the image hard and the blur is light does it get a floor, so fine detail
+    // can't alias into thin stripes.
     float full = (pow(O.x, 1.4) * 44.0 + fr * 30.0) * uDpr;
-    float radius = min(max(full * mix(1.0, squeeze, 0.5), 2.0 * squeeze * uDpr * step(1.05, squeeze)), 64.0 * uDpr);
+    float radius = min(max(full, 2.0 * squeeze * uDpr * step(1.05, squeeze)), 64.0 * uDpr);
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
     // Vibrancy.
