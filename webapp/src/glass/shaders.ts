@@ -268,7 +268,7 @@ uniform vec4 uRect[${MAX_SHAPES}];  // centre xy, half size xy (px, GL space)
 uniform vec4 uShape[${MAX_SHAPES}]; // radius, bezel, height, shadow blur
 uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
 uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
-uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, recessed
+uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, form (1 recessed well, 2 task card)
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
 uniform float uClipR[${MAX_SHAPES}]; // the clip's corner radius
 uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy, frost
@@ -372,12 +372,16 @@ void main() {
     vec2 ch = 0.5 * (C0.zw - C0.xy);
     inClip *= smoothstep(0.0, 10.0 * uDpr, -sdRoundBox(p - cc, ch, min(uClipR[i], min(ch.x, ch.y))));
     float k = uOptic[i].w * uState[i].z * inClip;
+    // A task card's shadow falls only below it: none over its top edge (it
+    // would darken the space above the first card, and each gap), easing in
+    // down its sides.
+    if (uState[i].w > 1.5) k *= smoothstep(0.3, 1.0, (R.y + R.w - p.y) / (2.0 * R.w));
     shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     // A 1 px darkening just outside the sides, against the edge light on
     // the top and bottom (outside, so the sides don't look pinched in).
     // (Not round a recessed well: it has an even rim instead.)
-    if (d0 > -1.0 && d0 < 2.0 * uDpr && uState[i].w < 0.5) {
+    if (d0 > -1.0 && d0 < 2.0 * uDpr && abs(uState[i].w - 1.0) > 0.5) {
       float sideLine = 1.0 - smoothstep(0.15 * uDpr, 1.15 * uDpr, d0);
       float side = edgeWeights(p - R.xy, R.zw, S.x).y;
       col *= 1.0 - sideLine * side * 0.11 * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
@@ -426,7 +430,7 @@ void main() {
     float slopeRaw = pow(u, nE - 1.0) * pow(max(1.0 - un, 1e-4), 1.0 / nE - 1.0);
     // Saturate softly: a hard cap leaves a visible seam along the rim.
     float slope = slopeRaw / (1.0 + slopeRaw / 7.0);
-    float recess = st.w > 0.5 ? -0.6 : 1.0;
+    float recess = abs(st.w - 1.0) < 0.5 ? -0.6 : 1.0;
     vec3 n = normalize(vec3(g * slope * recess, 1.0));
 
     // The key light's direction (eased per shape on the CPU, leaning towards
