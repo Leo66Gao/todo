@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useDroppable } from "@dnd-kit/core";
 import { format } from "date-fns";
@@ -14,8 +14,10 @@ import { springs } from "@/ui/motion";
 import { useMedia } from "@/ui/useMedia";
 
 /**
- * Two weeks of days. Under each date a hairline fills as that day's tasks
- * are completed. Days accept dropped tasks; phones change week by swiping.
+ * Two weeks of days (one on phones). Under each date a hairline fills as that
+ * day's tasks are completed. Days accept dropped tasks; phones change week by
+ * swiping. Picking a day that's on show only moves the selection: the strip
+ * moves when the day is off it, or with the arrows.
  */
 export function DayStrip({
   day,
@@ -27,8 +29,16 @@ export function DayStrip({
   tasks: Task[];
 }) {
   const phone = useMedia("(max-width: 767px)");
-  const startKey = startOfWeek(day).getTime();
+  const [start, setStart] = useState(() => startOfWeek(day));
+  const shown = phone ? 7 : 14;
+  // A day picked elsewhere (or off the strip) brings its week into view.
+  if (day < start || day >= addDays(start, shown)) setStart(startOfWeek(day));
+  const startKey = start.getTime();
   const days = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(startKey), i)), [startKey]);
+  const shift = (weeks: number) => {
+    setStart(addDays(start, weeks * 7));
+    onPick(addDays(day, weeks * 7));
+  };
   const load = useMemo(() => {
     const map = new Map<string, { open: number; done: number }>();
     for (const t of tasks) {
@@ -43,14 +53,14 @@ export function DayStrip({
 
   return (
     <div className="flex items-center gap-1">
-      <IconButton label="Previous week" size="sm" className="max-md:hidden" onClick={() => onPick(addDays(day, -7))}>
+      <IconButton label="Previous week" size="sm" className="max-md:hidden" onClick={() => shift(-1)}>
         <ChevronLeft className="size-4" />
       </IconButton>
       <motion.div
         onPanEnd={(_, info) => {
           if (!phone || Math.abs(info.offset.x) < Math.abs(info.offset.y) * 1.2) return;
-          if (info.offset.x < -40 || info.velocity.x < -400) onPick(addDays(day, 7));
-          else if (info.offset.x > 40 || info.velocity.x > 400) onPick(addDays(day, -7));
+          if (info.offset.x < -40 || info.velocity.x < -400) shift(1);
+          else if (info.offset.x > 40 || info.velocity.x > 400) shift(-1);
         }}
         className="grid flex-1 touch-pan-y grid-cols-14 gap-0.5 max-md:grid-cols-7"
       >
@@ -65,7 +75,7 @@ export function DayStrip({
           />
         ))}
       </motion.div>
-      <IconButton label="Next week" size="sm" className="max-md:hidden" onClick={() => onPick(addDays(day, 7))}>
+      <IconButton label="Next week" size="sm" className="max-md:hidden" onClick={() => shift(1)}>
         <ChevronRight className="size-4" />
       </IconButton>
     </div>
