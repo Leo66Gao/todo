@@ -275,7 +275,7 @@ function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent
   const shown = start + clamped;
   const height = ((end - start) / 60) * HOUR;
   const compact = height < 40;
-  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
+  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "chip", interactive: true, inScroll: true });
   return (
     <motion.div
       ref={plate}
@@ -329,7 +329,7 @@ function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
   const shown = start + clamped;
   const height = ((end - start) / 60) * HOUR;
   const compact = height < 40;
-  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
+  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "chip", interactive: true, inScroll: true });
 
   return (
     <ContextMenu items={() => taskMenu(task, navigate)}>
