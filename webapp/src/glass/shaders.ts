@@ -363,6 +363,9 @@ void main() {
     vec4 S = uShape[i];
     float blur = S.w;
     vec2 q = p - R.xy + vec2(0.0, blur * 0.3);
+    // (A cheap box test first: most shapes are far from most pixels.)
+    vec2 far = abs(q) - R.zw;
+    if (max(far.x, far.y) > blur * 3.3 + 2.0 * uDpr) continue;
     float d = sdRoundBox(q, R.zw, S.x);
     if (d > blur * 3.0) continue;
     vec4 C0 = uClip[i];

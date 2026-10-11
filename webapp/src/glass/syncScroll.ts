@@ -13,10 +13,12 @@ type Axis = "x" | "y";
 
 /** Wheel distance still to glide, per scrolling element. */
 const gliding = new Map<HTMLElement, { x: number; y: number }>();
+/** The element a gesture is scrolling, kept while its wheel events keep coming. */
+let latched: { el: HTMLElement; axis: Axis; at: number } | null = null;
 
-function canScroll(el: HTMLElement, axis: Axis, delta: number) {
-  const style = getComputedStyle(el);
-  if (!/(auto|scroll)/.test(axis === "y" ? style.overflowY : style.overflowX)) return false;
+const scrollsOn = (el: HTMLElement, axis: Axis) => /(auto|scroll)/.test(axis === "y" ? getComputedStyle(el).overflowY : getComputedStyle(el).overflowX);
+
+function hasRoom(el: HTMLElement, axis: Axis, delta: number) {
   const pos = axis === "y" ? el.scrollTop : el.scrollLeft;
   const max = axis === "y" ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
   if (max <= 1) return false;
@@ -32,19 +34,32 @@ function onWheel(e: WheelEvent) {
   const axis: Axis = Math.abs(dy) >= Math.abs(dx) ? "y" : "x";
   const delta = axis === "y" ? dy : dx;
   if (!delta) return;
-  for (let node: Element | null = e.target; node && node !== document.body; node = node.parentElement) {
-    if (!(node instanceof HTMLElement) || !canScroll(node, axis, delta)) continue;
+  // Mid-gesture, the same element scrolls on without looking it up again.
+  const now = performance.now();
+  let target: HTMLElement | null = null;
+  if (latched && latched.axis === axis && now - latched.at < 150 && latched.el.isConnected && latched.el.contains(e.target)) target = latched.el;
+  else {
+    for (let node: Element | null = e.target; node && node !== document.body; node = node.parentElement) {
+      if (node instanceof HTMLElement && hasRoom(node, axis, delta) && scrollsOn(node, axis)) {
+        target = node;
+        break;
+      }
+    }
+  }
+  if (target) {
+    latched = { el: target, axis, at: now };
     e.preventDefault();
     // A mouse wheel's notch (a large, whole step) glides; a trackpad's
     // stream of small steps, already smooth, applies at once.
     if (e.deltaMode !== 0 || Math.abs(delta) >= 60) {
-      const g = gliding.get(node) ?? { x: 0, y: 0 };
+      const g = gliding.get(target) ?? { x: 0, y: 0 };
       g[axis] += delta;
-      gliding.set(node, g);
-    } else if (axis === "y") node.scrollTop += delta;
-    else node.scrollLeft += delta;
+      gliding.set(target, g);
+    } else if (axis === "y") target.scrollTop += delta;
+    else target.scrollLeft += delta;
     return;
   }
+  latched = null;
   // Nothing left to scroll: no elastic bounce of the whole page, which the
   // glass can't follow. (Sideways stays native, for swiping back and forth.)
   if (axis === "y") e.preventDefault();
