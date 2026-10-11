@@ -446,7 +446,7 @@ export class GlassEngine {
         };
       case "card":
         // Task plates: a shallow clear lens with the edge light and dark
-        // sides, and a short, light shadow (a long one would merge through the
+        // sides, and a short, very faint shadow (a long one would merge through the
         // gaps between stacked plates into one dark slab under the list).
         return {
           bezel: Math.min(radius, 12 * dpr, halfShort),
@@ -457,7 +457,7 @@ export class GlassEngine {
           frosted: 0,
           dispersion: 0.12,
           rim: 1,
-          shadow: dark ? 0.16 : 0.07,
+          shadow: dark ? 0.048 : 0.021,
           shadowBlur: 7 * dpr,
         };
       case "plate":
