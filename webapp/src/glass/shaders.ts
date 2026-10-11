@@ -372,6 +372,9 @@ void main() {
     vec2 ch = 0.5 * (C0.zw - C0.xy);
     inClip *= smoothstep(0.0, 10.0 * uDpr, -sdRoundBox(p - cc, ch, min(uClipR[i], min(ch.x, ch.y))));
     float k = uOptic[i].w * uState[i].z * inClip;
+    // Lit from above, a shape casts no shadow over its top edge (in a list,
+    // that would darken the top of each task box from the one above).
+    k *= 1.0 - smoothstep(R.w - 1.0 * uDpr, R.w + 3.0 * uDpr, p.y - R.y);
     shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     // A 1 px darkening just outside the sides, against the edge light on
