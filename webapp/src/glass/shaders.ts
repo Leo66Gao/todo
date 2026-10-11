@@ -268,9 +268,9 @@ uniform vec4 uRect[${MAX_SHAPES}];  // centre xy, half size xy (px, GL space)
 uniform vec4 uShape[${MAX_SHAPES}]; // radius, bezel, height, shadow blur
 uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
 uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
-uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, form (1 recessed well, 2 task card)
+uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, form (+1 recessed well, +2 lying on another shape)
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
-uniform float uClipR[${MAX_SHAPES}]; // the clip's corner radius
+uniform vec2 uClipR[${MAX_SHAPES}];  // the clip's corner radius, how far inside it shadows fade out
 uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy, frost
 uniform vec2 uLight;                // towards the light, GL space
 uniform vec3 uPointer;              // xy, influence
@@ -353,6 +353,11 @@ void main() {
   // Shadows and caustics on the backdrop.
   float shade = 0.0;
   float caustic = 0.0;
+  // What shapes lying on others cast: drawn again over the glass under them,
+  // which would otherwise paint over it (a segmented thumb's dark sides on
+  // its track, a block's shadow in the schedule).
+  float onShade = 0.0;
+  float onSide = 1.0;
   for (int i = 0; i < ${MAX_SHAPES}; i++) {
     if (i >= uCount) break;
     vec4 R = uRect[i];
@@ -370,17 +375,22 @@ void main() {
     // fades out over the last 10 px inside the panel (following its corners).
     vec2 cc = 0.5 * (C0.xy + C0.zw);
     vec2 ch = 0.5 * (C0.zw - C0.xy);
-    inClip *= smoothstep(0.0, 10.0 * uDpr, -sdRoundBox(p - cc, ch, min(uClipR[i], min(ch.x, ch.y))));
+    inClip *= smoothstep(0.0, uClipR[i].y, -sdRoundBox(p - cc, ch, min(uClipR[i].x, min(ch.x, ch.y))));
     float k = uOptic[i].w * uState[i].z * inClip;
-    shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
+    float own = k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2);
+    shade = max(shade, own);
+    bool onGlass = uState[i].w > 1.5;
+    if (onGlass) onShade = max(onShade, own);
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     // A 1 px darkening just outside the sides, against the edge light on
     // the top and bottom (outside, so the sides don't look pinched in).
     // (Not round a recessed well: it has an even rim instead.)
-    if (d0 > -1.0 && d0 < 2.0 * uDpr && abs(uState[i].w - 1.0) > 0.5) {
+    if (d0 > -1.0 && d0 < 2.0 * uDpr && mod(uState[i].w, 2.0) < 0.5) {
       float sideLine = 1.0 - smoothstep(0.15 * uDpr, 1.15 * uDpr, d0);
       float side = edgeWeights(p - R.xy, R.zw, S.x).y;
-      col *= 1.0 - sideLine * side * 0.11 * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
+      float darken = 1.0 - sideLine * side * 0.11 * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
+      col *= darken;
+      if (onGlass) onSide *= darken;
     }
     if (d0 > 0.0) {
       vec2 g = gradRoundBox(p - R.xy, R.zw, S.x);
@@ -400,7 +410,7 @@ void main() {
     // Clipped to the box it sits in, corners included.
     vec2 cc = 0.5 * (C.xy + C.zw);
     vec2 ch = 0.5 * (C.zw - C.xy);
-    float clip = clamp(0.5 - sdRoundBox(p - cc, ch, min(uClipR[i], min(ch.x, ch.y))), 0.0, 1.0);
+    float clip = clamp(0.5 - sdRoundBox(p - cc, ch, min(uClipR[i].x, min(ch.x, ch.y))), 0.0, 1.0);
     float d = sdRoundBox(q, R.zw, S.x);
     float cover = clamp(0.5 - d, 0.0, 1.0) * clip * uState[i].z;
     if (cover <= 0.0) continue;
@@ -426,7 +436,7 @@ void main() {
     float slopeRaw = pow(u, nE - 1.0) * pow(max(1.0 - un, 1e-4), 1.0 / nE - 1.0);
     // Saturate softly: a hard cap leaves a visible seam along the rim.
     float slope = slopeRaw / (1.0 + slopeRaw / 7.0);
-    float recess = abs(st.w - 1.0) < 0.5 ? -0.6 : 1.0;
+    float recess = mod(st.w, 2.0) > 0.5 ? -0.6 : 1.0;
     vec3 n = normalize(vec3(g * slope * recess, 1.0));
 
     // The key light's direction (eased per shape on the CPU, leaning towards
@@ -547,6 +557,8 @@ void main() {
     float r2 = max(R.z, R.w) * 1.1;
     base += st.y * 0.16 * exp(-dot(dp, dp) / (r2 * r2)) * (uDark > 0.5 ? 0.8 : 1.0);
 
+    // A shape that others lie on carries their shadows and dark sides.
+    if (st.w < 1.5) base *= (1.0 - onShade) * onSide;
     col = mix(col, clamp(base, 0.0, 1.0), cover);
   }
   frag = vec4(col, 1.0);

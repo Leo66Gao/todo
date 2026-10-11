@@ -33,8 +33,10 @@ export interface Shape {
   opacity: number;
   /** Direction towards the light for this shape (GL space, y up), eased over time. */
   light: [number, number];
-  /** The box it's clipped to, and that box's corner radius (CSS px). */
-  clip: { x: number; y: number; w: number; h: number; r: number } | null;
+  /** The box it's clipped to, that box's corner radius, and how far inside its edge shadows fade out (CSS px). */
+  clip: { x: number; y: number; w: number; h: number; r: number; fade: number } | null;
+  /** It lies on another level-2 shape (a segmented thumb on its track, a block in the schedule). */
+  onGlass: boolean;
 }
 
 type Target = { fbo: WebGLFramebuffer | null; tex: WebGLTexture | null; w: number; h: number };
@@ -337,7 +339,7 @@ export class GlassEngine {
     const optic = new Float32Array(MAX_SHAPES * 4);
     const state = new Float32Array(MAX_SHAPES * 4);
     const clip = new Float32Array(MAX_SHAPES * 4);
-    const clipRadius = new Float32Array(MAX_SHAPES);
+    const clipRadius = new Float32Array(MAX_SHAPES * 2);
     const extra = new Float32Array(MAX_SHAPES * 4);
     for (let i = 0; i < n; i++) {
       const s = shapes[i];
@@ -353,11 +355,11 @@ export class GlassEngine {
       tint.set(m.tint, i * 4);
       extra.set([m.legible, s.light[0], s.light[1], m.frosted], i * 4);
       optic.set([m.blur, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
-      // (Last: 1 for a recessed well.)
-      state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
-      const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5, r: 0 };
+      // (Last: +1 for a recessed well, +2 for a shape lying on another.)
+      state.set([s.hover, s.press, s.opacity, (s.kind === "well" ? 1 : 0) + (s.onGlass ? 2 : 0)], i * 4);
+      const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5, r: 0, fade: 10 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
-      clipRadius[i] = c.r * dpr;
+      clipRadius.set([c.r * dpr, c.fade * dpr], i * 2);
     }
     gl.uniform1i(p.loc("uCount"), n);
     gl.uniform4fv(p.loc("uRect"), rect);
@@ -366,7 +368,7 @@ export class GlassEngine {
     gl.uniform4fv(p.loc("uOptic"), optic);
     gl.uniform4fv(p.loc("uState"), state);
     gl.uniform4fv(p.loc("uClip"), clip);
-    gl.uniform1fv(p.loc("uClipR[0]"), clipRadius);
+    gl.uniform2fv(p.loc("uClipR[0]"), clipRadius);
     gl.uniform4fv(p.loc("uExtra"), extra);
     this.draw();
   }
@@ -672,6 +674,8 @@ export class ShapeTracker {
         continue;
       }
       if (entry.depth == null) entry.depth = depthOf(entry.el);
+      entry.onGlass ??= !!entry.el.parentElement?.closest('[data-glass="2"]');
+      shape.onGlass = entry.onGlass;
       ranked.push({ shape, rank: shape.kind === "card" ? 2 : shape.kind === "plate" ? 1 : 0, depth: entry.depth, order: ranked.length });
     }
     // Past the device's shape budget, task cards go first, then plates, so
@@ -706,20 +710,25 @@ export class ShapeTracker {
     if (entry.clip) {
       const c = entry.clip.getBoundingClientRect();
       if (c.width < 2 || c.height < 2) return null;
-      clip = { x: c.x, y: c.y, w: c.width, h: c.height, r: this.cornerOf(entry.clip, refreshRadius) };
+      clip = { x: c.x, y: c.y, w: c.width, h: c.height, r: this.cornerOf(entry.clip, refreshRadius), fade: 10 };
     }
     // Shapes in a list are also clipped to the list's scrolling box, with its
     // corners. A list that is itself a box of glass (Today's schedule) keeps
     // what's in it just inside its rim, so its edge light shows over them.
+    // A plain list that only scrolls up and down clips only above and below,
+    // so its rows' shadows aren't cut off at its sides (the week's narrow days).
     if (spec.inScroll && entry.scroller === undefined) entry.scroller = scrollingAncestor(el);
     if (entry.scroller) {
-      const b = entry.scroller.getBoundingClientRect();
-      const inset = entry.scroller.dataset.glass ? 2 : 0;
-      const x0 = Math.max(b.x + inset, clip?.x ?? -1e5);
+      const sc = entry.scroller;
+      const b = sc.getBoundingClientRect();
+      const inset = sc.dataset.glass ? 2 : 0;
+      const sides = inset > 0 || sc.scrollWidth > sc.clientWidth + 1;
+      const x0 = Math.max(sides ? b.x + inset : -1e5, clip?.x ?? -1e5);
       const y0 = Math.max(b.y + inset, clip?.y ?? -1e5);
-      const x1 = Math.min(b.right - inset, clip ? clip.x + clip.w : 1e5);
+      const x1 = Math.min(sides ? b.right - inset : 1e5, clip ? clip.x + clip.w : 1e5);
       const y1 = Math.min(b.bottom - inset, clip ? clip.y + clip.h : 1e5);
-      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0), r: Math.max(0, this.cornerOf(entry.scroller, refreshRadius) - inset) };
+      // (Inside a box of glass, shadows reach almost to its rim.)
+      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0), r: Math.max(0, this.cornerOf(entry.scroller, refreshRadius) - inset), fade: inset > 0 ? 3 : 10 };
     }
     // Nothing to draw when it is scrolled or clipped out of sight.
     const view = clip ?? { x: 0, y: 0, w: document.documentElement.clientWidth, h: document.documentElement.clientHeight };
@@ -810,6 +819,7 @@ export class ShapeTracker {
       opacity: Math.round(m.opacity * 1000) / 1000,
       light: [Math.round(m.lx * 1000) / 1000, Math.round(m.ly * 1000) / 1000],
       clip,
+      onGlass: false,
     };
   }
 }

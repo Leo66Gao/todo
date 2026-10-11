@@ -55,6 +55,8 @@ export interface GlassEntry {
   radiusPx: number | null;
   /** Ancestors in the page, counted on first sight (boxes are drawn under what they hold). */
   depth?: number;
+  /** Lies inside another level-2 shape, counted on first sight. */
+  onGlass?: boolean;
   born: number;
 }
 
