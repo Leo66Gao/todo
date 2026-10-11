@@ -364,6 +364,11 @@ void main() {
     if (d > blur * 3.0) continue;
     vec4 C0 = uClip[i];
     float inClip = clamp(min(min(p.x - C0.x, C0.z - p.x), min(p.y - C0.y, C0.w - p.y)) + 0.5, 0.0, 1.0);
+    // A shape on a panel keeps its shadow off the panel's rounded rim: it
+    // fades out over the last 10 px inside the panel (radius as in glass.css).
+    vec2 cc = 0.5 * (C0.xy + C0.zw);
+    vec2 ch = 0.5 * (C0.zw - C0.xy);
+    inClip *= smoothstep(0.0, 10.0 * uDpr, -sdRoundBox(p - cc, ch, min(24.0 * uDpr, min(ch.x, ch.y))));
     float k = uOptic[i].w * uState[i].z * inClip;
     shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);

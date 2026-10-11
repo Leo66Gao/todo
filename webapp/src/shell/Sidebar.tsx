@@ -163,8 +163,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           type="button"
           onClick={() => go({ view: "settings" })}
           className={cn(
-            "flex h-10 w-full items-center gap-2.5 rounded-ctl px-2 text-left transition-colors hover:bg-fill max-md:h-auto max-md:gap-3 max-md:rounded-[22px] max-md:border max-md:border-line max-md:bg-fill/50 max-md:py-2.5 max-md:pr-3 max-md:pl-3",
-            glass && "h-13 rounded-[calc(var(--radius-ctl)_+_6px)] px-2.5",
+            "flex w-full items-center gap-2.5 text-left transition-colors hover:bg-fill max-md:h-auto max-md:gap-3 max-md:rounded-[22px] max-md:border max-md:border-line max-md:bg-fill/50 max-md:py-2.5 max-md:pr-3 max-md:pl-3",
+            // On glass, concentric with the sidebar's corners: its radius less the 10px gap.
+            glass ? "h-13 rounded-[calc(var(--glass-radius,22px)_-_10px)] px-2.5" : "h-10 rounded-ctl px-2",
             route.view === "settings" && "bg-fill",
           )}
         >
