@@ -374,10 +374,11 @@ void main() {
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     // A 1 px darkening just outside the sides, against the edge light on
     // the top and bottom (outside, so the sides don't look pinched in).
-    if (d0 > -1.0 && d0 < 2.0 * uDpr) {
+    // (Not round a recessed well: it has an even rim instead.)
+    if (d0 > -1.0 && d0 < 2.0 * uDpr && uState[i].w < 0.5) {
       float sideLine = 1.0 - smoothstep(0.15 * uDpr, 1.15 * uDpr, d0);
       float side = edgeWeights(p - R.xy, R.zw, S.x).y;
-      col *= 1.0 - sideLine * side * 0.22 * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
+      col *= 1.0 - sideLine * side * 0.11 * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
     }
     if (d0 > 0.0) {
       vec2 g = gradRoundBox(p - R.xy, R.zw, S.x);
@@ -515,12 +516,18 @@ void main() {
     float line = 1.0 - smoothstep(0.35 * uDpr, 1.6 * uDpr, depth);
     float sheen = 1.0 - smoothstep(0.0, 9.0 * uDpr, depth);
     float vert = edgeWeights(q, R.zw, S.x).x * (q.y > 0.0 ? 1.0 : 0.75);
+    // The glow inside the line only on taller shapes: on a short one it
+    // pinches the middle.
+    sheen *= smoothstep(16.0 * uDpr, 40.0 * uDpr, R.w);
     // With a mouse about, the edges brighten near it and fade away from it.
     vec2 toPointer = p - uPointer.xy;
     float reach = 240.0 * uDpr;
     float gain = mix(1.0, 0.45 + 1.6 * exp(-dot(toPointer, toPointer) / (reach * reach)), uPointer.z);
     float rimK = O.z * (1.0 + 0.5 * st.x) * (uDark > 0.5 ? 0.7 : 1.0) * gain;
-    base += vec3(1.0) * (line * 0.2 * vert + sheen * sheen * 0.03 * vert) * rimK;
+    if (recess > 0.0) base += vec3(1.0) * (line * 0.25 * vert + sheen * sheen * 0.0375 * vert) * rimK;
+    // A recessed well gets an even hairline all round, so it doesn't read as
+    // an hourglass between lit top and bottom edges.
+    else base += vec3(1.0) * line * 0.06 * rimK;
 
     // Pressing lights the glass where it is touched.
     vec2 dp = p - uPointer.xy;

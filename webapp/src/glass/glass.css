@@ -399,6 +399,16 @@ html.glass.dark .glass-scrolling [data-task-card] {
   background: rgb(255 255 255 / 0.04) !important;
   box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.08) !important;
 }
+/* Plates in a scrolling list (assignments, notes, subjects) step aside to
+   the same kind of stand-in while their list moves. */
+html.glass .glass-scrolling [data-glass-kind="plate"] {
+  background: rgb(255 255 255 / 0.28) !important;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.5) !important;
+}
+html.glass.dark .glass-scrolling [data-glass-kind="plate"] {
+  background: rgb(255 255 255 / 0.06) !important;
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.1) !important;
+}
 html.glass [data-task-card] > [data-task-id] {
   margin: 0;
 }

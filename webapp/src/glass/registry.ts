@@ -61,6 +61,13 @@ export const registryGeneration = () => generation;
 /** Makes the renderer re-read shapes' corner radii (after their CSS changes). */
 export const refreshGlassShapes = () => void generation++;
 
+let radiiLiveUntil = 0;
+/** Has the renderer re-read corner radii every frame for [ms] (while they animate). */
+export function followGlassRadii(ms = 700) {
+  radiiLiveUntil = Math.max(radiiLiveUntil, performance.now() + ms);
+}
+export const radiiLive = () => performance.now() < radiiLiveUntil;
+
 const OVERLAY = '[data-overlay], [role="dialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 /** A solid panel (the notes page): what sits on it keeps the regular look. */
 const PAPER = "[data-paper]";

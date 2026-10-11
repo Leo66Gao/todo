@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
-import { noteScroll } from "./registry";
+import { followGlassRadii, noteScroll } from "./registry";
 import { reportGlassTop } from "@/lib/native";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
@@ -113,8 +113,20 @@ function GlassCanvas() {
       });
     };
     applyLook();
-    const unsubscribe = useGlassPrefs.subscribe(applyLook);
-    const darkObserver = new MutationObserver(applyLook);
+    // Settings and theme changes ease corner radii in CSS; the glass follows
+    // them as they move instead of keeping the radius it read first.
+    const onLookChange = () => {
+      followGlassRadii();
+      applyLook();
+    };
+    const onTransition = (e: TransitionEvent) => {
+      if (e.propertyName.includes("radius")) followGlassRadii(e.type === "transitionrun" ? 700 : 100);
+    };
+    followGlassRadii();
+    document.addEventListener("transitionrun", onTransition);
+    document.addEventListener("transitionend", onTransition);
+    const unsubscribe = useGlassPrefs.subscribe(onLookChange);
+    const darkObserver = new MutationObserver(onLookChange);
     darkObserver.observe(root, { attributes: true, attributeFilter: ["class"] });
     reducedTransparency.addEventListener("change", applyLook);
 
@@ -191,6 +203,8 @@ function GlassCanvas() {
       cancelAnimationFrame(frame);
       unsubscribe();
       darkObserver.disconnect();
+      document.removeEventListener("transitionrun", onTransition);
+      document.removeEventListener("transitionend", onTransition);
       reducedTransparency.removeEventListener("change", applyLook);
       document.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("pointermove", onMove);

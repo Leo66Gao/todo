@@ -1,6 +1,6 @@
 "use client";
 
-import { glassEntries, isScrolling, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
+import { glassEntries, isScrolling, radiiLive, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
 import { BACKGROUND_FS, BLIT_FS, BLUR_FS, FULLSCREEN_VS, glassFragment } from "./shaders";
 
 export const PRESET_INDEX = { harbour: 0, contour: 1, ember: 2, studio: 3, image: 4 } as const;
@@ -411,7 +411,7 @@ export class GlassEngine {
           shadowBlur: 30 * dpr,
         };
       case "control":
-        // Selection pills: a clear lens, no haze, no highlights.
+        // Selection pills: a clear lens with the edge light, no haze.
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.1, 22 * dpr),
@@ -420,7 +420,7 @@ export class GlassEngine {
           blur: 0,
           frosted: 0,
           dispersion: 0.22,
-          rim: 0,
+          rim: 0.6,
           shadow: dark ? 0.16 : 0.07,
           shadowBlur: 10 * dpr,
         };
@@ -622,9 +622,14 @@ export class ShapeTracker {
     const level2: Shape[] = [];
     this.animating = false;
     const gen = registryGeneration();
-    const regenerated = gen !== this.lastGeneration;
+    // Corner radii are re-read every frame while they may be animating (the
+    // theme eases panels' corners in), or the glass keeps a stale, square one.
+    const live = radiiLive();
+    const regenerated = gen !== this.lastGeneration || live;
+    if (live) this.animating = true;
     this.lastGeneration = gen;
     const cards: Shape[] = [];
+    const plates: Shape[] = [];
     for (const entry of glassEntries.values()) {
       const shape = this.shapeOf(entry, pointer, regenerated);
       if (!shape) continue;
@@ -634,10 +639,12 @@ export class ShapeTracker {
         if (shape.clip) shape.clip = { ...shape.clip, x: shape.clip.x - origin.x, y: shape.clip.y - origin.y };
       }
       if (entry.spec.level === 1) level1.push(shape);
-      else (shape.kind === "card" ? cards : level2).push(shape);
+      else (shape.kind === "card" ? cards : shape.kind === "plate" ? plates : level2).push(shape);
     }
-    // Cards go last, so a device's shape budget drops them before controls.
-    return [level1, level2.concat(cards)];
+    // Plates go first: they hold other level-2 shapes (the selected day sits
+    // on the day strip's plate), which are drawn over them. Cards go last, so
+    // a device's shape budget drops them before controls.
+    return [level1, plates.concat(level2, cards)];
   }
 
   private shapeOf(entry: GlassEntry, pointer: TrackedPointer, refreshRadius: boolean): Shape | null {
@@ -709,7 +716,7 @@ export class ShapeTracker {
     m.press = approach(m.press, spec.interactive && inside && pointer.down ? 1 : 0, pointer.down ? 0.45 : 0.18);
     // While its list scrolls, a card fades to its CSS stand-in (which moves
     // with the compositor) and returns once the list settles.
-    const moving = entry.scroller != null && spec.kind === "card" && isScrolling(entry.scroller);
+    const moving = entry.scroller != null && (spec.kind === "card" || spec.kind === "plate") && isScrolling(entry.scroller);
     const opacity = moving ? 0 : el.dataset.taskCard === "done" ? 0.5 : 1;
     m.opacity = approach(m.opacity, opacity, moving ? 0.5 : 0.2);
     if (m.opacity !== opacity || (m.hover !== 0 && m.hover !== 1) || (m.press !== 0 && m.press !== 1)) this.animating = true;
