@@ -372,9 +372,6 @@ void main() {
     vec2 ch = 0.5 * (C0.zw - C0.xy);
     inClip *= smoothstep(0.0, 10.0 * uDpr, -sdRoundBox(p - cc, ch, min(uClipR[i], min(ch.x, ch.y))));
     float k = uOptic[i].w * uState[i].z * inClip;
-    // Lit from above, a shape casts no shadow over its top edge (in a list,
-    // that would darken the top of each task box from the one above).
-    k *= 1.0 - smoothstep(R.w - 1.0 * uDpr, R.w + 3.0 * uDpr, p.y - R.y);
     shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     // A 1 px darkening just outside the sides, against the edge light on
@@ -474,9 +471,12 @@ void main() {
     float radius = min(max(full, 2.0 * squeeze * uDpr * step(1.05, squeeze)), 64.0 * uDpr);
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
-    // Vibrancy.
+    // Vibrancy, for frosted glass only: a clear lens (a task card, a
+    // selection pill) shows what's under it as it is, or it would stand out
+    // brighter than the panel it lies on and leave a grey halo round it.
+    float vivid = clamp((O.x + fr) * 4.0, 0.0, 1.0);
     float lum = dot(base, vec3(0.299, 0.587, 0.114));
-    base = clamp(mix(vec3(lum), base, 1.22) * (uDark > 0.5 ? 1.0 : 1.03), 0.0, 1.0);
+    base = clamp(mix(vec3(lum), base, 1.0 + 0.22 * vivid) * (uDark > 0.5 ? 1.0 : 1.0 + 0.03 * vivid), 0.0, 1.0);
     // Frost: ice scatters light every way, so the glass turns milky.
     // What is behind melts into a soft glow, colour drains, and a haze lifts
     // the whole surface: white in light mode, smoky in dark mode, and ash
