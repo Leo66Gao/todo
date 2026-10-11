@@ -168,8 +168,10 @@ export class GlassEngine {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    // Mirrored: glass at the window's edge refracts what lies beyond it, and
+    // a clamped edge would smear its last row of pixels into streaks.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
     const fbo = gl.createFramebuffer()!;
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
@@ -319,6 +321,7 @@ export class GlassEngine {
     gl.uniform1i(p.loc("uMid"), 3);
     gl.uniform2f(p.loc("uRes"), this.width, this.height);
     gl.uniform1f(p.loc("uDark"), look.dark || look.lightText ? 1 : 0);
+    gl.uniform1f(p.loc("uAsh"), look.lightText ? 1 : 0);
     gl.uniform1f(p.loc("uDpr"), dpr);
     // Key light from the upper left (GL space is y-up).
     gl.uniform2f(p.loc("uLight"), -0.55, 0.835);

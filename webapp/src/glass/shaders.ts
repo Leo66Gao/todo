@@ -249,11 +249,12 @@ void main() { frag = vec4(texture(uSrc, gl_FragCoord.xy / uDst).rgb, 1.0); }`;
  * The glass. For every pixel under a shape: the surface height comes from a
  * convex squircle bevel around the rounded rectangle; its normal refracts the
  * view ray (IOR 1.5) through the glass thickness, and the three colour
- * channels are refracted slightly differently (dispersion). The backdrop is
- * sampled nearly sharp across the bevel, so the bending reads clearly, and
- * frosted inside it, then tinted. Light adds a Fresnel reflection of the surroundings, a soft glow
- * and glint along the bevel facing the light, and — on the backdrop — a soft
- * shadow. The shape count is fixed per device from its uniform budget.
+ * channels are refracted slightly differently (dispersion). The frost covers
+ * the whole surface, rim included, so the bending shows as a smooth warp of
+ * what's behind. Light adds a faint Fresnel reflection, a thin edge light
+ * along the top and bottom that fades towards the corners, and — on the
+ * backdrop — a soft shadow. The shape count is fixed per device from its
+ * uniform budget.
  */
 export const glassFragment = (MAX_SHAPES: number) => /* glsl */ `#version 300 es
 precision highp float;
@@ -273,6 +274,7 @@ uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), 
 uniform vec2 uLight;                // towards the light, GL space
 uniform vec3 uPointer;              // xy, influence
 uniform float uDark;
+uniform float uAsh;                 // light text in light mode: ash-grey frost
 uniform float uDpr;
 out vec4 frag;
 
@@ -396,10 +398,9 @@ void main() {
     float recess = st.w > 0.5 ? -0.6 : 1.0;
     vec3 n = normalize(vec3(g * slope * recess, 1.0));
 
-    // Light: a fixed key light, drawn towards the pointer when it is near.
-    // (Eased per shape on the CPU, leaning towards the pointer.)
+    // The key light's direction (eased per shape on the CPU, leaning towards
+    // the pointer), for the recessed well's shading.
     vec2 L2 = normalize(uExtra[i].yz + vec2(1e-4));
-    vec3 L = normalize(vec3(L2 * 0.8, 0.6));
 
     // Refraction through the glass.
     vec3 r = refract(vec3(0.0, 0.0, -1.0), n, 1.0 / 1.5);
@@ -426,48 +427,42 @@ void main() {
     vec2 uvG = (p + off) / uRes;
     vec2 uvR = (p + off * (1.0 - disp)) / uRes;
     vec2 uvB = (p + off * (1.0 + disp)) / uRes;
-    // The bevel stays clear so the bending shows: frost, blur and the
-    // legibility band ease in across it and are full inside it.
-    float clearRim = smoothstep(0.0, 0.85, t);
-    // Frost: a smooth, milky blur (like frosted acrylic), with no grain.
-    float fr = uExtra[i].w * mix(0.1, 1.0, clearRim);
-    // Blur: a true radius that grows smoothly with the setting. At the rim
-    // only a touch remains, where the lens squeezes the image, so fine detail
-    // can't alias into stripes.
+    // Frost: a smooth, milky blur (like frosted acrylic) over the whole
+    // surface, rim included.
+    float fr = uExtra[i].w;
+    // Blur: a true radius that grows smoothly with the setting. The frost is
+    // on the surface, so where the lens squeezes the image the blur widens
+    // with it: the rim looks as frosted as the middle, and fine detail can't
+    // alias into thin stripes (it never samples the sharp image there).
     float full = (pow(O.x, 1.4) * 44.0 + fr * 30.0) * uDpr;
-    // (Where the lens squeezes the image, a blur as wide as the squeeze keeps
-    // fine detail from breaking into stripes.)
-    float radius = mix(min(full, max((1.2 + 2.4 * u) * uDpr, 0.55 * squeeze * uDpr)), full, clearRim);
+    float radius = min(max(full * mix(1.0, squeeze, 0.5), 2.0 * squeeze * uDpr * step(1.05, squeeze)), 64.0 * uDpr);
     vec3 base = blurAt(radius, uvR, uvG, uvB);
 
     // Vibrancy.
     float lum = dot(base, vec3(0.299, 0.587, 0.114));
     base = clamp(mix(vec3(lum), base, 1.22) * (uDark > 0.5 ? 1.0 : 1.03), 0.0, 1.0);
-    // Frost: ice scatters light every way, so the glass turns milky white.
-    // What is behind melts into a soft glow, colour drains towards white,
-    // and a bright haze lifts the whole surface (gentler in dark mode, where
-    // the glass stays smoky so light text still reads).
+    // Frost: ice scatters light every way, so the glass turns milky.
+    // What is behind melts into a soft glow, colour drains, and a haze lifts
+    // the whole surface: white in light mode, smoky in dark mode, and ash
+    // grey under light text in light mode (as macOS does), so white text
+    // reads without the glass going dark.
     if (fr > 0.0) {
       base = mix(base, ring(uHeavy, uvR, uvG, uvB, 36.0 * uDpr), 0.9 * fr);
       float bl0 = dot(base, vec3(0.299, 0.587, 0.114));
-      base = mix(base, vec3(bl0), 0.25 * fr);
-      vec3 ice = uDark > 0.5 ? vec3(0.16, 0.16, 0.18) : vec3(1.0);
-      base = mix(base, ice, fr * (uDark > 0.5 ? 0.35 : 0.55));
+      base = mix(base, vec3(bl0), (uAsh > 0.5 ? 0.35 : 0.25) * fr);
+      vec3 ice = uAsh > 0.5 ? vec3(0.43, 0.43, 0.445) : uDark > 0.5 ? vec3(0.16, 0.16, 0.18) : vec3(1.0);
+      base = mix(base, ice, fr * (uAsh > 0.5 ? 0.6 : uDark > 0.5 ? 0.35 : 0.55));
     }
     // A tint (solid surfaces, the search well, primary actions).
     base = mix(base, T.rgb, T.a * (1.0 - st.y * 0.25));
-    // Fresnel: grazing angles near the rim reflect the blurred surroundings.
+    // Fresnel: grazing angles near the rim reflect the blurred surroundings
+    // (faintly, with no haze of its own, so the rim doesn't fog over).
     float fres = pow(1.0 - n.z, 2.2) * (0.55 + 0.45 * u);
     vec3 env = texture(uHeavy, (p + g * S.y * 2.5) / uRes).rgb;
-    env = mix(vec3(dot(env, vec3(0.333))), env, 1.5) * (uDark > 0.5 ? 1.25 : 1.1) + 0.06;
-    // (Kept light, so the refracted backdrop still shows through at the rim.)
-    base = mix(base, env, clamp(fres * 0.4, 0.0, 0.3));
+    env = mix(vec3(dot(env, vec3(0.333))), env, 1.4);
+    base = mix(base, env, clamp(fres * 0.25, 0.0, 0.15));
 
-    // Shading across the bevel: lit side brighter, far side slightly deeper.
     float facing = dot(g, L2);
-    float shading = min(O.z, 1.0) * step(0.0, recess);
-    base *= 1.0 - 0.16 * u * u * max(-facing, 0.0) * shading;
-    base += 0.05 * u * u * max(facing, 0.0) * shading;
     if (recess < 0.0) base *= 1.0 - 0.12 * smoothstep(1.0, 0.0, t) * max(facing, 0.0);
 
     // Legibility: keep the middle of the glass within a luminance band, so
@@ -475,11 +470,15 @@ void main() {
     // (+ light, - dark); the size how firmly (it follows the frost setting).
     float legible = uExtra[i].x;
     if (legible != 0.0) {
-      float k = abs(legible) * mix(0.3, 1.0, clearRim);
+      float k = abs(legible);
       float bl = dot(base, vec3(0.299, 0.587, 0.114));
       if (legible > 0.0) {
         float lo = uDark > 0.5 ? 0.56 : 0.66;
         if (bl < lo) base = mix(base, vec3(1.0), clamp((lo - bl) / (1.0 - bl), 0.0, 1.0) * k);
+      } else if (uAsh > 0.5) {
+        // Pull bright backdrops down towards ash grey, not towards black.
+        float hi = 0.44;
+        if (bl > hi) base = mix(base, vec3(0.34, 0.34, 0.35), clamp((bl - hi) / (bl - 0.34), 0.0, 1.0) * k);
       } else {
         // Darken like tinted glass (keeping the colour) rather than painting over.
         float hi = uDark > 0.5 ? 0.3 : 0.34;
@@ -487,21 +486,27 @@ void main() {
       }
     }
 
-    // Light along the bevel: a faint edge, a soft glow and a glint, brightest
-    // on the side facing the light (which leans towards the pointer).
-    float rimW = 1.35 * uDpr;
-    float edge = 1.0 - smoothstep(0.0, rimW, depth);
-    float glowBand = (1.0 - smoothstep(rimW, rimW * 3.5, depth)) * (1.0 - edge);
-    float lit = 0.35 + 0.65 * max(facing, 0.0) + 0.35 * max(-facing, 0.0);
-    // With a mouse about, the rims brighten near it and fade away from it.
+    // Edge light: a thin bright line along the top and bottom edges (the top
+    // brighter), strongest in the middle and fading away into the corners,
+    // with a faint glow just inside it. It gives the glass its thickness.
+    // The sides get the opposite, a 1 px darkening that also fades into the
+    // corners, for contrast.
+    float line = 1.0 - smoothstep(0.35 * uDpr, 1.6 * uDpr, depth);
+    float sheen = 1.0 - smoothstep(0.0, 9.0 * uDpr, depth);
+    vec2 gE = gradRoundBox(q, R.zw, S.x);
+    float across = abs(q.x) / max(R.z, 1.0);
+    float along = 1.0 - smoothstep(0.15, 1.0, across);
+    float vert = pow(abs(gE.y), 4.0) * along * along * (gE.y > 0.0 ? 1.0 : 0.75);
+    // With a mouse about, the edges brighten near it and fade away from it.
     vec2 toPointer = p - uPointer.xy;
     float reach = 240.0 * uDpr;
-    float gain = mix(1.0, 0.35 + 1.9 * exp(-dot(toPointer, toPointer) / (reach * reach)), uPointer.z);
-    float rimK = O.z * (1.0 + 0.6 * st.x) * (uDark > 0.5 ? 0.55 : 0.85) * 0.2 * gain;
-    base += (edge * lit * 0.5 + glowBand * 0.28 * max(facing, 0.0)) * rimK;
-    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-    float spec = pow(max(dot(n, H), 0.0), 70.0) * u * O.z * (0.9 + 0.8 * st.x) * 0.2 * gain;
-    base += spec;
+    float gain = mix(1.0, 0.45 + 1.6 * exp(-dot(toPointer, toPointer) / (reach * reach)), uPointer.z);
+    float rimK = O.z * (1.0 + 0.5 * st.x) * (uDark > 0.5 ? 0.7 : 1.0) * gain;
+    base += vec3(1.0) * (line * 0.4 * vert + sheen * sheen * 0.06 * vert) * rimK;
+    float sideLine = 1.0 - smoothstep(0.35 * uDpr, 1.0 * uDpr + 0.35, depth);
+    float down = 1.0 - smoothstep(0.15, 1.0, abs(q.y) / max(R.w, 1.0));
+    float side = pow(abs(gE.x), 4.0) * down * down;
+    base *= 1.0 - sideLine * side * 0.22 * min(O.z, 1.0) * (uDark > 0.5 ? 1.2 : 1.0);
 
     // Pressing lights the glass where it is touched.
     vec2 dp = p - uPointer.xy;
