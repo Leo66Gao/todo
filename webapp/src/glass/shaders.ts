@@ -319,7 +319,8 @@ float noiseAt(vec2 p) {
   return mix(mix(grainAt(i), grainAt(i + vec2(1.0, 0.0)), f.x),
              mix(grainAt(i + vec2(0.0, 1.0)), grainAt(i + vec2(1.0, 1.0)), f.x), f.y);
 }
-// A ring of taps around a pre-blurred level widens its blur smoothly.
+// A ring of taps around a pre-blurred level widens its blur. (Only by less
+// than that level's own blur: wider, the taps show as ghosted copies.)
 vec3 ring(sampler2D t, vec2 a, vec2 b, vec2 c, float r) {
   vec3 acc = fetch3(t, a, b, c) * 0.2;
   vec2 k = vec2(r) / uRes;
@@ -331,23 +332,18 @@ vec3 ring(sampler2D t, vec2 a, vec2 b, vec2 c, float r) {
   return acc;
 }
 // Blur of any radius (device px) from the sharp image and its three
-// pre-blurred levels (~6, ~16 and ~40 CSS px).
+// pre-blurred levels (~6, ~16 and ~40 CSS px). Between two levels it blends
+// them by blur variance, which is smooth at every strength and cheap (rings
+// of taps over the finer level, used before, ghosted into a hatched pattern
+// at some strengths). Past the heaviest level a small ring widens it.
 vec3 blurAt(float R, vec2 a, vec2 b, vec2 c) {
   float s1 = 6.0 * uDpr;
   float s2 = 16.0 * uDpr;
   float s3 = 40.0 * uDpr;
   if (R <= s1) return mix(fetch3(uSrc, a, b, c), fetch3(uSoft, a, b, c), R / s1);
-  if (R <= s2) {
-    float f = (R - s1) / (s2 - s1);
-    vec3 v = ring(uSoft, a, b, c, sqrt(R * R - s1 * s1) * 0.8);
-    return f < 0.7 ? v : mix(v, fetch3(uMid, a, b, c), (f - 0.7) / 0.3);
-  }
-  if (R <= s3) {
-    float f = (R - s2) / (s3 - s2);
-    vec3 v = ring(uMid, a, b, c, sqrt(R * R - s2 * s2) * 0.8);
-    return f < 0.7 ? v : mix(v, fetch3(uHeavy, a, b, c), (f - 0.7) / 0.3);
-  }
-  return ring(uHeavy, a, b, c, sqrt(R * R - s3 * s3) * 0.8);
+  if (R <= s2) return mix(fetch3(uSoft, a, b, c), fetch3(uMid, a, b, c), (R * R - s1 * s1) / (s2 * s2 - s1 * s1));
+  if (R <= s3) return mix(fetch3(uMid, a, b, c), fetch3(uHeavy, a, b, c), (R * R - s2 * s2) / (s3 * s3 - s2 * s2));
+  return ring(uHeavy, a, b, c, min(sqrt(R * R - s3 * s3) * 0.8, 0.5 * s3));
 }
 
 void main() {
@@ -484,7 +480,7 @@ void main() {
     // grey under light text in light mode (as macOS does), so white text
     // reads without the glass going dark.
     if (fr > 0.0) {
-      base = mix(base, ring(uHeavy, uvR, uvG, uvB, 36.0 * uDpr), 0.9 * fr);
+      base = mix(base, ring(uHeavy, uvR, uvG, uvB, 20.0 * uDpr), 0.9 * fr);
       float bl0 = dot(base, vec3(0.299, 0.587, 0.114));
       base = mix(base, vec3(bl0), (uAsh > 0.5 ? 0.35 : 0.25) * fr);
       vec3 ice = uAsh > 0.5 ? vec3(0.43, 0.43, 0.445) : uDark > 0.5 ? vec3(0.16, 0.16, 0.18) : vec3(1.0);
