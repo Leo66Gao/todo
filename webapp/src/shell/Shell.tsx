@@ -482,8 +482,8 @@ export function Stepper({
 }) {
   const phone = useMedia("(max-width: 767px)");
   // On wider screens the arrows and the jump back share one box of glass,
-  // rounded like the buttons beside it.
-  const capsule = useGlass<HTMLDivElement>({ level: 2, kind: "plate" });
+  // the same glass and shape as the New task button beside it.
+  const capsule = useGlass<HTMLDivElement>({ level: 2, kind: "ink" });
   return (
     <div ref={phone ? undefined : capsule} className="relative flex items-center max-md:h-11 max-md:rounded-full md:rounded-ctl md:px-0.5">
       <GlassLens radius={22} bezel={15} className="lens-soft md:hidden" />

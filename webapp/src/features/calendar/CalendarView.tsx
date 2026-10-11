@@ -40,7 +40,8 @@ export function CalendarView() {
   const selected = useUI((s) => s.calendarDay);
   const list = useUI((s) => s.calendarList);
   const all = useAllTasks();
-  const togglePlate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true });
+  // The same glass as New task beside it.
+  const togglePlate = useGlass<HTMLButtonElement>({ level: 2, kind: "ink", interactive: true });
   const phone = useMedia(PHONE);
   const month = new Date(selected.getFullYear(), selected.getMonth(), 1);
   const monthKey = month.getTime();
