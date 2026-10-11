@@ -33,7 +33,8 @@ export interface Shape {
   opacity: number;
   /** Direction towards the light for this shape (GL space, y up), eased over time. */
   light: [number, number];
-  clip: { x: number; y: number; w: number; h: number } | null;
+  /** The box it's clipped to, and that box's corner radius (CSS px). */
+  clip: { x: number; y: number; w: number; h: number; r: number } | null;
 }
 
 type Target = { fbo: WebGLFramebuffer | null; tex: WebGLTexture | null; w: number; h: number };
@@ -133,10 +134,10 @@ export class GlassEngine {
     this.vao = gl.createVertexArray()!;
     this.bgProgram = new Program(gl, BACKGROUND_FS);
     this.blurProgram = new Program(gl, BLUR_FS);
-    // Each shape takes seven uniform vectors; fit as many as the GPU allows
+    // Each shape takes eight uniform vectors; fit as many as the GPU allows
     // (a month in the calendar alone is up to 42 boxes).
     const vectors = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) as number;
-    this.maxShapes = Math.max(8, Math.min(96, Math.floor((vectors - 32) / 7)));
+    this.maxShapes = Math.max(8, Math.min(96, Math.floor((vectors - 32) / 8)));
     this.glassProgram = new Program(gl, glassFragment(this.maxShapes));
     this.blitProgram = new Program(gl, BLIT_FS);
   }
@@ -336,6 +337,7 @@ export class GlassEngine {
     const optic = new Float32Array(MAX_SHAPES * 4);
     const state = new Float32Array(MAX_SHAPES * 4);
     const clip = new Float32Array(MAX_SHAPES * 4);
+    const clipRadius = new Float32Array(MAX_SHAPES);
     const extra = new Float32Array(MAX_SHAPES * 4);
     for (let i = 0; i < n; i++) {
       const s = shapes[i];
@@ -352,8 +354,9 @@ export class GlassEngine {
       extra.set([m.legible, s.light[0], s.light[1], m.frosted], i * 4);
       optic.set([m.blur, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
       state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
-      const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
+      const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5, r: 0 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
+      clipRadius[i] = c.r * dpr;
     }
     gl.uniform1i(p.loc("uCount"), n);
     gl.uniform4fv(p.loc("uRect"), rect);
@@ -362,6 +365,7 @@ export class GlassEngine {
     gl.uniform4fv(p.loc("uOptic"), optic);
     gl.uniform4fv(p.loc("uState"), state);
     gl.uniform4fv(p.loc("uClip"), clip);
+    gl.uniform1fv(p.loc("uClipR[0]"), clipRadius);
     gl.uniform4fv(p.loc("uExtra"), extra);
     this.draw();
   }
@@ -386,7 +390,7 @@ export class GlassEngine {
       case "slab":
         return {
           // A wide, deep bevel (wider than the corners are round) for a clear lens edge.
-          bezel: Math.min(34 * dpr, halfShort * 0.4),
+          bezel: Math.min(46 * dpr, halfShort * 0.4),
           height: 52 * dpr,
           tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.92] : [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold,
@@ -400,7 +404,7 @@ export class GlassEngine {
       case "chrome":
         return {
           // Small chrome (the phone tab bar) gets a proportionally gentler lens.
-          bezel: Math.min(32 * dpr, halfShort * 0.55),
+          bezel: Math.min(42 * dpr, halfShort * 0.55),
           height: Math.min(52 * dpr, halfShort * 0.9),
           tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.88] : [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold * 0.9,
@@ -468,6 +472,21 @@ export class GlassEngine {
           rim: 0.9,
           shadow: dark ? 0.16 : 0.08,
           shadowBlur: 12 * dpr,
+        };
+      case "chip":
+        // Blocks in the schedule: frosted a little more than the plate they
+        // sit in, so they read apart from it.
+        return {
+          bezel: Math.min(radius, 8 * dpr, halfShort),
+          height: Math.min(halfShort * 0.8, 12 * dpr),
+          tint: [...haze, dark ? 0.08 : 0.12],
+          legible: (dark ? -1 : 1) * hold * 0.4,
+          blur: mix(0.1, 0.55, b),
+          frosted: Math.min(1, f * 0.8 + 0.15),
+          dispersion: 0.1,
+          rim: 0.7,
+          shadow: dark ? 0.12 : 0.06,
+          shadowBlur: 8 * dpr,
         };
       case "well":
         // The search field: a shallow recessed well.
@@ -617,6 +636,7 @@ const approach = (value: number, target: number, rate: number) =>
 export class ShapeTracker {
   private motion = new WeakMap<HTMLElement, Motion>();
   private lastGeneration = -1;
+  private corners = new WeakMap<HTMLElement, number>();
   animating = false;
   /** How many level-2 shapes the renderer can draw (its `maxShapes`). */
   budget = 48;
@@ -663,6 +683,16 @@ export class ShapeTracker {
     return [level1, level2];
   }
 
+  /** An element's corner radius (CSS px), read again when radii may have changed. */
+  private cornerOf(el: HTMLElement, refresh: boolean) {
+    let r = refresh ? undefined : this.corners.get(el);
+    if (r == null) {
+      r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+      this.corners.set(el, r);
+    }
+    return r;
+  }
+
   private shapeOf(entry: GlassEntry, pointer: TrackedPointer, refreshRadius: boolean): Shape | null {
     const { el, spec } = entry;
     if (!el.isConnected) return null;
@@ -676,17 +706,20 @@ export class ShapeTracker {
     if (entry.clip) {
       const c = entry.clip.getBoundingClientRect();
       if (c.width < 2 || c.height < 2) return null;
-      clip = { x: c.x, y: c.y, w: c.width, h: c.height };
+      clip = { x: c.x, y: c.y, w: c.width, h: c.height, r: this.cornerOf(entry.clip, refreshRadius) };
     }
-    // Shapes in a list are also clipped to the list's scrolling box.
+    // Shapes in a list are also clipped to the list's scrolling box, with its
+    // corners. A list that is itself a box of glass (Today's schedule) keeps
+    // what's in it just inside its rim, so its edge light shows over them.
     if (spec.inScroll && entry.scroller === undefined) entry.scroller = scrollingAncestor(el);
     if (entry.scroller) {
       const b = entry.scroller.getBoundingClientRect();
-      const x0 = Math.max(b.x, clip?.x ?? -1e5);
-      const y0 = Math.max(b.y, clip?.y ?? -1e5);
-      const x1 = Math.min(b.right, clip ? clip.x + clip.w : 1e5);
-      const y1 = Math.min(b.bottom, clip ? clip.y + clip.h : 1e5);
-      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+      const inset = entry.scroller.dataset.glass ? 2 : 0;
+      const x0 = Math.max(b.x + inset, clip?.x ?? -1e5);
+      const y0 = Math.max(b.y + inset, clip?.y ?? -1e5);
+      const x1 = Math.min(b.right - inset, clip ? clip.x + clip.w : 1e5);
+      const y1 = Math.min(b.bottom - inset, clip ? clip.y + clip.h : 1e5);
+      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0), r: Math.max(0, this.cornerOf(entry.scroller, refreshRadius) - inset) };
     }
     // Nothing to draw when it is scrolled or clipped out of sight.
     const view = clip ?? { x: 0, y: 0, w: document.documentElement.clientWidth, h: document.documentElement.clientHeight };

@@ -270,6 +270,7 @@ uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
 uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
 uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, recessed
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
+uniform float uClipR[${MAX_SHAPES}]; // the clip's corner radius
 uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy, frost
 uniform vec2 uLight;                // towards the light, GL space
 uniform vec3 uPointer;              // xy, influence
@@ -367,10 +368,10 @@ void main() {
     vec4 C0 = uClip[i];
     float inClip = clamp(min(min(p.x - C0.x, C0.z - p.x), min(p.y - C0.y, C0.w - p.y)) + 0.5, 0.0, 1.0);
     // A shape on a panel keeps its shadow off the panel's rounded rim: it
-    // fades out over the last 10 px inside the panel (radius as in glass.css).
+    // fades out over the last 10 px inside the panel (following its corners).
     vec2 cc = 0.5 * (C0.xy + C0.zw);
     vec2 ch = 0.5 * (C0.zw - C0.xy);
-    inClip *= smoothstep(0.0, 10.0 * uDpr, -sdRoundBox(p - cc, ch, min(24.0 * uDpr, min(ch.x, ch.y))));
+    inClip *= smoothstep(0.0, 10.0 * uDpr, -sdRoundBox(p - cc, ch, min(uClipR[i], min(ch.x, ch.y))));
     float k = uOptic[i].w * uState[i].z * inClip;
     shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
@@ -397,7 +398,10 @@ void main() {
     vec2 q = p - R.xy;
     if (abs(q.x) > R.z + 1.0 || abs(q.y) > R.w + 1.0) continue;
     vec4 C = uClip[i];
-    float clip = clamp(min(min(p.x - C.x, C.z - p.x), min(p.y - C.y, C.w - p.y)) + 0.5, 0.0, 1.0);
+    // Clipped to the box it sits in, corners included.
+    vec2 cc = 0.5 * (C.xy + C.zw);
+    vec2 ch = 0.5 * (C.zw - C.xy);
+    float clip = clamp(0.5 - sdRoundBox(p - cc, ch, min(uClipR[i], min(ch.x, ch.y))), 0.0, 1.0);
     float d = sdRoundBox(q, R.zw, S.x);
     float cover = clamp(0.5 - d, 0.0, 1.0) * clip * uState[i].z;
     if (cover <= 0.0) continue;
@@ -409,7 +413,10 @@ void main() {
     // rounder outline, so the corners curve smoothly instead of mitring.
     float fieldR = min(max(S.x, S.y), min(R.z, R.w));
     vec2 g = gradRoundBox(q, R.zw, fieldR);
-    float depth = max(-sdRoundBox(q, R.zw, fieldR), 0.0);
+    // Depth is measured from the real outline at the rim (so the bevel's
+    // corners follow the box's own), easing into the rounder field inside.
+    float depthOut = max(-d, 0.0);
+    float depth = mix(depthOut, max(-sdRoundBox(q, R.zw, fieldR), 0.0), smoothstep(0.0, S.y, depthOut));
     float t = clamp(depth / S.y, 0.0, 1.0);
     float u = 1.0 - t;
     // A superellipse profile. Wide bevels (the big panels) are rounder, so the
@@ -438,15 +445,17 @@ void main() {
     float fold = 0.76 * S.y * u + 0.5 * uDpr;
     if (offLen > fold) off *= fold / offLen;
     // The big panels are thick glass with a rounded edge, as on macOS: the
-    // edge draws in a wide strip of what lies beyond it (up to 1.6 bevel
+    // edge draws in a wide strip of what lies beyond it (up to 1.35 bevel
     // widths out), squeezed hardest at the very rim like the side of a glass
     // block. Pulling from outside never folds the image, however strong.
     bool lens = nE < 3.0;
     float squeeze = 1.0;
     if (lens) {
-      float reach = 1.6 * S.y * (1.0 + st.y * 0.25);
-      off = g * reach * pow(u, 2.2);
-      squeeze = 1.0 + 1.6 * 2.2 * pow(u, 1.2);
+      // (A soft start: the bending eases in from nothing across the bevel,
+      // so there's no line where it begins.)
+      float reach = 1.35 * S.y * (1.0 + st.y * 0.25);
+      off = g * reach * pow(u, 2.8);
+      squeeze = 1.0 + 1.35 * 2.8 * pow(u, 1.8);
     }
     float disp = O.y * (lens ? 0.7 : 1.45) * mix(0.55, 1.0, clamp(O.x * 2.0, 0.0, 1.0)) * (1.0 + 0.6 * clamp(abs(g.x * g.y) * 4.0, 0.0, 1.0));
     vec2 uvG = (p + off) / uRes;

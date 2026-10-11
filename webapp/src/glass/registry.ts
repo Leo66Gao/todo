@@ -26,6 +26,8 @@ export type GlassKind =
   | "well"
   /** A raised, lightly frosted box on a panel, e.g. the profile. */
   | "plate"
+  /** A small, more frosted box inside a plate, e.g. a block in the schedule. */
+  | "chip"
   /** A thin plate under a task in a scrolling list. */
   | "card";
 

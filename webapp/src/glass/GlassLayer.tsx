@@ -5,6 +5,7 @@ import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
 import { followGlassRadii } from "./registry";
+import { stepScroll, syncScrolling } from "./syncScroll";
 import { reportGlassTop } from "@/lib/native";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
@@ -157,6 +158,8 @@ function GlassCanvas() {
     window.addEventListener("pointercancel", onUp, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
 
+    const stopScrolling = syncScrolling();
+
     let influence = 0;
     let frame = 0;
     let visible = !document.hidden;
@@ -176,6 +179,8 @@ function GlassCanvas() {
       influence += (wantLight - influence) * 0.12;
       if (Math.abs(wantLight - influence) < 0.002) influence = wantLight;
       pointer.influence = influence;
+      // Scrolls move first, so the glass reads where the rows are this frame.
+      stepScroll();
       const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer, origin);
       const px = Math.round(pointer.x - origin.x);
       const py = Math.round(pointer.y - origin.y);
@@ -197,6 +202,7 @@ function GlassCanvas() {
 
     return () => {
       cancelAnimationFrame(frame);
+      stopScrolling();
       unsubscribe();
       darkObserver.disconnect();
       document.removeEventListener("transitionrun", onTransition);
