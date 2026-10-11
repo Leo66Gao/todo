@@ -353,8 +353,8 @@ export class GlassEngine {
       tint.set(m.tint, i * 4);
       extra.set([m.legible, s.light[0], s.light[1], m.frosted], i * 4);
       optic.set([m.blur, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
-      // (Last: 1 for a recessed well, 2 for a task card, whose shadow falls only below it.)
-      state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : s.kind === "card" ? 2 : 0], i * 4);
+      // (Last: 1 for a recessed well.)
+      state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5, r: 0 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
       clipRadius[i] = c.r * dpr;
@@ -446,8 +446,7 @@ export class GlassEngine {
         };
       case "card":
         // Task plates: a shallow clear lens with the edge light and dark
-        // sides, and a short, very faint shadow (a long one would merge through the
-        // gaps between stacked plates into one dark slab under the list).
+        // sides, and the same shadow all round as a plate (the schedule box).
         return {
           bezel: Math.min(radius, 12 * dpr, halfShort),
           height: Math.min(14 * dpr, halfShort * 0.6),
@@ -457,8 +456,8 @@ export class GlassEngine {
           frosted: 0,
           dispersion: 0.12,
           rim: 1,
-          shadow: dark ? 0.048 : 0.021,
-          shadowBlur: 7 * dpr,
+          shadow: dark ? 0.16 : 0.08,
+          shadowBlur: 12 * dpr,
         };
       case "plate":
         // A raised box on a panel (the profile): lightly frosted, edge-lit.
