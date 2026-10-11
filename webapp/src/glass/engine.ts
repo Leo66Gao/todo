@@ -1,6 +1,6 @@
 "use client";
 
-import { glassEntries, isScrolling, radiiLive, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
+import { glassEntries, radiiLive, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
 import { BACKGROUND_FS, BLIT_FS, BLUR_FS, FULLSCREEN_VS, glassFragment } from "./shaders";
 
 export const PRESET_INDEX = { harbour: 0, contour: 1, ember: 2, studio: 3, image: 4 } as const;
@@ -133,9 +133,10 @@ export class GlassEngine {
     this.vao = gl.createVertexArray()!;
     this.bgProgram = new Program(gl, BACKGROUND_FS);
     this.blurProgram = new Program(gl, BLUR_FS);
-    // Each shape takes seven uniform vectors; fit as many as the GPU allows.
+    // Each shape takes seven uniform vectors; fit as many as the GPU allows
+    // (a month in the calendar alone is up to 42 boxes).
     const vectors = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) as number;
-    this.maxShapes = Math.max(8, Math.min(48, Math.floor((vectors - 32) / 7)));
+    this.maxShapes = Math.max(8, Math.min(96, Math.floor((vectors - 32) / 7)));
     this.glassProgram = new Program(gl, glassFragment(this.maxShapes));
     this.blitProgram = new Program(gl, BLIT_FS);
   }
@@ -578,6 +579,13 @@ export interface TrackedPointer {
 }
 
 
+/** How deep in the page an element is (to draw boxes under what they hold). */
+function depthOf(el: HTMLElement) {
+  let depth = 0;
+  for (let node = el.parentElement; node; node = node.parentElement) depth++;
+  return depth;
+}
+
 function scrollingAncestor(el: HTMLElement): HTMLElement | null {
   for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
     const { overflowY, overflowX } = getComputedStyle(node);
@@ -610,6 +618,8 @@ export class ShapeTracker {
   private motion = new WeakMap<HTMLElement, Motion>();
   private lastGeneration = -1;
   animating = false;
+  /** How many level-2 shapes the renderer can draw (its `maxShapes`). */
+  budget = 48;
 
   /**
    * `origin` is where the canvas's corner is in the coordinates elements
@@ -628,8 +638,7 @@ export class ShapeTracker {
     const regenerated = gen !== this.lastGeneration || live;
     if (live) this.animating = true;
     this.lastGeneration = gen;
-    const cards: Shape[] = [];
-    const plates: Shape[] = [];
+    const ranked: { shape: Shape; rank: number; depth: number; order: number }[] = [];
     for (const entry of glassEntries.values()) {
       const shape = this.shapeOf(entry, pointer, regenerated);
       if (!shape) continue;
@@ -638,13 +647,20 @@ export class ShapeTracker {
         shape.y -= origin.y;
         if (shape.clip) shape.clip = { ...shape.clip, x: shape.clip.x - origin.x, y: shape.clip.y - origin.y };
       }
-      if (entry.spec.level === 1) level1.push(shape);
-      else (shape.kind === "card" ? cards : shape.kind === "plate" ? plates : level2).push(shape);
+      if (entry.spec.level === 1) {
+        level1.push(shape);
+        continue;
+      }
+      if (entry.depth == null) entry.depth = depthOf(entry.el);
+      ranked.push({ shape, rank: shape.kind === "card" ? 2 : shape.kind === "plate" ? 1 : 0, depth: entry.depth, order: ranked.length });
     }
-    // Plates go first: they hold other level-2 shapes (the selected day sits
-    // on the day strip's plate), which are drawn over them. Cards go last, so
-    // a device's shape budget drops them before controls.
-    return [level1, plates.concat(level2, cards)];
+    // Past the device's shape budget, task cards go first, then plates, so
+    // controls always keep their glass. What's kept is drawn outermost first:
+    // a box holding others (the schedule, a segmented track) lies under them.
+    const kept = ranked.length > this.budget ? [...ranked].sort((a, b) => a.rank - b.rank || a.order - b.order).slice(0, this.budget) : ranked;
+    kept.sort((a, b) => a.depth - b.depth || a.order - b.order);
+    for (const k of kept) level2.push(k.shape);
+    return [level1, level2];
   }
 
   private shapeOf(entry: GlassEntry, pointer: TrackedPointer, refreshRadius: boolean): Shape | null {
@@ -714,11 +730,9 @@ export class ShapeTracker {
     }
     m.hover = approach(m.hover, spec.interactive && inside ? 1 : 0, 0.22);
     m.press = approach(m.press, spec.interactive && inside && pointer.down ? 1 : 0, pointer.down ? 0.45 : 0.18);
-    // While its list scrolls, a card fades to its CSS stand-in (which moves
-    // with the compositor) and returns once the list settles.
-    const moving = entry.scroller != null && (spec.kind === "card" || spec.kind === "plate") && isScrolling(entry.scroller);
-    const opacity = moving ? 0 : el.dataset.taskCard === "done" ? 0.5 : 1;
-    m.opacity = approach(m.opacity, opacity, moving ? 0.5 : 0.2);
+    // (Glass stays on while its list scrolls; it follows the list every frame.)
+    const opacity = el.dataset.taskCard === "done" ? 0.5 : 1;
+    m.opacity = approach(m.opacity, opacity, 0.2);
     if (m.opacity !== opacity || (m.hover !== 0 && m.hover !== 1) || (m.press !== 0 && m.press !== 1)) this.animating = true;
     // The highlight leans towards a nearby pointer: fully over the shape, less
     // as the pointer moves away. It glides round the rim rather than jumping

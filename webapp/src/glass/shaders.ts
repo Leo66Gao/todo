@@ -291,14 +291,16 @@ vec2 gradRoundBox(vec2 p, vec2 b, float r) {
   return s * ((g > 0.0 && l > 1e-4) ? q / l : ((w.x > w.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0)));
 }
 // How much of the top/bottom edge light (x) and the side darkening (y) a point
-// near the outline gets: full along the middle of each edge, fading smoothly
-// away close to the corners and round them.
+// near the outline gets. Each is strongest along the middle of its edges and
+// eases off towards the corners, and round each corner the light fades
+// straight into the darkness (they meet halfway round, at nothing).
 vec2 edgeWeights(vec2 q, vec2 b, float r) {
   vec2 g = gradRoundBox(q, b, r);
+  float w = g.y * g.y - g.x * g.x;
   vec2 fade = r * 1.3 + 0.12 * b;
   float alongX = smoothstep(0.0, 1.0, (b.x - abs(q.x) - r * 0.15) / fade.x);
   float alongY = smoothstep(0.0, 1.0, (b.y - abs(q.y) - r * 0.15) / fade.y);
-  return vec2(g.y * g.y * alongX * alongX, g.x * g.x * alongY * alongY);
+  return vec2(smoothstep(0.0, 1.0, w) * mix(0.4, 1.0, alongX * alongX), smoothstep(0.0, 1.0, -w) * mix(0.4, 1.0, alongY * alongY));
 }
 vec3 fetch3(sampler2D t, vec2 a, vec2 b, vec2 c) {
   return vec3(texture(t, a).r, texture(t, b).g, texture(t, c).b);

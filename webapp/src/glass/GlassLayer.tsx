@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
-import { followGlassRadii, noteScroll } from "./registry";
+import { followGlassRadii } from "./registry";
 import { reportGlassTop } from "@/lib/native";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
@@ -71,6 +71,7 @@ function GlassCanvas() {
     root.classList.remove("glass-css");
     engine.onTopColor = reportGlassTop;
     const tracker = new ShapeTracker();
+    tracker.budget = engine.maxShapes;
     // Development aid: `?glass-bg` shows the bare background.
     const bareBackground = process.env.NODE_ENV !== "production" && location.search.includes("glass-bg");
     if (bareBackground) root.classList.add("glass-bare");
@@ -150,11 +151,6 @@ function GlassCanvas() {
       pointer.inside = false;
       pointer.down = false;
     };
-    // Lists hand their glass cards to CSS while they scroll.
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Element) noteScroll(e.target);
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerdown", onDown, { passive: true });
     window.addEventListener("pointerup", onUp, { passive: true });
@@ -206,7 +202,6 @@ function GlassCanvas() {
       document.removeEventListener("transitionrun", onTransition);
       document.removeEventListener("transitionend", onTransition);
       reducedTransparency.removeEventListener("change", applyLook);
-      document.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
