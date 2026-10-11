@@ -27,6 +27,7 @@ export function saveMaterial(subjectId: string, material: Omit<Material, "id" | 
     title: material.title.trim(),
     addedAt: material.addedAt ?? Date.now(),
     ...(material.url?.trim() ? { url: normalizeUrl(material.url) } : {}),
+    ...(material.path?.trim() ? { path: cleanPath(material.path) } : {}),
     ...(material.detail?.trim() ? { detail: material.detail.trim() } : {}),
   };
   withSubject(subjectId, (p) => {
@@ -58,6 +59,36 @@ export function normalizeUrl(text: string): string {
   const value = text.trim();
   if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
   return `https://${value}`;
+}
+
+/** True for text that reads as a file on a computer: "/Users/…", "~/…", "C:\\…" or a file: link. */
+export function looksLikePath(text: string): boolean {
+  const value = text.trim();
+  return /^(\/|~\/|[a-z]:[\\/]|\\\\|file:\/\/)/i.test(value) && value.length > 2;
+}
+
+/** A pasted path without quotes (Finder's "Copy as Pathname" adds none, Terminal may) or file: prefix. */
+export function cleanPath(text: string): string {
+  let value = text.trim().replace(/^["']|["']$/g, "");
+  if (/^file:\/\//i.test(value)) {
+    try {
+      value = decodeURIComponent(new URL(value).pathname).replace(/^\/([a-z]:)/i, "$1");
+    } catch {
+      // Left as typed.
+    }
+  }
+  return value;
+}
+
+/** "notes.pdf" for "/Users/leo/Physics/notes.pdf". */
+export function fileName(path: string): string {
+  return cleanPath(path).split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+/** A readable title for a file: its name without the extension. */
+export function titleFromPath(path: string): string {
+  const name = fileName(path).replace(/\.[a-z0-9]{1,5}$/i, "").replace(/[-_]+/g, " ").trim();
+  return name ? name[0].toUpperCase() + name.slice(1) : fileName(path);
 }
 
 /** True for text that reads as a web address. */
@@ -119,9 +150,19 @@ export function titleFromUrl(url: string): string {
   return host;
 }
 
-export type MaterialKind = "video" | "doc" | "slides" | "sheet" | "pdf" | "code" | "link" | "item";
+export type MaterialKind = "video" | "doc" | "slides" | "sheet" | "pdf" | "code" | "link" | "file" | "item";
 
-export function materialKind(material: Pick<Material, "url">): MaterialKind {
+export function materialKind(material: Pick<Material, "url" | "path">): MaterialKind {
+  if (material.path) {
+    const ext = fileName(material.path).split(".").pop()?.toLowerCase() ?? "";
+    if (ext === "pdf") return "pdf";
+    if (/^(pptx?|key|odp)$/.test(ext)) return "slides";
+    if (/^(xlsx?|csv|numbers|ods)$/.test(ext)) return "sheet";
+    if (/^(docx?|pages|odt|rtf|txt|md)$/.test(ext)) return "doc";
+    if (/^(mp4|mov|m4v|webm|mkv)$/.test(ext)) return "video";
+    if (/^(py|js|ts|java|c|cpp|ipynb|r|m)$/.test(ext)) return "code";
+    return "file";
+  }
   if (!material.url) return "item";
   let host = "";
   let path = "";
@@ -144,4 +185,12 @@ export function materialKind(material: Pick<Material, "url">): MaterialKind {
   if (/\.docx?$/.test(path) || /notion\.so|onedrive|sharepoint/.test(host)) return "doc";
   if (/github\.com|gitlab\.com|replit\.com|colab\.research/.test(host)) return "code";
   return "link";
+}
+
+/** Whether a material matches a search: its title, link, file path or note. */
+export function materialMatches(material: Material, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const text = [material.title, material.url, material.path, material.detail].filter(Boolean).join(" ").toLowerCase();
+  return q.split(/\s+/).every((word) => text.includes(word));
 }

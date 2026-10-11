@@ -3,18 +3,18 @@
 import { format } from "date-fns";
 import type { Priority } from "@/lib/dart";
 import { argbToCss } from "@/lib/dart";
-import type { Task } from "@/lib/model";
+import { uuid, type Task } from "@/lib/model";
 import { startTaskFocus } from "@/lib/focus";
 import { addDays, formatDuration, relativeDay, startOfWeek, today } from "@/lib/time";
 import type { Route } from "@/shell/nav";
 import { ui } from "@/shell/ui";
+import { upcomingOf } from "@/store/repeat";
 import { restoreFromTrash, trashTask } from "@/store/trash";
 import {
   addSubtaskFull,
   addTask,
   captureWorkspaceSession,
   deleteTask,
-  newTask,
   patchTask,
   rescheduleTask,
   toggleTask,
@@ -79,22 +79,47 @@ export function moveTask(task: Task, day: Date, quiet = false) {
   }
 }
 
-export function duplicateTask(task: Task) {
+/** A copy of the task (open, on [day] if given, not part of any repeating series), placed after it. */
+export function duplicateTask(task: Task, day?: Date) {
   if (task.milestone) return;
+  const currentSession = captureWorkspaceSession();
   const index = useWorkspace.getState().tasks.findIndex((t) => t.id === task.id);
-  const copy = newTask({
+  const date = day ?? task.date;
+  const id = uuid();
+  const extra = { ...task.extra };
+  delete extra.repeat;
+  const copy: Task = {
     ...task,
-    id: undefined as unknown as string,
-    title: task.title,
+    id,
+    date,
+    startTime: task.startTime ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), task.startTime.getHours(), task.startTime.getMinutes()) : null,
     isDone: false,
+    remainingMinutes: task.isDone ? task.durationMinutes : task.remainingMinutes,
     googleEventId: null,
     calendarEventRevision: 0,
     isConflictCopy: false,
-    subtasks: task.subtasks.map((s) => ({ ...s, id: crypto.randomUUID(), isDone: false })),
-  });
-  copy.id = crypto.randomUUID();
+    subtasks: task.subtasks.map((s) => ({ ...s, id: uuid(), isDone: false })),
+    extra: Object.keys(extra).length ? extra : undefined,
+  };
   addTask(copy, index + 1);
-  toast("Task duplicated");
+  // The open panel moves to the copy, ready to change it.
+  if (ui.get().inspectorId === task.id) ui.inspect(copy.id);
+  else ui.select(copy.id);
+  toast(day ? `Duplicated to ${relativeDay(day)}` : "Duplicated", { label: "Edit", run: () => { if (currentSession()) ui.editTask(copy.id); } });
+}
+
+/** Deletes a repeating task and the open ones after it (all can come back with Undo). */
+export function removeUpcoming(task: Task) {
+  const currentSession = captureWorkspaceSession();
+  const all = [task, ...upcomingOf(task)].map((t) => useWorkspace.getState().tasks.find((x) => x.id === t.id)).filter((t): t is Task => !!t);
+  if (ui.get().inspectorId && all.some((t) => t.id === ui.get().inspectorId)) ui.closeInspector();
+  for (const t of all) trashTask(t);
+  toast(`Deleted ${all.length} ${all.length === 1 ? "task" : "tasks"}`, {
+    label: "Undo",
+    run: () => {
+      if (currentSession()) for (const t of all) restoreFromTrash("task", t.id);
+    },
+  });
 }
 
 export function taskMenu(task: Task, navigate: Navigate): MenuItem[] {
@@ -174,10 +199,29 @@ export function taskMenu(task: Task, navigate: Navigate): MenuItem[] {
         ],
       });
     }
-    items.push({ separator: true }, { label: "Duplicate", onSelect: () => duplicateTask(task) });
+    items.push(
+      { separator: true },
+      { label: "Duplicate", shortcut: "⌘D", onSelect: () => duplicateTask(task) },
+      {
+        label: "Duplicate to",
+        items: [
+          { label: "Today", onSelect: () => duplicateTask(task, now) },
+          { label: "Tomorrow", onSelect: () => duplicateTask(task, addDays(now, 1)) },
+          { label: "Next week", onSelect: () => duplicateTask(task, addDays(startOfWeek(now), 7)) },
+          { separator: true },
+          ...Array.from({ length: 7 }, (_, i) => addDays(now, i + 2)).map((d) => ({
+            label: format(d, "EEEE d MMM"),
+            onSelect: () => duplicateTask(task, d),
+          })),
+        ],
+      },
+    );
   } else {
     items.push({ separator: true });
   }
   items.push({ label: "Delete", shortcut: "⌫", destructive: true, onSelect: () => removeTask(task) });
+  if (!isMilestone && upcomingOf(task).length > 0) {
+    items.push({ label: "Delete this and upcoming", destructive: true, onSelect: () => removeUpcoming(task) });
+  }
   return items;
 }

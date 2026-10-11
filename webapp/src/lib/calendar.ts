@@ -83,6 +83,8 @@ export interface EventInput {
   isAllDay: boolean;
   taskId: string;
   ownerUid: string;
+  /** A popup five minutes before (Google Calendar's own alert); false for none. */
+  alerts?: boolean;
 }
 
 const ymd = (d: Date) =>
@@ -94,7 +96,7 @@ function eventBody(input: EventInput, withId: boolean) {
   const body: Record<string, unknown> = {
     summary: input.title,
     description: input.description,
-    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 5 }] },
+    reminders: { useDefault: false, overrides: input.alerts === false ? [] : [{ method: "popup", minutes: 5 }] },
     extendedProperties: { private: { todoTaskId: input.taskId, firebaseUid: input.ownerUid } },
   };
   if (withId && input.eventId) body.id = input.eventId;

@@ -5,6 +5,7 @@
 // exist for the next two weeks and brings the scheduled ones in line.
 
 import { create } from "zustand";
+import { plainLines } from "./delta";
 import { isFocusNotification } from "./focus";
 import { isNative } from "./native";
 import { getLocal, setLocal } from "./prefs";
@@ -97,9 +98,9 @@ export function timeRange(task: Pick<Task, "startTime" | "durationMinutes">) {
   return `${start}–${clock(new Date(task.startTime.getTime() + task.durationMinutes * 60_000))}`;
 }
 
-/** The first line of a task's notes, kept short. */
+/** The first line of a task's notes as plain text (notes are stored as rich text or Markdown), kept short. */
 function firstLine(text: string) {
-  const line = text.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+  const line = plainLines(text)[0] ?? "";
   return line.length > 90 ? `${line.slice(0, 89).trimEnd()}…` : line;
 }
 

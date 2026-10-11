@@ -5,13 +5,15 @@
 //
 // - Smart add: the typed sentence ("essay draft by fri, 2h, hard, history")
 //   becomes a fully set task.
-// - From a photo: text is read on the device (OCR), then turned into an
-//   assignment with its subtasks and milestones, or a handful of tasks.
+// - From a photo: the AI looks at the photo itself (an assignment sheet, a
+//   whiteboard, handwriting) and turns it into an assignment with its
+//   subtasks and milestones, or a handful of tasks.
 
 import { create } from "zustand";
 import { format } from "date-fns";
 import { PRIORITIES, type Priority } from "./dart";
 import { chatJson, AiError, useAiKey } from "./ai";
+import { photoDataUrl } from "./photoData";
 import { uuid, type Subtask, type Task } from "./model";
 import { startOfDay, today } from "./time";
 import { addTask, captureWorkspaceSession, deleteTask, newTask, updateTask, useWorkspace } from "@/store/workspace";
@@ -39,11 +41,18 @@ function context() {
   const { projects } = useWorkspace.getState();
   const now = new Date();
   return [
+    "You turn a secondary-school student's words or photos into tasks for their planner. Reply with JSON only.",
     `Today is ${format(now, "EEEE yyyy-MM-dd")}, local time ${format(now, "HH:mm")}.`,
     `The student's subjects: ${projects.map((p) => p.title).join(", ") || "none"}.`,
-    "Dates as yyyy-MM-dd, times as HH:mm (24h). Weekday names mean the next such day. minutes = estimated work time.",
-    `priority is one of ${PRIORITIES.join(", ")}. difficulty 1–5 or null if not said. subject must be one of the subjects above, or null.`,
-    'An "assignment" has a due date (the date); a "todo" is work done on its date.',
+    "Fields:",
+    "- title: short and specific, in the student's language, without the date, time, length or priority words (\"Physics lab report\", not \"do physics lab report by friday 2h\").",
+    '- type: "assignment" when something is handed in or due (the date is the due date); "todo" for work done on its date (revision, reading, practice).',
+    "- date: yyyy-MM-dd. A weekday means the next one (today if it's today and still ahead); \"next week\" means that Monday. null if no day is given.",
+    "- time: HH:mm (24h) only if a time is given, else null.",
+    "- minutes: the work time if said or clearly implied (\"2h\", \"quick\" ≈ 15), else null.",
+    `- priority: one of ${PRIORITIES.join(", ")}; only if said or clearly urgent ("asap", "urgent", "tomorrow's test"), else null.`,
+    "- difficulty: 1–5 only if said, else null.",
+    "- subject: one of the subjects above when the task clearly belongs to it (by name, topic or teacher), else null.",
   ].join("\n");
 }
 
@@ -161,7 +170,7 @@ export function smartAdd(text: string, base: Partial<Task>) {
       const ai = await chatJson<unknown>([
         {
           role: "system",
-          content: `${context()}\nTurn the student's note into one task. Reply as JSON {title, type, date, time, minutes, priority, difficulty, subject}. title: short, cleaned, without the date/time/length words. Leave out what isn't said (null).`,
+          content: `${context()}\n\nTurn the student's sentence into one task. Reply as {"title", "type", "date", "time", "minutes", "priority", "difficulty", "subject"}.`,
         },
         { role: "user", content: text },
       ], operation.controller.signal);
@@ -176,22 +185,6 @@ export function smartAdd(text: string, base: Partial<Task>) {
     }
   })();
   return true;
-}
-
-/** Reads the text in a photo on the device. */
-async function readPhoto(file: File, signal: AbortSignal): Promise<string> {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng");
-  const cancel = () => void worker.terminate();
-  signal.addEventListener("abort", cancel, { once: true });
-  try {
-    signal.throwIfAborted();
-    const { data } = await worker.recognize(file);
-    return data.text;
-  } finally {
-    signal.removeEventListener("abort", cancel);
-    void worker.terminate();
-  }
 }
 
 /**
@@ -209,15 +202,29 @@ export function tasksFromPhoto(file: File, base: Partial<Task>) {
   pending(holder.id, true);
   void (async () => {
     try {
-      const text = (await readPhoto(file, operation.controller.signal)).trim();
+      const image = await photoDataUrl(file).catch((error: Error) => {
+        throw new AiError(error.message);
+      });
       if (!operation.valid()) return;
-      if (text.length < 4) throw new AiError("No text found in that photo. Try a sharper, closer shot.");
       const ai = await chatJson<{ tasks?: AiTask[] }>([
         {
           role: "system",
-          content: `${context()}\nThe text below was read from a photo (a whiteboard, an assignment sheet, a syllabus) and may have OCR errors. Reply as JSON {tasks: [{title, type, date, time, minutes, priority, difficulty, subject, notes, subtasks: [{title, date}]}]}. One assignment sheet = one assignment, with its steps as subtasks and any interim deadlines as subtask dates; a list of separate jobs = separate tasks (at most 12). notes: one or two useful lines from the sheet (requirements, word count), else "".`,
+          content: `${context()}
+
+The student took a photo of work to do: an assignment sheet, a whiteboard, a syllabus, a planner page or handwriting. Read it carefully (including handwriting and anything at an angle) and reply as {"tasks": [{"title", "type", "date", "time", "minutes", "priority", "difficulty", "subject", "notes", "subtasks": [{"title", "date"}]}]}.
+- One assignment sheet = one assignment: its parts or steps as subtasks, and any interim deadlines as subtask dates.
+- A list of separate jobs (homework on a board, a week's plan) = separate tasks, at most 12.
+- notes: the details worth keeping from the photo (requirements, word count, pages, what to bring), in one to three short lines; else "".
+- Dates written without a year are the next such date. Leave out anything that isn't a task.
+- If there's nothing to do in the photo, reply {"tasks": []}.`,
         },
-        { role: "user", content: text.slice(0, 12000) },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Here is the photo." },
+            { type: "image_url", image_url: { url: image } },
+          ],
+        },
       ], operation.controller.signal);
       if (!operation.valid()) return;
       const list = (Array.isArray(ai.tasks) ? ai.tasks : []).slice(0, 12).map(parseAiTask).filter((t) => t.title);

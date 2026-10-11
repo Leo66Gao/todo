@@ -13,6 +13,7 @@ import { ui } from "@/shell/ui";
 import { taskMenu } from "@/features/tasks/actions";
 import { difficultyColor, useProjectMap, workMinutes } from "@/features/tasks/meta";
 import { useWorkspace } from "@/store/workspace";
+import { useGlass } from "@/glass/registry";
 import { Numeral } from "@/ui/Numeral";
 import { cn } from "@/ui/cn";
 import { Button, Segmented } from "@/ui/controls";
@@ -24,6 +25,7 @@ type Filter = "open" | "all";
 export function AssignmentsView() {
   const tasks = useWorkspace((s) => s.tasks);
   const [filter, setFilter] = useState<Filter>("open");
+  const statsPlate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", inScroll: true });
   const assignments = useMemo(
     () => tasks.filter((t) => t.type === "assignment").sort((a, b) => a.date.getTime() - b.date.getTime()),
     [tasks],
@@ -63,7 +65,6 @@ export function AssignmentsView() {
         actions={
           <>
             <Segmented
-              size="sm"
               value={filter}
               onChange={setFilter}
               className="mr-1 max-sm:hidden"
@@ -81,7 +82,7 @@ export function AssignmentsView() {
       <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[820px] px-6 max-md:px-4 max-md:pt-3">
           {open.length > 0 && (
-            <div className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-[18px] border border-line bg-card shadow-card">
+            <div ref={statsPlate} className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-[18px] border border-line bg-card shadow-card">
               <Stat value={String(stats.dueSoon)} label="Due in 7 days" />
               <Stat value={stats.work > 0 ? formatDuration(stats.work) : "—"} label="Work left" />
               <Stat value={stats.subsTotal > 0 ? `${stats.subsDone}/${stats.subsTotal}` : "—"} label="Subtasks done" />
@@ -149,9 +150,11 @@ function AssignmentRow({ task }: { task: Task }) {
   const days = daysFromToday(task.date);
   const overdue = isOverdue(task.date, task.isDone);
   const minutes = workMinutes(task);
+  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   return (
     <ContextMenu items={() => taskMenu(task, navigate)}>
       <div
+        ref={plate}
         role="button"
         tabIndex={-1}
         data-task-id={task.id}

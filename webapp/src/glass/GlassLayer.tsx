@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
-import { noteScroll } from "./registry";
+import { followGlassRadii } from "./registry";
+import { stepScroll, syncScrolling } from "./syncScroll";
 import { reportGlassTop } from "@/lib/native";
 
 const PRESET_CLASSES = [...PRESET_IDS, ...PHOTO_IDS, "image"].map((p) => `glass-bg-${p}`);
@@ -71,6 +72,7 @@ function GlassCanvas() {
     root.classList.remove("glass-css");
     engine.onTopColor = reportGlassTop;
     const tracker = new ShapeTracker();
+    tracker.budget = engine.maxShapes;
     // Development aid: `?glass-bg` shows the bare background.
     const bareBackground = process.env.NODE_ENV !== "production" && location.search.includes("glass-bg");
     if (bareBackground) root.classList.add("glass-bare");
@@ -113,8 +115,20 @@ function GlassCanvas() {
       });
     };
     applyLook();
-    const unsubscribe = useGlassPrefs.subscribe(applyLook);
-    const darkObserver = new MutationObserver(applyLook);
+    // Settings and theme changes ease corner radii in CSS; the glass follows
+    // them as they move instead of keeping the radius it read first.
+    const onLookChange = () => {
+      followGlassRadii();
+      applyLook();
+    };
+    const onTransition = (e: TransitionEvent) => {
+      if (e.propertyName.includes("radius")) followGlassRadii(e.type === "transitionrun" ? 700 : 100);
+    };
+    followGlassRadii();
+    document.addEventListener("transitionrun", onTransition);
+    document.addEventListener("transitionend", onTransition);
+    const unsubscribe = useGlassPrefs.subscribe(onLookChange);
+    const darkObserver = new MutationObserver(onLookChange);
     darkObserver.observe(root, { attributes: true, attributeFilter: ["class"] });
     reducedTransparency.addEventListener("change", applyLook);
 
@@ -138,16 +152,13 @@ function GlassCanvas() {
       pointer.inside = false;
       pointer.down = false;
     };
-    // Lists hand their glass cards to CSS while they scroll.
-    const onScroll = (e: Event) => {
-      if (e.target instanceof Element) noteScroll(e.target);
-    };
-    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerdown", onDown, { passive: true });
     window.addEventListener("pointerup", onUp, { passive: true });
     window.addEventListener("pointercancel", onUp, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
+
+    const stopScrolling = syncScrolling();
 
     let influence = 0;
     let frame = 0;
@@ -155,15 +166,24 @@ function GlassCanvas() {
     const tick = () => {
       frame = requestAnimationFrame(tick);
       if (!visible) return;
-      engine.resize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+      // The canvas measured like the elements it draws under: during a pinch
+      // zoom Safari reports positions from the visible area's corner (and its
+      // innerWidth shrinks), while the canvas stays attached to the page's
+      // viewport and zooms with it. Shapes are placed relative to the canvas.
+      const at = canvas.getBoundingClientRect();
+      const origin = { x: Math.round(at.x * 4) / 4, y: Math.round(at.y * 4) / 4 };
+      const { clientWidth, clientHeight } = document.documentElement;
+      engine.resize(clientWidth || window.innerWidth, clientHeight || window.innerHeight, window.devicePixelRatio || 1);
       // The highlight leans towards a mouse; it eases back when the mouse leaves.
       const wantLight = useGlassPrefs.getState().pointerLight && finePointer.matches && pointer.inside && pointer.fine ? 1 : 0;
       influence += (wantLight - influence) * 0.12;
       if (Math.abs(wantLight - influence) < 0.002) influence = wantLight;
       pointer.influence = influence;
-      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer);
-      const px = Math.round(pointer.x);
-      const py = Math.round(pointer.y);
+      // Scrolls move first, so the glass reads where the rows are this frame.
+      stepScroll();
+      const [level1, level2] = bareBackground ? [[], []] : tracker.collect(pointer, origin);
+      const px = Math.round(pointer.x - origin.x);
+      const py = Math.round(pointer.y - origin.y);
       engine.render(level1, level2, [px, py, Math.round(influence * 500) / 500]);
     };
     frame = requestAnimationFrame(tick);
@@ -182,10 +202,12 @@ function GlassCanvas() {
 
     return () => {
       cancelAnimationFrame(frame);
+      stopScrolling();
       unsubscribe();
       darkObserver.disconnect();
+      document.removeEventListener("transitionrun", onTransition);
+      document.removeEventListener("transitionend", onTransition);
       reducedTransparency.removeEventListener("change", applyLook);
-      document.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);

@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { AnimatePresence, motion } from "motion/react";
 import {
   CalendarDays,
+  Copy,
   CalendarX2,
   Check,
   ChevronDown,
@@ -40,7 +41,10 @@ import { Menu, Modal, Popover, Tooltip, type MenuItem } from "@/ui/overlay";
 import { DatePanel } from "@/ui/pickers";
 import { RichText } from "@/ui/RichText";
 import { toast } from "@/ui/toast";
-import { taskMenu } from "./actions";
+import { duplicateTask, taskMenu } from "./actions";
+import { RepeatField } from "./RepeatField";
+import { readRepeat } from "@/lib/repeat";
+import { repeatSummary, setRepeat } from "@/store/repeat";
 import { DateField, SubjectField, TimeField } from "./fields";
 import { PRIORITY_LABEL, priorityColor, difficultyColor, workMinutes } from "./meta";
 import { WorkBack } from "./WorkBack";
@@ -158,6 +162,25 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
               startTime: task.startTime ? withClock(d, clockOf(task.startTime)) : null,
             })
           }
+        />
+      </Property>,
+    );
+  }
+  const repeat = readRepeat(task);
+  if (!task.milestone && (!page || repeat)) {
+    properties.push(
+      <Property key="repeat" label="Repeat">
+        <RepeatField
+          value={repeat?.rule ?? null}
+          day={task.date}
+          plain
+          className="w-full"
+          onChange={(rule) => {
+            const { added, removed } = setRepeat(task.id, rule);
+            const summary = repeatSummary({ added, removed });
+            if (summary) toast(summary);
+            else if (!rule && repeat) toast("Stopped repeating");
+          }}
         />
       </Property>,
     );
@@ -294,7 +317,6 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
         <div className="flex h-[52px] shrink-0 items-center gap-1 px-3">
           <TaskCheck
             checked={task.isDone}
-            color={task.priority !== "none" ? priorityColor(task.priority) : undefined}
             onToggle={() => toggleTask(task.id)}
           />
           <span className={cn("text-xs", task.isDone ? "text-ink-3" : isAssignment ? "text-accent" : "text-ink-3")}>
@@ -313,6 +335,11 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
                 </IconButton>
               </Tooltip>
             )}
+            <Tooltip label="Duplicate" shortcut={["⌘", "D"]}>
+              <IconButton label="Duplicate task" onClick={() => duplicateTask(task)}>
+                <Copy className="size-[15px]" />
+              </IconButton>
+            </Tooltip>
             <Tooltip label="Edit all fields" shortcut={["⌘", "↩"]}>
               <IconButton label="Edit task" onClick={() => ui.editTask(task.id)}>
                 <Pencil className="size-[15px]" />

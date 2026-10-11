@@ -1,10 +1,13 @@
 // Natural language in a task's title: "physics IA draft fri 3pm 2h",
-// "essay due 12 oct", "gym tomorrow at 7 #pe !". Each recognised phrase is
+// "essay due 12 oct", "gym tomorrow at 7 #pe !", "physics review fri 18-20 urgent". Each recognised phrase is
 // reported with where it is, so it can be shown, applied, or ignored.
 
 import type { Priority } from "./dart";
 import { addDays, startOfDay } from "./time";
 import { parseTimeToken, type ClockTime } from "./timeParse";
+
+/** Words a trailing number counts rather than tells the time of. */
+const COUNTED = /^(?:ch|chap|chapter|chapters|p|pg|pp|page|pages|unit|units|section|sec|q|qs|question|questions|lesson|ex|exercise|exercises|topic|part|problem|problems|set|week|lecture|lab|test|quiz|no|nr|module|level|grade|year|paper|essay|draft|kapitel|seite|luku|sivu|tehtävä|tehtävät)$/;
 
 export type TokenKind = "date" | "time" | "duration" | "subject" | "priority";
 
@@ -127,6 +130,33 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     if (setDate(dayMonth(now, Number(m[1]), Number(m[2]) - 1), s, e)) result.due ||= isDue(m);
   });
 
+  // Time ranges: "18-20", "18.00–19.30", "6-8pm", "from 4 to 5:30pm" set the
+  // start and the length. A bare "12-14" after "pages" or "questions" is a
+  // range of those, not of hours.
+  let rangeMinutes = 0;
+  const T = "\\d{1,2}(?:[:.]\\d{2})?\\s*(?:am|pm)?";
+  scan(new RegExp(`(?:from\\s+|at\\s+)?(${T})\\s*(?:-|–|—|to|until|till)\\s*(${T})`), (m, s, e) => {
+    if (result.time || ignored.has("time")) return;
+    const before = text.slice(0, s).toLowerCase();
+    const plain = !/[:.]|am|pm/i.test(m[1] + m[2]) && !/^from\b/i.test(m[0]);
+    if (plain && /\b(pages?|pp?|p\.|chapters?|ch|chap|questions?|qs?|q\.|ex|exercises?|problems?|exs?|units?|slides?|sections?|lessons?|weeks?|days?|nos?|numbers?)\.?\s*$/.test(before)) return;
+    const endText = m[2].replace(/\s+/g, "");
+    let startText = m[1].replace(/\s+/g, "");
+    // "6-8pm": the start takes the end's half of the day.
+    const half = /(am|pm)$/i.exec(endText);
+    if (half && !/(am|pm)$/i.test(startText)) startText += half[1];
+    const start = parseTimeToken(startText);
+    const end = parseTimeToken(endText);
+    if (!start || !end) return;
+    let length = end.hour * 60 + end.minute - (start.hour * 60 + start.minute);
+    // "6pm-8" reads as 18–20.
+    if (length <= 0 && end.hour < 12 && start.hour >= 12) length += 12 * 60;
+    if (length <= 0 || length > 16 * 60) return;
+    result.time = start;
+    rangeMinutes = length;
+    take("time", s, e);
+  });
+
   // Durations (before times, so "2h" isn't read as a time) -----------------
   scan(/(?:for\s+)?(\d+(?:\.\d+)?)\s*(h|hr|hrs|hours?)(?:\s*(\d{1,2})\s*(?:m|min|mins|minutes?)?)?|(?:for\s+)?(\d{1,3})\s*(m|min|mins|minutes)/, (m, s, e) => {
     if (result.minutes || ignored.has("duration")) return;
@@ -136,6 +166,9 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     take("duration", s, e);
   });
 
+  // A range's length, unless a length was also given ("run 7-9 1h").
+  if (rangeMinutes && !result.minutes && !ignored.has("duration")) result.minutes = rangeMinutes;
+
   // Times -------------------------------------------------------------------
   scan(/(?:at\s+|@\s*)?(\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm))|(?:at\s+|@\s*)(\d{1,2}(?:[:.]\d{2})?)|(\d{1,2}[:.]\d{2})/, (m, s, e) => {
     if (result.time || ignored.has("time")) return;
@@ -144,10 +177,12 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     result.time = time;
     take("time", s, e);
   });
-  // Like the phone app: a bare hour at the very end ("Gym 18").
+  // Like the phone app: a bare hour at the very end ("Gym 18"), but not a
+  // number that counts something ("Revise ch 3", "Exercise 12").
   if (!result.time && !ignored.has("time")) {
     const last = /\s(\d{1,2})\s*$/.exec(text);
-    if (last && free(last.index + 1, text.trimEnd().length)) {
+    const before = last ? (/(\S+)\s*$/.exec(text.slice(0, last.index))?.[1] ?? "").toLowerCase().replace(/[.:#]+$/, "") : "";
+    if (last && !COUNTED.test(before) && free(last.index + 1, text.trimEnd().length)) {
       const time = parseTimeToken(last[1]);
       if (time) {
         result.time = time;
@@ -170,6 +205,25 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
             ? "medium"
             : "low";
     take("priority", m.index, m.index + m[0].length);
+  }
+
+  // Priority in words: "urgent", "high priority", "low prio"; "critical" or
+  // "important" only as the last word (so "critical thinking" stays a title).
+  if (!result.priority && !ignored.has("priority")) {
+    const named = (word: string): Priority =>
+      /^(urgent|critical|crit)/i.test(word) ? "critical" : /^high/i.test(word) || /^important/i.test(word) ? "high" : /^(medium|med)/i.test(word) ? "medium" : "low";
+    scan(/(?:(urgent|critical|crit|high|medium|med|low)\s+prio(?:rity)?|prio(?:rity)?\s*[:=]?\s*(urgent|critical|crit|high|medium|med|low)|(urgent|asap))/, (m, s, e) => {
+      if (result.priority) return;
+      result.priority = named(m[1] ?? m[2] ?? (m[3].toLowerCase() === "asap" ? "high" : m[3]));
+      take("priority", s, e);
+    });
+    if (!result.priority) {
+      const last = /\s(critical|important)\s*$/i.exec(text);
+      if (last && free(last.index + 1, text.trimEnd().length)) {
+        result.priority = named(last[1]);
+        take("priority", last.index + 1, text.trimEnd().length);
+      }
+    }
   }
 
   // Subject: "#physics" (taken out), or its name in passing (kept) ----------

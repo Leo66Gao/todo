@@ -3,47 +3,128 @@
 import { useEffect, useRef, useState } from "react";
 import type QuillType from "quill";
 import { format } from "date-fns";
-import { Sparkles } from "lucide-react";
-import { AiError, chatJson, useAiKey, type ChatMessage } from "@/lib/ai";
+import { BookOpen, Camera, RotateCcw, CircleHelp, Lightbulb, ListChecks, MessageCircle, PenLine, Sparkles, SpellCheck, Wand2 } from "lucide-react";
+import { AiError, chatJson, chatStream, useAiKey, type AiMode, type ChatMessage } from "@/lib/ai";
+import type { DeltaOp } from "@/lib/delta";
+import { markdownToDelta } from "@/lib/markdownPaste";
 import type { StudyNote } from "@/lib/model";
+import { markdownLines, sectionAt, toMarkdown } from "@/lib/noteMarkdown";
+import {
+  askMessages,
+  cleanText,
+  continueMessages,
+  editMessages,
+  explainMessages,
+  photoNoteMessages,
+  quizMessages,
+  summaryMessages,
+  tasksMessages,
+  termsMessages,
+  type Focus,
+  type NoteContext,
+} from "@/lib/notePrompts";
 import { formatDuration, startOfDay, today } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
 import { addTask, newTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, IconButton, Spinner } from "@/ui/controls";
-import { Menu, Modal, promptDialog } from "@/ui/overlay";
+import { Menu, Modal, type MenuItem } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { TaskCheck } from "@/features/tasks/TaskCheck";
+import { ChatPanel, Markdown, PHOTO_QUESTION, QuizView, readQuestions, useKatex, usePhotoAttachments, type Katex, type QuizQuestion } from "@/features/ai/AiViews";
+import { choosePhotos, photoDataUrl } from "@/lib/photoData";
 
 type Range = { index: number; length: number };
 
+/** The note when the menu opened: as Markdown, where the cursor was, and what it's in. */
+interface Snapshot {
+  note: NoteContext;
+  plain: string;
+  range: Range | null;
+  selection: string | null;
+  section: { title: string; text: string; end: number } | null;
+}
+
+type WriteVerb = "explain" | "continue" | "clearer" | "fix" | "photo";
+
 /** What came back, and how it can go into the note. */
 type Result =
-  | { kind: "summary"; title: string; points: string[] }
+  | { kind: "summary"; points: string[] }
   | { kind: "terms"; terms: { term: string; meaning: string }[] }
-  | { kind: "answer"; question: string; text: string }
-  | { kind: "rewrite"; text: string; range: Range; verb: string }
-  | { kind: "explain"; text: string }
-  | { kind: "continue"; text: string; at: number }
+  | { kind: "quiz"; questions: QuizQuestion[] }
+  | { kind: "chat"; focus: Focus; options: Focus[]; turns: { q: string; a: string; images?: string[] }[]; at: number; added?: number }
+  | { kind: "write"; verb: WriteVerb; text: string; range: Range | null; at: number; original?: string }
   | { kind: "tasks"; tasks: { title: string; date: Date; minutes: number; include: boolean }[] };
 
-const MAX_TEXT = 14_000;
+const RESULT_LABEL: Record<Result["kind"], string> = {
+  summary: "Summary",
+  terms: "Key terms",
+  quiz: "Practice questions",
+  chat: "Ask",
+  write: "",
+  tasks: "Tasks found in the note",
+};
+const WRITE_LABEL: Record<WriteVerb, string> = { explain: "Explanation", continue: "Continued", clearer: "Rewritten", fix: "Corrected", photo: "From your photo" };
 
-const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const opsLength = (ops: DeltaOp[]) => ops.reduce((n, op) => n + (typeof op.insert === "string" ? op.insert.length : 1), 0);
 
-const system = (note: StudyNote, subject?: string): ChatMessage => ({
-  role: "system",
-  content: [
-    "You help a high-school student with their study notes.",
-    `The note is titled "${note.title || "Untitled"}"${subject ? `, for ${subject}` : ""}.`,
-    "Write in the language the note is written in. Be accurate and concise; never invent facts that aren't in the note unless asked to explain.",
-    "Answer only with a JSON object in the shape asked for.",
-  ].join(" "),
-});
+/** The start of the line after the one [index] is in (adding an empty last line if needed). */
+function lineAfter(quill: QuillType, index: number) {
+  const nl = quill.getText(index).indexOf("\n");
+  const at = index + Math.max(0, nl) + 1;
+  if (at < quill.getLength()) return at;
+  quill.insertText(quill.getLength() - 1, "\n", "user");
+  const last = quill.getLength() - 1;
+  quill.removeFormat(last, 1, "user");
+  return last;
+}
 
 /**
- * The note's AI helper (DeepSeek, with the key kept on this device). Each
- * tool shows its answer first; nothing goes into the note until it's added.
+ * Markdown from the AI as rich text (lists, bold, formulas), as whole lines
+ * at [at]. Returns the index of the inserted text's last line break; the
+ * cursor goes there unless [keepCursor].
+ */
+function insertLines(quill: QuillType, markdown: string, at: number, keepCursor = false) {
+  const ops = markdownToDelta(markdown);
+  if (!ops.length) return at;
+  quill.updateContents([{ retain: at }, ...ops] as never, "user");
+  const end = at + opsLength(ops) - 1;
+  if (!keepCursor) quill.setSelection(end, 0, "silent");
+  return end;
+}
+
+/** Replaces the selection, keeping the line ending it stopped before (and that line's format). */
+function replaceRange(quill: QuillType, range: Range, markdown: string) {
+  let ops = markdownToDelta(markdown);
+  const endsLine = quill.getText(range.index + range.length - 1, 1) === "\n";
+  if (!endsLine && ops.length) ops = ops.slice(0, -1);
+  quill.updateContents([{ retain: range.index }, { delete: range.length }, ...ops] as never, "user");
+  quill.setSelection(range.index + opsLength(ops), 0, "silent");
+}
+
+/**
+ * The selected text as delta ops. A selection usually stops short of its last
+ * line's end, where that line's format (a list item, a heading) is kept, so
+ * that line ending is added to keep the format.
+ */
+function selectedOps(quill: QuillType, range: Range): DeltaOp[] {
+  const ops = quill.getContents(range.index, range.length).ops as DeltaOp[];
+  const end = range.index + range.length;
+  if (quill.getText(end - 1, 1) === "\n") return ops;
+  const nl = quill.getText(end).indexOf("\n");
+  const lineEnd = quill.getContents(end + Math.max(0, nl), 1).ops[0] as DeltaOp | undefined;
+  return [...ops, { insert: "\n", ...(lineEnd?.attributes ? { attributes: lineEnd.attributes } : {}) }];
+}
+
+/** A list result with something in it, worth adding to the note. */
+const hasContent = (r: Result) =>
+  (r.kind === "summary" && r.points.length > 0) || (r.kind === "terms" && r.terms.length > 0) || (r.kind === "quiz" && r.questions.length > 0);
+
+const focusLabel = (f: Focus) => (f.kind === "selection" ? "The selection" : f.kind === "section" ? f.title || "This section" : "The whole note");
+
+/**
+ * The note's AI helper (DeepSeek, with the key kept on this device). Answers
+ * stream in as they're written; nothing goes into the note until it's added.
  */
 export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: StudyNote }) {
   const navigate = useNavigate();
@@ -52,10 +133,20 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [draft, setDraft] = useState("");
+  const photos = usePhotoAttachments();
+  /** The Ask conversation, kept while the note is open so it can be picked up again. */
+  const [kept, setKept] = useState<Extract<Result, { kind: "chat" }> | null>(null);
   const abort = useRef<AbortController | null>(null);
-  // The selection when the menu opened (tapping the button takes focus from the text).
-  const selection = useRef<Range | null>(null);
+  /** Runs the last request again (after an error). */
+  const [retry, setRetry] = useState<(() => void) | null>(null);
   const lastRange = useRef<Range | null>(null);
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const input = useRef<HTMLTextAreaElement | null>(null);
+  const open = busy != null || result != null || error != null;
+  const katex = useKatex(open);
+
   useEffect(() => {
     if (!quill) return;
     const track = (range: Range | null) => {
@@ -65,113 +156,122 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     return () => void quill.off("selection-change", track);
   }, [quill]);
 
-  const text = () => (quill?.getText() ?? "").trim().slice(0, MAX_TEXT);
-  const selected = () => {
-    const range = selection.current;
-    return range && range.length > 0 && quill ? { range, text: quill.getText(range.index, range.length).trim() } : null;
+  // Keep the newest words in view while an answer streams in.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el && (result?.kind === "chat" || result?.kind === "write")) el.scrollTop = el.scrollHeight;
+  }, [result]);
+
+  /** Reads the note when the menu opens (tapping the button takes focus from the text). */
+  const capture = (): Snapshot | null => {
+    if (!quill) return null;
+    const range = quill.getSelection() ?? lastRange.current;
+    const lines = markdownLines(quill.getContents().ops as DeltaOp[]);
+    const hasSelection = range != null && range.length > 0;
+    const selection = hasSelection ? toMarkdown(markdownLines(selectedOps(quill, range))) : null;
+    const section = range ? sectionAt(lines, range.index) : null;
+    return {
+      note: { title: note.title, subject: subject?.title, markdown: toMarkdown(lines) },
+      plain: quill.getText().trim(),
+      range: range ? { index: range.index, length: range.length } : null,
+      selection: selection?.trim() ? selection : null,
+      // A section that is the whole note isn't worth offering separately.
+      section: section && section.lines.length < lines.length ? { title: section.title, text: toMarkdown(section.lines), end: section.lines[section.lines.length - 1].start } : null,
+    };
   };
 
-  const run = async <T,>(label: string, prompt: string, read: (answer: T) => Result) => {
+  const ready = (s: Snapshot | null, needsText = true): s is Snapshot => {
     if (!hasKey) {
       toast("Add your DeepSeek API key in Settings to use the AI tools.", { label: "Settings", run: () => navigate({ view: "settings" }) });
-      return;
+      return false;
     }
+    if (!s || !quill) return false;
+    if (needsText && s.plain.length < 20) {
+      toast("Write a little more first.");
+      return false;
+    }
+    return true;
+  };
+
+  const start = (label: string) => {
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
     setError(null);
-    setResult(null);
     setBusy(label);
+    return controller;
+  };
+  const failed = (e: unknown) => {
+    if ((e as Error).name === "AbortError") return;
+    setError(e instanceof AiError ? e.message : "Something went wrong. Try again.");
+  };
+
+  /** A JSON answer (lists of points, terms, questions, tasks). */
+  const runJson = async <T,>(label: string, messages: ChatMessage[], mode: AiMode, read: (answer: T) => Result) => {
+    setRetry(() => () => void runJson(label, messages, mode, read));
+    const controller = start(label);
+    setResult(null);
     try {
-      const answer = await chatJson<T>([system(note, subject?.title), { role: "user", content: prompt }], controller.signal);
-      setResult(read(answer));
+      setResult(read(await chatJson<T>(messages, controller.signal, mode)));
     } catch (e) {
-      if ((e as Error).name === "AbortError") return;
-      setError(e instanceof AiError ? e.message : "Something went wrong. Try again.");
+      failed(e);
     } finally {
       if (abort.current === controller) setBusy(null);
     }
   };
 
-  const needText = () => {
-    if (text().length >= 20) return true;
-    toast("Write a little more first.");
-    return false;
-  };
-
-  const summarise = () =>
-    needText() &&
-    run<{ title?: string; points?: string[] }>(
-      "Summarising",
-      `Summarise this note as 3 to 7 short bullet points covering the key ideas. Reply as {"points": ["..."]}.\n\nNOTE:\n${text()}`,
-      (a) => ({ kind: "summary", title: "Summary", points: (a.points ?? []).filter(Boolean).slice(0, 10) }),
-    );
-
-  const keyTerms = () =>
-    needText() &&
-    run<{ terms?: { term?: string; meaning?: string }[] }>(
-      "Finding key terms",
-      `List the important terms or concepts in this note with a one-sentence meaning each (from the note where possible). Reply as {"terms": [{"term": "...", "meaning": "..."}]}.\n\nNOTE:\n${text()}`,
-      (a) => ({
-        kind: "terms",
-        terms: (a.terms ?? []).filter((t) => t.term && t.meaning).map((t) => ({ term: t.term!, meaning: t.meaning! })).slice(0, 15),
-      }),
-    );
-
-  const withSelection = (verb: string, instruction: string) => {
-    const sel = selected();
-    if (!sel) {
-      toast("Select some text in the note first.");
-      return;
+  /** Written text, shown as it arrives. */
+  const runWrite = async (verb: WriteVerb, label: string, messages: ChatMessage[], mode: AiMode, range: Range | null, at: number) => {
+    setRetry(() => () => void runWrite(verb, label, messages, mode, range, at));
+    const controller = start(label);
+    const original = range && quill ? quill.getText(range.index, range.length) : undefined;
+    setResult({ kind: "write", verb, text: "", range, at, original });
+    try {
+      const text = await chatStream(messages, {
+        signal: controller.signal,
+        mode,
+        onThinking: () => setBusy("Thinking"),
+        onText: (t) => {
+          setBusy("Writing");
+          setResult((r) => (r?.kind === "write" ? { ...r, text: cleanText(t) } : r));
+        },
+      });
+      setResult((r) => (r?.kind === "write" ? { ...r, text: cleanText(text) } : r));
+    } catch (e) {
+      // A newer request may have taken over: leave its result alone.
+      if (abort.current === controller) setResult(null);
+      failed(e);
+    } finally {
+      if (abort.current === controller) setBusy(null);
     }
-    void run<{ text?: string }>(
-      verb,
-      `${instruction} Reply as {"text": "..."} using plain text (keep line breaks).\n\nTEXT:\n${sel.text}\n\nTHE WHOLE NOTE, FOR CONTEXT:\n${text()}`,
-      (a) => ({ kind: "rewrite", text: (a.text ?? "").trim(), range: sel.range, verb }),
-    );
   };
 
-  const explain = () => {
-    const sel = selected();
-    if (!sel) {
-      toast("Select what you’d like explained first.");
-      return;
-    }
-    void run<{ text?: string }>(
-      "Explaining",
-      `Explain this simply, as to a student meeting it for the first time, in 2 to 5 sentences with an example if it helps. Reply as {"text": "..."}.\n\nTEXT:\n${sel.text}\n\nTHE WHOLE NOTE, FOR CONTEXT:\n${text()}`,
-      (a) => ({ kind: "explain", text: (a.text ?? "").trim() }),
-    );
-  };
+  // ---- The tools
 
-  const continueWriting = () => {
-    if (!needText() || !quill) return;
-    const at = selection.current ? selection.current.index + selection.current.length : quill.getLength() - 1;
-    const before = quill.getText(0, at).slice(-MAX_TEXT);
-    void run<{ text?: string }>(
-      "Writing",
-      `Continue this note from where the text stops with one or two paragraphs in the same style and level. Don't repeat what's there. Reply as {"text": "..."}.\n\nNOTE SO FAR:\n${before}`,
-      (a) => ({ kind: "continue", text: (a.text ?? "").trim(), at }),
-    );
-  };
+  const summarise = (s: Snapshot) =>
+    runJson<{ points?: unknown[] }>("Summarising", summaryMessages(s.note), "fast", (a) => ({
+      kind: "summary",
+      points: (a.points ?? []).filter((p): p is string => typeof p === "string" && !!p.trim()).slice(0, 10),
+    }));
 
-  const ask = async () => {
-    if (!needText()) return;
-    const question = await promptDialog({ title: "Ask about this note", placeholder: "What would you like to know?", confirmLabel: "Ask" });
-    if (!question) return;
-    void run<{ text?: string }>(
-      "Thinking",
-      `Answer the student's question using the note (say so if the note doesn't cover it, then answer briefly from general knowledge). Reply as {"text": "..."}.\n\nQUESTION: ${question}\n\nNOTE:\n${text()}`,
-      (a) => ({ kind: "answer", question, text: (a.text ?? "").trim() }),
-    );
-  };
+  const keyTerms = (s: Snapshot) =>
+    runJson<{ terms?: { term?: string; meaning?: string }[] }>("Finding key terms", termsMessages(s.note), "fast", (a) => ({
+      kind: "terms",
+      terms: (a.terms ?? []).filter((t) => t.term && t.meaning).map((t) => ({ term: t.term!, meaning: t.meaning! })).slice(0, 15),
+    }));
 
-  const toTasks = () => {
-    if (!needText()) return;
+  const quiz = (s: Snapshot) =>
+    runJson<{ questions?: { q?: unknown; a?: unknown }[] }>("Writing questions", quizMessages(s.note), "think", (a) => ({
+      kind: "quiz",
+      questions: readQuestions(a),
+    }));
+
+  const toTasks = (s: Snapshot) => {
     const now = today();
-    void run<{ tasks?: { title?: string; date?: string; minutes?: number }[] }>(
+    return runJson<{ tasks?: { title?: string; date?: string; minutes?: number }[] }>(
       "Finding tasks",
-      `Find the things to do in this note (homework, deadlines, revision, readings). Today is ${format(now, "EEEE yyyy-MM-dd")}. For each give a short title, a date (yyyy-MM-dd; the deadline if one is given, otherwise a sensible day soon) and the minutes it needs. Reply as {"tasks": [{"title": "...", "date": "yyyy-MM-dd", "minutes": 30}]}, or {"tasks": []} if there are none.\n\nNOTE:\n${text()}`,
+      tasksMessages(s.note, format(now, "EEEE yyyy-MM-dd")),
+      "think",
       (a) => ({
         kind: "tasks",
         tasks: (a.tasks ?? [])
@@ -187,53 +287,196 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     );
   };
 
-  // ---- Putting answers into the note
-
-  const insertHtml = (html: string, at?: number) => {
-    if (!quill) return;
-    const index = at ?? quill.getLength() - 1;
-    quill.clipboard.dangerouslyPasteHTML(index, html, "user");
-    quill.setSelection(Math.min(quill.getLength() - 1, index), 0, "silent");
+  const explain = (s: Snapshot) => {
+    if (!s.selection || !s.range) return toast("Select what you’d like explained first.");
+    void runWrite("explain", "Explaining", explainMessages(s.note, s.selection), "think", null, s.range.index + s.range.length - 1);
   };
-  const paragraphs = (s: string) =>
-    s
-      .split(/\n{1,}/)
-      .map((p) => p.trim())
-      .filter(Boolean)
-      .map((p) => `<p>${escape(p)}</p>`)
-      .join("");
+
+  const edit = (s: Snapshot, how: "clearer" | "fix") => {
+    if (!s.selection || !s.range) return toast("Select some text in the note first.");
+    void runWrite(how, how === "fix" ? "Correcting" : "Rewriting", editMessages(s.note, s.selection, how), "fast", s.range, s.range.index);
+  };
+
+  const continueWriting = (s: Snapshot) => {
+    if (!quill) return;
+    const at = s.range ? s.range.index + s.range.length : quill.getLength() - 1;
+    // Before the cursor (its line keeps its format), then the rest, on its own line when the cursor ends one.
+    const lineEnd = quill.getText(at, 1) === "\n";
+    const before = at > 0 ? toMarkdown(markdownLines(selectedOps(quill, { index: 0, length: at }))) : "";
+    const after = toMarkdown(markdownLines(quill.getContents(at + (lineEnd ? 1 : 0)).ops as DeltaOp[]));
+    void runWrite("continue", "Writing", continueMessages(s.note, before, after && lineEnd ? `\n${after}` : after), "fast", null, at);
+  };
+
+  /** Photos of a page or the board, written up and added where the cursor is. */
+  const fromPhoto = async (s: Snapshot) => {
+    if (!quill) return;
+    const files = await choosePhotos();
+    if (!files.length) return;
+    const at = s.range ? s.range.index + s.range.length : quill.getLength() - 1;
+    setRetry(null);
+    const controller = start("Reading the photos");
+    setResult(null);
+    try {
+      const images = await Promise.all(files.map(photoDataUrl));
+      if (controller.signal.aborted) return;
+      setBusy(null);
+      void runWrite("photo", "Reading the photos", photoNoteMessages(images, { into: s.note }), "fast", null, at);
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      setBusy(null);
+      setError((e as Error).message);
+    }
+  };
+
+  /** Opens the conversation: about the selection, the section the cursor is in, or the whole note. */
+  const openAsk = (s: Snapshot) => {
+    abort.current?.abort();
+    setError(null);
+    setBusy(null);
+    setDraft("");
+    // Pick a kept conversation up where it was (its answers go where they went before).
+    // The note may have changed since: its answers now go where the cursor is.
+    if (kept?.turns.length && quill) {
+      setResult({ ...kept, at: s.range ? s.range.index + s.range.length : quill.getLength() - 1 });
+      setTimeout(() => input.current?.focus(), 50);
+    } else openFresh(s);
+  };
+
+  /** Starts over: a new conversation about what's selected now. */
+  const newChat = () => {
+    setKept(null);
+    if (snap && result?.kind === "chat") openFresh(snap);
+  };
+  const openFresh = (s: Snapshot) => {
+    if (!quill) return;
+    const options: Focus[] = [];
+    if (s.selection) options.push({ kind: "selection", text: s.selection });
+    if (s.section) options.push({ kind: "section", title: s.section.title, text: s.section.text });
+    options.push({ kind: "note" });
+    const focus = options[0];
+    const at = focus.kind === "selection" && s.range ? s.range.index + s.range.length - 1 : focus.kind === "section" && s.section ? s.section.end : quill.getLength() - 1;
+    setDraft("");
+    setResult({ kind: "chat", focus, options, turns: [], at });
+    setTimeout(() => input.current?.focus(), 50);
+  };
+
+  const ask = async () => {
+    const question = draft.trim();
+    const images = photos.images;
+    if ((!question && !images.length) || !snap || result?.kind !== "chat" || busy) return;
+    const chat = result;
+    setDraft("");
+    photos.clear();
+    setRetry(null);
+    const controller = start("Thinking");
+    const messages = askMessages(
+      snap.note,
+      chat.focus,
+      chat.turns.map((t) => ({ ...t, q: t.q || PHOTO_QUESTION })),
+      question || PHOTO_QUESTION,
+      images,
+    );
+    setResult({ ...chat, turns: [...chat.turns, { q: question, a: "", images }] });
+    const setAnswer = (a: string) =>
+      setResult((r) => (r?.kind === "chat" ? { ...r, turns: r.turns.map((t, i) => (i === r.turns.length - 1 ? { ...t, a } : t)) } : r));
+    try {
+      const text = await chatStream(messages, {
+        signal: controller.signal,
+        mode: "think",
+        onText: (t) => {
+          setBusy("Writing");
+          setAnswer(cleanText(t));
+        },
+      });
+      setAnswer(cleanText(text));
+    } catch (e) {
+      // Closed while answering: nothing to take back.
+      if ((e as Error).name === "AbortError") return;
+      // Take the question back so it can be asked again.
+      setResult((r) => (r?.kind === "chat" ? { ...r, turns: r.turns.slice(0, -1) } : r));
+      setDraft(question);
+      for (const url of images) photos.restore(url);
+      failed(e);
+    } finally {
+      if (abort.current === controller) setBusy(null);
+      setTimeout(() => input.current?.focus(), 0);
+    }
+  };
+
+  const setFocus = (focus: Focus) => {
+    if (result?.kind !== "chat" || !quill || !snap) return;
+    const at =
+      focus.kind === "selection" && snap.range
+        ? snap.range.index + snap.range.length - 1
+        : focus.kind === "section" && snap.section
+          ? snap.section.end
+          : quill.getLength() - 1;
+    setResult({ ...result, focus, at });
+  };
+
+  // ---- Putting answers into the note
 
   const close = () => {
     abort.current?.abort();
+    if (result?.kind === "chat") {
+      // An answer still being written isn't kept.
+      const done = (busy ? result.turns.slice(0, -1) : result.turns).filter((t) => t.a);
+      setKept(done.length ? { ...result, turns: done } : null);
+    }
+    photos.clear();
     setBusy(null);
     setResult(null);
     setError(null);
   };
 
-  const apply = (where: "top" | "end" | "replace" | "here") => {
+  const apply = (where: "top" | "end" | "here") => {
     if (!quill || !result) return;
+    // A note being read (not edited) has its editor locked, which also drops
+    // changes made for you: unlock it just while the answer goes in.
+    const locked = !quill.isEnabled();
+    if (locked) quill.enable(true);
+    try {
+      applyTo(quill, where);
+    } finally {
+      if (locked) quill.enable(false);
+    }
+  };
+
+  const applyTo = (quill: QuillType, where: "top" | "end" | "here") => {
+    if (!result) return;
+    const end = () => lineAfter(quill, quill.getLength() - 1);
     switch (result.kind) {
-      case "summary": {
-        const html = `<h3>${escape(result.title)}</h3><ul>${result.points.map((p) => `<li>${escape(p)}</li>`).join("")}</ul>`;
-        insertHtml(html, where === "top" ? 0 : undefined);
+      case "summary":
+        insertLines(quill, `## Summary\n${result.points.map((p) => `- ${p}`).join("\n")}`, where === "top" ? 0 : end());
         break;
-      }
       case "terms":
-        insertHtml(`<h3>Key terms</h3><ul>${result.terms.map((t) => `<li><strong>${escape(t.term)}</strong> — ${escape(t.meaning)}</li>`).join("")}</ul>`);
+        insertLines(quill, `## Key terms\n${result.terms.map((t) => `- **${t.term}**: ${t.meaning}`).join("\n")}`, end());
         break;
-      case "answer":
-        insertHtml(`<p><strong>${escape(result.question)}</strong></p>${paragraphs(result.text)}`);
+      case "quiz":
+        insertLines(quill, `## Practice questions\n${result.questions.map((x, i) => `**${i + 1}. ${x.q}**\n${x.a}\n`).join("\n")}`, end());
         break;
-      case "explain":
-        insertHtml(paragraphs(result.text), selection.current ? selection.current.index + selection.current.length : undefined);
-        break;
-      case "continue":
-        insertHtml(paragraphs(result.text), result.at);
-        break;
-      case "rewrite":
-        quill.deleteText(result.range.index, result.range.length, "user");
-        quill.insertText(result.range.index, result.text, "user");
-        quill.setSelection(result.range.index + result.text.length, 0, "silent");
+      case "chat": {
+        const last = result.turns[result.turns.length - 1];
+        if (!last?.a) return;
+        const at = lineAfter(quill, Math.min(result.at, quill.getLength() - 1));
+        // The next answer goes after this one (the panel stays open, so the cursor stays put).
+        const end = insertLines(quill, last.q ? `**${last.q}**\n${last.a}` : last.a, at, true);
+        setResult({ ...result, at: end, added: result.turns.length });
+        toast("Added to the note");
+        return;
+      }
+      case "write":
+        if (result.verb === "clearer" || result.verb === "fix") {
+          if (!result.range) break;
+          // The note changed meanwhile (on another device): don't replace the wrong text.
+          if (result.original != null && quill.getText(result.range.index, result.range.length) !== result.original) {
+            toast("The note changed since. Select the text again and retry.");
+            return;
+          }
+          replaceRange(quill, result.range, result.text);
+        } else {
+          insertLines(quill, result.text, lineAfter(quill, result.at));
+        }
         break;
       case "tasks": {
         const chosen = result.tasks.filter((t) => t.include);
@@ -247,68 +490,148 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
     close();
   };
 
-  const onMenu = (open: boolean) => {
-    if (!open || !quill) return;
-    const range = quill.getSelection() ?? lastRange.current;
-    selection.current = range ? { index: range.index, length: range.length } : null;
+  // ---- The menu
+
+  const runTool = (tool: (s: Snapshot) => unknown, needsText = true) => {
+    if (ready(snap, needsText)) void tool(snap);
   };
+  const items: MenuItem[] = [
+    {
+      label: kept?.turns.length
+        ? "Continue asking…"
+        : snap?.selection
+          ? "Ask about the selection…"
+          : snap?.section
+            ? `Ask about “${snap.section.title}”…`
+            : "Ask about this note…",
+      icon: <MessageCircle />,
+      onSelect: () => runTool(openAsk),
+    },
+    ...(snap?.selection
+      ? ([
+          { heading: "Selection" },
+          { label: "Explain it", icon: <Lightbulb />, onSelect: () => runTool(explain) },
+          { label: "Rewrite more clearly", icon: <Wand2 />, onSelect: () => runTool((s) => edit(s, "clearer")) },
+          { label: "Fix spelling and grammar", icon: <SpellCheck />, onSelect: () => runTool((s) => edit(s, "fix")) },
+        ] satisfies MenuItem[])
+      : []),
+    { heading: "Note" },
+    { label: "Summarise", icon: <Sparkles />, onSelect: () => runTool(summarise) },
+    { label: "Key terms", icon: <BookOpen />, onSelect: () => runTool(keyTerms) },
+    { label: "Quiz me", icon: <CircleHelp />, onSelect: () => runTool(quiz) },
+    { label: "Continue writing", icon: <PenLine />, onSelect: () => runTool(continueWriting) },
+    { label: "Add from a photo…", icon: <Camera />, onSelect: () => runTool(fromPhoto, false) },
+    { label: "Turn into tasks", icon: <ListChecks />, onSelect: () => runTool(toTasks) },
+  ];
+
+  const label = busy ?? (error ? "Couldn’t finish" : result?.kind === "write" ? WRITE_LABEL[result.verb] : RESULT_LABEL[result?.kind ?? "summary"]);
+  // Nothing to show yet (an answer that's streaming in shows as it comes).
+  const waiting = busy != null && !(result?.kind === "write" && result.text) && result?.kind !== "chat";
 
   return (
     <>
       <Menu
         align="end"
-        onOpenChange={onMenu}
+        onOpenChange={(o) => o && setSnap(capture())}
         trigger={
           <IconButton label="AI tools">
             <Sparkles className="size-4 max-md:size-[18px]" />
           </IconButton>
         }
-        items={[
-          { label: "Summarise", onSelect: summarise },
-          { label: "Key terms", onSelect: keyTerms },
-          { label: "Ask about this note…", onSelect: () => void ask() },
-          { label: "Continue writing", onSelect: continueWriting },
-          { separator: true },
-          { label: "Rewrite the selection more clearly", onSelect: () => withSelection("Rewriting", "Rewrite this more clearly and concisely, keeping every fact.") },
-          { label: "Fix spelling and grammar", onSelect: () => withSelection("Correcting", "Fix the spelling, grammar and punctuation of this without changing its meaning or style.") },
-          { label: "Explain the selection", onSelect: explain },
-          { separator: true },
-          { label: "Turn into tasks", onSelect: toTasks },
-        ]}
+        items={items}
       />
-      <Modal
-        open={busy != null || result != null || error != null}
-        onOpenChange={(open) => !open && close()}
-        width={520}
-        label="AI"
-        initialFocus={(e) => e.preventDefault()}
-      >
-        <div className="flex min-h-0 flex-col px-5 pt-4 pb-5">
+      <Modal open={open} onOpenChange={(o) => !o && close()} width={560} label="AI" initialFocus={(e) => e.preventDefault()}>
+        <div className="flex min-h-0 flex-col px-5 pt-4 pb-5 max-sm:px-4">
           <div className="flex items-center gap-2 text-xs font-medium text-ink-3">
             <Sparkles className="size-3.5" />
-            {busy ?? (error ? "Couldn’t finish" : RESULT_LABEL[result?.kind ?? "summary"])}
+            {label}
+            {busy && !waiting && <Spinner className="size-3" />}
           </div>
-          {busy && (
+          {waiting && (
             <div className="flex items-center gap-3 py-10 text-sm text-ink-3">
               <Spinner />
               {busy}…
             </div>
           )}
-          {error && <p className="py-6 text-sm text-danger">{error}</p>}
-          {result && <ResultView result={result} onChange={setResult} />}
+          {error && (
+            <div className={cn("flex items-center gap-3 text-sm text-danger", result?.kind === "chat" ? "mt-3" : "py-6")}>
+              <span className="flex-1">{error}</span>
+              {(retry || result?.kind === "chat") && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<RotateCcw className="size-3.5" />}
+                  onClick={() => (result?.kind === "chat" ? void ask() : retry?.())}
+                >
+                  Retry
+                </Button>
+              )}
+            </div>
+          )}
+          {result?.kind === "chat" ? (
+            <ChatPanel
+              turns={result.turns}
+              busy={busy != null}
+              katex={katex}
+              scroller={scroller}
+              input={input}
+              draft={draft}
+              setDraft={setDraft}
+              onAsk={() => void ask()}
+              images={photos.images}
+              onAttach={photos.attach}
+              onRemoveImage={photos.remove}
+              placeholder={
+                result.focus.kind === "note"
+                  ? "Ask anything about this note…"
+                  : result.focus.kind === "selection"
+                    ? "Ask about the selection…"
+                    : `Ask about “${focusLabel(result.focus)}”…`
+              }
+              before={
+                result.options.length > 1 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {result.options.map((f, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setFocus(f)}
+                        className={cn(
+                          "max-w-[220px] truncate rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          f.kind === result.focus.kind ? "border-transparent bg-ink text-on-ink" : "border-line-strong text-ink-2 hover:bg-fill",
+                        )}
+                      >
+                        {focusLabel(f)}
+                      </button>
+                    ))}
+                  </div>
+                )
+              }
+            />
+          ) : (
+            result && !waiting && <ResultView result={result} katex={katex} scroller={scroller} material={snap?.note ?? null} onChange={setResult} />
+          )}
           <div className="mt-4 flex flex-wrap justify-end gap-2">
-            <Button variant="ghost" onClick={close}>
-              {result ? "Discard" : "Close"}
-            </Button>
-            {result?.kind === "summary" && <Button onClick={() => apply("top")}>Add at the top</Button>}
-            {result && result.kind !== "tasks" && result.kind !== "rewrite" && (
-              <Button variant="primary" onClick={() => apply("end")}>
-                {result.kind === "continue" || result.kind === "explain" ? "Insert" : "Add to the note"}
+            {result?.kind === "chat" && result.turns.length > 0 && !busy && (
+              <Button variant="ghost" className="mr-auto" onClick={newChat}>
+                New chat
               </Button>
             )}
-            {result?.kind === "rewrite" && (
-              <Button variant="primary" disabled={!result.text} onClick={() => apply("replace")}>
-                Replace the selection
+            <Button variant="ghost" onClick={close}>
+              {result && result.kind !== "chat" && result.kind !== "quiz" ? "Discard" : "Close"}
+            </Button>
+            {!busy && result?.kind === "summary" && result.points.length > 0 && <Button onClick={() => apply("top")}>Add at the top</Button>}
+            {!busy && result && hasContent(result) && (
+              <Button variant="primary" onClick={() => apply("end")}>
+                Add to the note
+              </Button>
+            )}
+            {!busy && result?.kind === "chat" && result.turns.at(-1)?.a && result.added !== result.turns.length && (
+              <Button onClick={() => apply("here")}>Add answer to the note</Button>
+            )}
+            {!busy && result?.kind === "write" && result.text && (
+              <Button variant="primary" onClick={() => apply("here")}>
+                {result.verb === "clearer" || result.verb === "fix" ? "Replace the selection" : "Insert"}
               </Button>
             )}
             {result?.kind === "tasks" && result.tasks.some((t) => t.include) && (
@@ -323,38 +646,37 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
   );
 }
 
-const RESULT_LABEL: Record<Result["kind"], string> = {
-  summary: "Summary",
-  terms: "Key terms",
-  answer: "Answer",
-  rewrite: "Rewritten",
-  explain: "Explanation",
-  continue: "Continued",
-  tasks: "Tasks found in the note",
-};
-
-function ResultView({ result, onChange }: { result: Result; onChange: (r: Result) => void }) {
-  const box = "scroll-area mt-3 max-h-[50dvh] text-[15px] leading-relaxed";
+function ResultView({
+  result,
+  katex,
+  scroller,
+  material,
+  onChange,
+}: {
+  result: Result;
+  katex: Katex | null;
+  scroller: React.RefObject<HTMLDivElement | null>;
+  material: NoteContext | null;
+  onChange: (r: Result) => void;
+}) {
+  const box = "scroll-area mt-3 max-h-[52dvh] text-[15px] leading-relaxed";
   switch (result.kind) {
     case "summary":
-      return (
-        <ul className={cn(box, "list-disc space-y-1.5 pl-5")}>
-          {result.points.map((p, i) => (
-            <li key={i}>{p}</li>
-          ))}
-        </ul>
-      );
+      if (result.points.length === 0) return <p className="py-6 text-sm text-ink-3">Nothing came back. Try again.</p>;
+      return <Markdown className={box} katex={katex} text={result.points.map((p) => `- ${p}`).join("\n")} />;
     case "terms":
-      return (
-        <dl className={cn(box, "space-y-2.5")}>
-          {result.terms.map((t, i) => (
-            <div key={i}>
-              <dt className="font-semibold">{t.term}</dt>
-              <dd className="text-ink-2">{t.meaning}</dd>
-            </div>
-          ))}
-        </dl>
-      );
+      if (result.terms.length === 0) return <p className="py-6 text-sm text-ink-3">No key terms came back. Try again.</p>;
+      return <Markdown className={box} katex={katex} text={result.terms.map((t) => `- **${t.term}**: ${t.meaning}`).join("\n")} />;
+    case "quiz":
+      return material ? (
+        <QuizView
+          className={box}
+          questions={result.questions}
+          onChange={(questions) => onChange({ ...result, questions })}
+          material={material}
+          katex={katex}
+        />
+      ) : null;
     case "tasks":
       if (result.tasks.length === 0) return <p className="py-6 text-sm text-ink-3">No tasks were found in this note.</p>;
       return (
@@ -377,10 +699,13 @@ function ResultView({ result, onChange }: { result: Result; onChange: (r: Result
           ))}
         </div>
       );
-    case "answer":
-    case "explain":
-    case "rewrite":
-    case "continue":
-      return <div className={cn(box, "whitespace-pre-wrap")}>{result.text || "Nothing came back. Try again."}</div>;
+    case "write":
+      return (
+        <div ref={scroller} className={box}>
+          <Markdown katex={katex} text={result.text} />
+        </div>
+      );
+    case "chat":
+      return null;
   }
 }

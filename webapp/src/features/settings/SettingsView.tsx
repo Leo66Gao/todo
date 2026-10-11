@@ -29,6 +29,7 @@ import {
 } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, Segmented, Slider, Spinner, Switch } from "@/ui/controls";
+import { isMacBrowser, setMacOpener, useMacOpener } from "@/features/subjects/localFiles";
 import { confirmDialog, promptDialog } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { isNative } from "@/lib/native";
@@ -66,6 +67,7 @@ export function SettingsView() {
           <CalendarSection />
           <RemindersSection />
           <AiSection />
+          <FilesSection />
           <Group title="Keyboard">
             <Item title="Keyboard shortcuts" detail="Press ? anywhere to see them.">
               <Button size="sm" onClick={() => ui.set({ shortcutsOpen: true })}>
@@ -467,9 +469,31 @@ function CalendarSection() {
           </Button>
         )}
       </Item>
+      {connected && <CalendarAlerts />}
       {connected && <CalendarList />}
       {error && <div className="px-4 py-2.5 text-xs text-danger">{error}</div>}
     </Group>
+  );
+}
+
+/** Google Calendar's own alert on task events: off when the app's reminders are enough. */
+function CalendarAlerts() {
+  const settings = useWorkspace((s) => s.settings);
+  return (
+    <Item
+      title="Calendar alerts for tasks"
+      detail={
+        settings.calendarAlerts
+          ? "Google Calendar alerts you 5 minutes before each task. Turn this off if the app’s reminders are enough."
+          : "Task events have no alert in Google Calendar; the app’s reminders still come."
+      }
+    >
+      <Switch
+        checked={settings.calendarAlerts}
+        label="Calendar alerts for tasks"
+        onChange={(v) => updateSettings({ ...settings, calendarAlerts: v })}
+      />
+    </Item>
   );
 }
 
@@ -656,8 +680,8 @@ function AiSection() {
   };
   return (
     <Group
-      title="Planning help"
-      description="Suggests the steps of an assignment, dated back from its deadline. Uses your own DeepSeek API key, kept on this device only."
+      title="AI"
+      description="Ask about your notes, get them explained, summarised or turned into questions, add tasks from a sentence or a photo, and plan an assignment back from its deadline. Uses your own DeepSeek API key, kept on this device only."
     >
       {key ? (
         <Item title="DeepSeek API key" detail={`Saved on this device, ending ${key.slice(-4)}`}>
@@ -690,7 +714,7 @@ function AiSection() {
           </form>
         </Item>
       )}
-      <Item title="Model" detail="Flash is quick; Pro thinks longer.">
+      <Item title="Model" detail="Flash is quick and good for most things; Pro is slower and smarter.">
         <Segmented
           size="sm"
           value={model === "deepseek-v4-pro" ? "deepseek-v4-pro" : DEFAULT_MODEL}
@@ -700,6 +724,29 @@ function AiSection() {
             { value: "deepseek-v4-pro", label: "Pro" },
           ]}
         />
+      </Item>
+    </Group>
+  );
+}
+
+/** Opening materials' files straight from their path, with the Mac helper. */
+function FilesSection() {
+  const on = useMacOpener((s) => s.on);
+  if (!isMacBrowser()) return null;
+  return (
+    <Group
+      title="Files"
+      description="Materials can point to a file on this Mac by its path. A web page can’t open those itself, so Todo File Opener, a small helper app on this Mac, does it for Todo."
+    >
+      <Item
+        title="Open files on this Mac"
+        detail={
+          on
+            ? "Clicking a material’s file opens it in its own app, as double-clicking it in Finder would. The browser may ask to allow Todo File Opener the first time."
+            : "Needs Todo File Opener installed on this Mac (run webapp/mac-file-opener/install.sh). Until then, clicking a file copies its path."
+        }
+      >
+        <Switch checked={on} label="Open files on this Mac" onChange={setMacOpener} />
       </Item>
     </Group>
   );

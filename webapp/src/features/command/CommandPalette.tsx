@@ -5,14 +5,18 @@ import { motion } from "motion/react";
 import {
   BookOpen,
   CalendarDays,
+  Camera,
   Columns3,
   CornerDownLeft,
   FileText,
   GraduationCap,
+  Link2,
+  Paperclip,
   Moon,
   Plus,
   Search,
   Settings,
+  Sparkles,
   Sun,
   SquareCheck,
 } from "lucide-react";
@@ -26,7 +30,12 @@ import { openTask } from "@/features/tasks/actions";
 import { useAllTasks } from "@/features/tasks/meta";
 import { createNote } from "@/features/notes/noteActions";
 import { createSubject } from "@/features/subjects/subjectActions";
+import { materialMatches } from "@/features/subjects/materials";
+import { canLinkFiles, copyPath, openFile } from "@/features/subjects/localFiles";
 import { useWorkspace } from "@/store/workspace";
+import { askNotes } from "@/features/ai/StudyAi";
+import { noteFromPhotos } from "@/features/ai/PhotoNote";
+import { useAiKey } from "@/lib/ai";
 import { Kbd } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Modal } from "@/ui/overlay";
@@ -68,6 +77,7 @@ function Palette() {
   const projects = useWorkspace((s) => s.projects);
   const notes = useWorkspace((s) => s.notes);
   const themeMode = useAppearance((s) => s.themeMode);
+  const hasAi = useAiKey((s) => !!s.key);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -145,10 +155,45 @@ function Palette() {
         run: () => go({ view: "note", id: n.id }),
       });
     }
+    // Materials saved on subjects: links open, files open (or their path is
+    // copied), anything else shows its subject.
+    if (q.length > 1) {
+      const found = projects.flatMap((p) => (p.materials ?? []).filter((m) => materialMatches(m, q)).map((m) => ({ p, m })));
+      for (const { p, m } of found.sort((a, b) => score(b.m.title, q) - score(a.m.title, q)).slice(0, 5)) {
+        out.push({
+          id: `material:${m.id}`,
+          group: "Materials",
+          title: m.title,
+          hint: p.title,
+          icon: m.url ? <Link2 /> : <Paperclip />,
+          run: () => {
+            if (m.url) {
+              close();
+              window.open(m.url, "_blank", "noopener");
+            } else if (m.path) {
+              close();
+              if (canLinkFiles()) openFile(m);
+              else void copyPath(m);
+            } else go({ view: "subject", id: p.id });
+          },
+        });
+      }
+    }
+    // A question goes first (Enter asks it); a longer search can still be asked, after the results.
+    if (hasAi && q.length > 2) {
+      const question = /\?$/.test(q) || /^(what|why|how|when|where|who|which|explain|define|describe|compare|summari[sz]e)\b/.test(q);
+      if (question || q.split(/\s+/).length >= 3) {
+        const ask: Command = { id: "ai:ask", group: "Ask AI", title: `Ask your notes: “${query.trim()}”`, icon: <Sparkles />, run: () => { close(); askNotes(query); } };
+        if (question) out.unshift(ask);
+        else out.push(ask);
+      }
+    }
     const actions: Command[] = [
+      { id: "a:ask", group: "Actions", title: "Ask your notes", icon: <Sparkles />, run: () => { close(); askNotes(); } },
       { id: "a:new", group: "Actions", title: "New task", hint: "N", icon: <Plus />, run: () => { close(); ui.newTask({}); } },
       { id: "a:assignment", group: "Actions", title: "New assignment", icon: <GraduationCap />, run: () => { close(); ui.newTask({ type: "assignment", durationMinutes: 120 }); } },
       { id: "a:note", group: "Actions", title: "New note", icon: <FileText />, run: () => { close(); createNote(navigate); } },
+      { id: "a:photo-note", group: "Actions", title: "Note from a photo", icon: <Camera />, run: () => { close(); void noteFromPhotos(navigate); } },
       { id: "a:subject", group: "Actions", title: "New subject", icon: <BookOpen />, run: () => { close(); void createSubject(); } },
       {
         id: "a:theme",
@@ -160,7 +205,7 @@ function Palette() {
     ];
     out.push(...actions.filter((a) => score(a.title, q) > 0 || (q && a.group.toLowerCase().startsWith(q))));
     return out;
-  }, [query, all, projects, notes, themeMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query, all, projects, notes, themeMode, hasAi]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [prevQuery, setPrevQuery] = useState(query);
   if (prevQuery !== query) {
@@ -193,7 +238,7 @@ function Palette() {
               commands[active]?.run();
             }
           }}
-          placeholder="Search tasks, subjects and notes"
+          placeholder="Search tasks, subjects, notes and materials"
           className="h-full flex-1 bg-transparent text-base outline-none placeholder:text-ink-3"
         />
         <Kbd>esc</Kbd>

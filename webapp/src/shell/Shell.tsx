@@ -20,12 +20,14 @@ import { ChevronLeft, ChevronRight, Menu as MenuIcon } from "lucide-react";
 import type { Task } from "@/lib/model";
 import { restoreAppearance, useAppearance } from "@/lib/appearance";
 import { addDays, formatClock, relativeDay, sameDay, today } from "@/lib/time";
-import { moveTask, openTask, removeTask } from "@/features/tasks/actions";
+import { duplicateTask, moveTask, openTask, removeTask } from "@/features/tasks/actions";
 import { TaskDragPreview, type TaskDragData } from "@/features/tasks/TaskRow";
 import { TaskEditorHost } from "@/features/tasks/TaskEditor";
 import { InspectorPanel, InspectorSheet } from "@/features/tasks/Inspector";
 import { EventSheet } from "@/features/events/EventSheet";
 import { CommandPalette } from "@/features/command/CommandPalette";
+import { AskNotesDialog, SubjectStudyDialog } from "@/features/ai/StudyAi";
+import { PhotoNoteDialog } from "@/features/ai/PhotoNote";
 import { ShortcutsSheet } from "@/features/command/ShortcutsSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
 import { TodayView } from "@/features/today/TodayView";
@@ -58,6 +60,8 @@ import { GLASS_GAP, useGlass } from "@/glass/registry";
 import { routeHref, useNavigate, useRoute, type Route } from "./nav";
 import { haptic, hideSplash, startNative } from "@/lib/native";
 import { startReminders } from "@/features/reminders/startReminders";
+import { startRepeats } from "@/store/repeat";
+import { startFocusBridge } from "@/lib/focus";
 import { startAssignmentImport } from "@/features/events/assignmentImport";
 import { MobileTabBar } from "./MobileBar";
 import { startOffline } from "@/lib/offline";
@@ -79,6 +83,8 @@ export function Shell() {
     restoreGlassPrefs();
     void startNative();
     startReminders();
+    startRepeats();
+    startFocusBridge();
     startAssignmentImport();
     startOffline();
     startPressFeedback();
@@ -123,6 +129,9 @@ export function Shell() {
         <Workspace />
         <TaskEditorHost />
         <CommandPalette />
+        <AskNotesDialog />
+        <SubjectStudyDialog />
+        <PhotoNoteDialog />
         <ShortcutsSheet />
         <NameColorHost />
         <AskHost />
@@ -409,7 +418,8 @@ export function PageHeader({
     // aligned to the title's baseline.
     <header
       className={cn(
-        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:items-center max-md:px-5 max-md:pb-4",
+        // The buttons (30px) sit 24px from the top, as far as from the side.
+        "flex shrink-0 items-center gap-3 px-6 md:min-h-[64px] md:pt-6 md:pb-2.5 max-md:items-center max-md:px-5 max-md:pb-4",
         // Without the small line, the title drops to where the buttons sit on
         // pages that have one, so titles don't jump between pages.
         sub ? "max-md:pt-[calc(max(env(safe-area-inset-top),12px)+6px)]" : "max-md:pt-[calc(max(env(safe-area-inset-top),12px)+15px)]",
@@ -471,8 +481,11 @@ export function Stepper({
   nextShortcut?: string[];
 }) {
   const phone = useMedia("(max-width: 767px)");
+  // On wider screens the arrows and the jump back share one box of glass,
+  // the same glass and shape as the New task button beside it.
+  const capsule = useGlass<HTMLDivElement>({ level: 2, kind: "ink" });
   return (
-    <div className="relative mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full">
+    <div ref={phone ? undefined : capsule} className="relative flex items-center max-md:h-11 max-md:rounded-full md:rounded-ctl md:px-0.5">
       <GlassLens radius={22} bezel={15} className="lens-soft md:hidden" />
       <Tooltip label={prev} shortcut={prevShortcut}>
         <IconButton label={prev} onClick={() => { haptic(); onPrev(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink max-md:transition-colors max-md:duration-300 max-md:active:bg-fill-strong max-md:active:duration-0">
@@ -543,9 +556,18 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
       }
       if (isTyping(e.target) || e.defaultPrevented) return;
       if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+      const state = ui.get();
+      if (mod && !e.altKey && !e.shiftKey && (e.key === "d" || e.key === "D")) {
+        // ⌘D duplicates the selected task (instead of bookmarking the page).
+        const id = state.selectedId;
+        const task = id ? useWorkspace.getState().tasks.find((t) => t.id === id) : undefined;
+        if (!task || !(state.visibleOrder.includes(task.id) || state.inspectorId === task.id)) return;
+        e.preventDefault();
+        duplicateTask(task);
+        return;
+      }
       if (e.altKey || (mod && e.key !== "Enter")) return;
 
-      const state = ui.get();
       const all = useWorkspace.getState().tasks;
       // Keys only act on a selected task that is on screen right now.
       const selected =
@@ -713,7 +735,10 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       const dy = t.clientY - s.y;
       if (!s.axis) {
         if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
-        s.axis = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+        // A touch that rested first is a long press: it picks a task up to
+        // drag, and a drag to the right mustn't pull the menu in too.
+        const held = performance.now() - s.t > 240;
+        s.axis = !held && dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
         if (s.axis === "y") {
           s = null;
           return;

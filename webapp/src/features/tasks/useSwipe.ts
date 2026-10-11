@@ -7,15 +7,19 @@ import { springs } from "@/ui/motion";
 
 const THRESHOLD = 72;
 const LOCK = 10;
+/** A touch held still this long is a long press (a drag or the editor), never a swipe (ms). */
+const HOLD = 240;
 
 /**
  * Horizontal swipe on touch screens: right past the threshold runs `onRight`,
  * left runs `onLeft`. Vertical movement is left to scrolling (the row sets
- * `touch-action: pan-y`), and a long press still starts a drag.
+ * `touch-action: pan-y`). A long press belongs to dragging: a touch that
+ * rests before it moves never swipes, and `cancel` stops one when a drag
+ * starts, so moving a task to another day can't also complete or delete it.
  */
 export function useSwipe(onRight: () => void, onLeft: () => void) {
   const x = useMotionValue(0);
-  const start = useRef<{ x: number; y: number; axis: "x" | "y" | null } | null>(null);
+  const start = useRef<{ x: number; y: number; at: number; axis: "x" | "y" | "none" | null } | null>(null);
   const swiped = useRef(false);
   const [armed, setArmed] = useState<"left" | "right" | null>(null);
 
@@ -29,7 +33,7 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
     onTouchStart(e: React.TouchEvent) {
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
-      start.current = { x: t.clientX, y: t.clientY, axis: null };
+      start.current = { x: t.clientX, y: t.clientY, at: e.timeStamp, axis: null };
       swiped.current = false;
     },
     onTouchMove(e: React.TouchEvent) {
@@ -40,7 +44,7 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
       const dy = t.clientY - s.y;
       if (!s.axis) {
         if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
-        s.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+        s.axis = e.timeStamp - s.at > HOLD ? "none" : Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
       }
       if (s.axis !== "x") return;
       swiped.current = true;
@@ -54,7 +58,7 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
       setArmed(next);
     },
     onTouchEnd() {
-      const fire = armed;
+      const fire = start.current?.axis === "x" ? armed : null;
       reset();
       if (fire === "right") onRight();
       if (fire === "left") onLeft();
@@ -69,5 +73,13 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
     return was;
   };
 
-  return { x, armed, handlers, consumeSwipe };
+  /** Drops a swipe in progress (a drag took the touch over). */
+  const cancel = () => {
+    if (!start.current) return;
+    start.current.axis = "none";
+    setArmed(null);
+    void animate(x, 0, springs.snappy);
+  };
+
+  return { x, armed, handlers, consumeSwipe, cancel };
 }

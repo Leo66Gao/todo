@@ -6,7 +6,7 @@ import { useGlass, useMergedRefs } from "@/glass/registry";
 import { useDraggable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Trash2, ChevronDown, CornerDownRight, FileText, GraduationCap, ListChecks, Timer } from "lucide-react";
+import { Check, Trash2, ChevronDown, CornerDownRight, FileText, Flag, GraduationCap, ListChecks, Repeat, Timer } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { dueLabel, formatClock, formatDuration, relativeDay, sameDay } from "@/lib/time";
@@ -21,7 +21,7 @@ import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
 import { useMedia } from "@/ui/useMedia";
 import { editTask, openTask, removeTask, taskMenu } from "./actions";
-import { priorityColor, useLabelMap, useProjectMap } from "./meta";
+import { PRIORITY_LABEL, priorityColor, useLabelMap, useProjectMap } from "./meta";
 import { TaskCheck } from "./TaskCheck";
 import { useSwipe } from "./useSwipe";
 
@@ -115,7 +115,7 @@ const TaskRowView = memo(function TaskRowView({
   const minutes = task.remainingMinutes > 0 ? task.remainingMinutes : task.durationMinutes;
   const isAssignment = task.type === "assignment";
   const isMilestone = task.parentTaskId != null;
-  const check = settings.showPriority && task.priority !== "none" ? priorityColor(task.priority) : undefined;
+  const priority = settings.showPriority && task.priority !== "none" ? task.priority : null;
 
   const toggle = () => {
     if (task.isDone || completing) {
@@ -172,7 +172,9 @@ const TaskRowView = memo(function TaskRowView({
   const dragEndedAt = useRef(0);
   useEffect(() => {
     if (!dragging) dragEndedAt.current = performance.now();
-  }, [dragging]);
+    // A drag owns the touch: any swipe it began with is dropped.
+    else swipe.cancel();
+  }, [dragging]); // eslint-disable-line react-hooks/exhaustive-deps
   const checkToggle = () => {
     if (dragging || performance.now() - dragEndedAt.current < 350) return;
     toggle();
@@ -215,6 +217,13 @@ const TaskRowView = memo(function TaskRowView({
   if (showDate && !isAssignment) {
     meta.push(<span key="date">{relativeDay(task.date)}</span>);
   }
+  if (task.extra?.repeat) {
+    meta.push(
+      <span key="repeat" className="flex items-center" title="Repeats">
+        <Repeat className="size-3" aria-label="Repeats" />
+      </span>,
+    );
+  }
   if (minutes > 0 && settings.showDuration) {
     meta.push(
       <span key="dur" className="flex items-center gap-1 max-md:font-mono max-md:text-[12px]">
@@ -236,6 +245,15 @@ const TaskRowView = memo(function TaskRowView({
       <span key="label" className="flex items-center gap-1 rounded-[5px] bg-fill px-1.5 py-px text-2xs font-medium text-ink-2">
         <span className="size-[5px] rounded-full" style={{ background: argbToCss(label.colorValue) }} />
         {label.name}
+      </span>,
+    );
+  }
+  // Priority stays quiet: a small tinted flag with the label in the meta grey.
+  if (priority && !done) {
+    meta.push(
+      <span key="priority" className="flex items-center gap-1">
+        <Flag className="size-[11px]" strokeWidth={2.2} style={{ color: priorityColor(priority), fill: `color-mix(in srgb, ${priorityColor(priority)} 35%, transparent)` }} />
+        {PRIORITY_LABEL[priority]}
       </span>,
     );
   }
@@ -354,7 +372,7 @@ const TaskRowView = memo(function TaskRowView({
           )}
         >
           <span data-drag-handle className="-my-1 flex shrink-0" onTouchStart={dragTouchStart}>
-            <TaskCheck checked={done} color={check} onToggle={checkToggle} size={phone ? 22 : 18} />
+            <TaskCheck checked={done} onToggle={checkToggle} size={phone ? 22 : 18} />
           </span>
           <div className="min-w-0 flex-1">
             {/* Long titles wrap onto a second line rather than being cut short. */}

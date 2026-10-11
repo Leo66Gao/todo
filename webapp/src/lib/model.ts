@@ -67,6 +67,8 @@ export interface Project {
   description?: string;
   /** Course pages, readings, videos and other material, in the order shown. */
   materials?: Material[];
+  /** The exam's day, "YYYY-MM-DD" (a calendar day, the same in every time zone). */
+  examDate?: string;
   extra?: Json;
 }
 
@@ -75,6 +77,8 @@ export interface Material {
   id: string;
   title: string;
   url?: string;
+  /** A file on a computer, e.g. "/Users/leo/Physics/notes.pdf" (shown, and opened where the file was picked). */
+  path?: string;
   /** A line of detail, such as "Chapters 3–5" or a password hint. */
   detail?: string;
   addedAt: number;
@@ -156,6 +160,8 @@ export interface WorkspaceSettings {
   showLabels: boolean;
   labels: TaskLabel[];
   fieldOrder: FieldId[];
+  /** Google Calendar alerts for the events tasks are exported as (off when the app's own reminders are enough). */
+  calendarAlerts: boolean;
   extra?: Json;
 }
 
@@ -187,6 +193,7 @@ export const defaultSettings = (): WorkspaceSettings => ({
   showLabels: true,
   labels: [],
   fieldOrder: [...DEFAULT_FIELD_ORDER],
+  calendarAlerts: true,
 });
 
 // ---------------------------------------------------------------------------
@@ -289,7 +296,8 @@ export function decodeProject(json: Json): Project {
     colorValue: json.colorValue,
     ...(typeof json.description === "string" && json.description ? { description: json.description } : {}),
     ...(Array.isArray(json.materials) ? { materials: json.materials.filter(isMaterial) } : {}),
-    extra: extras(json, ["id", "title", "colorValue", "description", "materials"]),
+    ...(typeof json.examDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(json.examDate) ? { examDate: json.examDate } : {}),
+    extra: extras(json, ["id", "title", "colorValue", "description", "materials", "examDate"]),
   };
 }
 
@@ -364,6 +372,7 @@ const SETTINGS_KEYS = [
   "showLabels",
   "labels",
   "fieldOrder",
+  "calendarAlerts",
 ] as const;
 
 export function decodeSettings(json: Json): WorkspaceSettings {
@@ -407,6 +416,7 @@ export function decodeSettings(json: Json): WorkspaceSettings {
     showLabels: bool(json.showLabels, true),
     labels,
     fieldOrder: order,
+    calendarAlerts: bool(json.calendarAlerts, true),
     extra: extras(json, SETTINGS_KEYS),
   };
 }
@@ -458,6 +468,7 @@ export const encodeProject = (p: Project): Json => ({
   colorValue: p.colorValue,
   ...(p.description ? { description: p.description } : {}),
   ...(p.materials?.length ? { materials: p.materials } : {}),
+  ...(p.examDate ? { examDate: p.examDate } : {}),
   ...p.extra,
 });
 
@@ -503,6 +514,8 @@ export const encodeSettings = (s: WorkspaceSettings): Json => ({
   showLabels: s.showLabels,
   labels: s.labels.map((l) => ({ id: l.id, name: l.name, colorValue: l.colorValue })),
   fieldOrder: s.fieldOrder,
+  // Only stored once turned off, so older apps' payloads stay as they were.
+  ...(s.calendarAlerts ? {} : { calendarAlerts: false }),
   ...s.extra,
 });
 

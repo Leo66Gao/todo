@@ -121,8 +121,102 @@ the Subjects tab, where every subject opens its own workspace: a description,
 pinned notes, a short "Up next" list of tasks, Materials (links and other
 course material) and every note, with folders and search. The description and
 materials are stored on the subject record (`description`, `materials`); a
-pinned note carries `pinnedAt` and sits at the top of note lists. The retiring
+pinned note carries `pinnedAt` and sits at the top of note lists. A material
+can be a file path (`path`): Chrome and Edge open it once the file has been
+picked on that computer (the handle stays in that browser's IndexedDB, never
+synced), showing PDFs, pictures, text and video in the app; other browsers copy
+the path to paste into Finder or Explorer. On a Mac, Todo File Opener
+(`webapp/mac-file-opener`, installed with its `install.sh`) opens the file
+itself, in its own app, once Settings → Files → "Open files on this Mac" is on:
+the app hands it a `todo-open://open?path=…` link. It only opens documents and
+folders in the home folder or on external drives; anything else, such as an
+app or a script, is only shown in Finder. Materials can be searched on the
+subject (title, link, path or note) and from ⌘K. A subject can carry an exam
+day (`examDate`, "YYYY-MM-DD"): the subject shows a countdown and can add
+review sessions spread over the days before it, subject tiles show the
+countdown, and Today lists exams in the next two weeks. The retiring
 Flutter app drops these fields if it saves the same record.
+
+## Focus timer on the phone
+
+On Android the focus timer also runs outside the app (`FocusTimer.java`,
+`FocusTimerPlugin.java`, `FocusTimerReceiver.java`): an ongoing notification
+with a live countdown, the round and Pause/Resume and Stop, and an exact alarm
+at the end of each round that alerts and moves on to the next one with the app
+closed. The app sends the session whenever it changes (`lib/focus.ts`) and
+takes back what was done from the notification when it returns.
+
+Settings → Google Calendar → "Calendar alerts for tasks" turns off Google
+Calendar's own 5-minute alert on exported task events (`calendarAlerts` in the
+synced settings) for anyone relying on the app's reminders.
+
+## Quick add
+
+A new task's title is read for its details (`lib/quickAdd.ts`): a day
+("fri", "tomorrow", "12 oct", "due 3/10"), a time or a time range ("18-20",
+"6-8pm", "from 4 to 5:30", which also sets the length), a length ("2h",
+"45 min"), a subject ("#physics", or its name in passing) and a priority
+("!!", "p1", "urgent", "high priority", "asap", or "critical" at the end).
+Each recognised phrase shows as a chip that can be dismissed. Moving a timed
+task offers to shift the open tasks after it (the domino effect); completed
+tasks stay put, and the shift can be undone from its toast.
+
+## Repeating and duplicating tasks
+
+Repeat (in the task editor and the task panel) opens a calendar: tap the
+exact days ("this Sunday and every day next week", with quick buttons for the
+rest of this week, next week, its weekdays, or the next 7 or 14 days), or pick
+a rule (every day, weekdays, every week on chosen days, every N days, weeks,
+months or years, optionally until a date) and see its days light up. Tapping a
+day while a rule is shown turns it into picked days to adjust.
+
+A repeating task is a series of ordinary tasks, one per day (`lib/repeat.ts`,
+`store/repeat.ts`), so each shows in Today, Week and Calendar and can be done,
+moved or deleted on its own. The series is stored on each task in
+`extra.repeat` (`series`, `rev`, `rule`). A rule's tasks are made three weeks
+ahead and topped up daily, only past the series' last task, so deleted days
+stay deleted; top-ups use IDs made from the series, its revision and the day,
+so two devices write the same record. Editing a repeating task asks whether
+to change only it or it and the upcoming ones; "Delete this and upcoming" is
+in its menu.
+
+Duplicate (⌘D, the panel's copy button, or the task menu, which also has
+"Duplicate to" a day) copies a task as a one-off, open, after the original.
+
+## AI
+
+The AI tools use DeepSeek with the user's own API key, kept on the device only
+(`lib/ai.ts`). Quick jobs (rewrites, summaries, smart add) run with thinking
+off so they answer in a second or two. Questions, explanations, quizzes and
+planning think briefly first. Written answers stream in as they arrive.
+
+In a note (`features/notes/NoteAi.tsx`), the note goes to the model as
+Markdown, so headings, lists and formulas keep their shape
+(`lib/noteMarkdown.ts`). Ask opens a conversation with follow-ups, about the
+selection, the section the cursor is in, or the whole note. The prompts live
+in `lib/notePrompts.ts`. Answers come back as Markdown and go into the note as
+rich text. Quiz me lets you write an answer and have it checked.
+
+Beyond one note (`features/ai/StudyAi.tsx`):
+
+- **Ask your notes**, from search (⌘K): a question is answered from the notes
+  that best match it (`lib/noteSearch.ts`), with links to the notes it used.
+- **Exam revision**, on a subject's exam card: a revision sheet (which can be
+  saved as a note) or practice questions, made from all of that subject's
+  notes.
+
+Photos go to DeepSeek themselves (`deepseek-flash` reads images, handwriting
+included), scaled down on the device first (`lib/photoData.ts`):
+
+- **Tasks from a photo** of an assignment sheet or the board.
+- **Note from a photo** (`features/ai/PhotoNote.tsx`), from Notes, a subject's
+  menu or search: pages written up as a new note. In a note, "Add from a
+  photo…" adds them where the cursor is.
+- **Photos in Ask**: attach a problem or a diagram to a question.
+
+If DeepSeek refuses a request with reasoning or JSON mode (with or without a
+picture), it is retried plainly (`lib/ai.ts`). In a conversation, photos are
+sent again only with the latest question that had any.
 
 ## Private GitHub backup
 

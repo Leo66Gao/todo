@@ -40,7 +40,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const cloudStatus = useWorkspace((s) => s.cloudStatus);
   // A save or sync problem shows here in red (details are in Settings).
   const cloudError = useWorkspace((s) => s.cloudError);
-  const searchWell = useGlass<HTMLButtonElement>({ level: 2, kind: "well", interactive: true });
+  const searchWell = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true });
+  const glass = useGlassOn();
+  // In Liquid Glass the profile sits on its own raised box of glass.
+  const profilePlate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true });
 
   const counts = useMemo(() => {
     const now = today();
@@ -154,12 +157,15 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-line p-2.5 max-md:border-t-0 max-md:px-1.5 max-md:pb-3.5">
+      <div className={cn("shrink-0 border-t border-line p-2.5 max-md:border-t-0 max-md:px-1.5 max-md:pb-3.5", glass && "border-t-0")}>
         <button
+          ref={profilePlate}
           type="button"
           onClick={() => go({ view: "settings" })}
           className={cn(
-            "flex h-10 w-full items-center gap-2.5 rounded-ctl px-2 text-left transition-colors hover:bg-fill max-md:h-auto max-md:gap-3 max-md:rounded-[22px] max-md:border max-md:border-line max-md:bg-fill/50 max-md:py-2.5 max-md:pr-3 max-md:pl-3",
+            "flex w-full items-center gap-2.5 text-left transition-colors hover:bg-fill max-md:h-auto max-md:gap-3 max-md:rounded-[22px] max-md:border max-md:border-line max-md:bg-fill/50 max-md:py-2.5 max-md:pr-3 max-md:pl-3",
+            // On glass, concentric with the sidebar's corners: its radius less the 10px gap.
+            glass ? "h-13 rounded-[calc(var(--glass-radius,22px)_-_10px)] px-2.5" : "h-10 rounded-ctl px-2",
             route.view === "settings" && "bg-fill",
           )}
         >

@@ -2,24 +2,28 @@
 
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { BookMarked, ChevronDown, FileUp, NotebookPen, Plus, Search } from "lucide-react";
+import { BookMarked, Camera, ChevronDown, FileUp, NotebookPen, Plus, Search } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import { plainText } from "@/lib/delta";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { useWorkspace } from "@/store/workspace";
+import { useGlass } from "@/glass/registry";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Menu, Tooltip } from "@/ui/overlay";
 import { openSources } from "@/features/sources/library";
 import { createNote, importNote, noteGroup, pinnedFirst } from "./noteActions";
 import { NoteRow } from "./NoteRow";
+import { noteFromPhotos } from "@/features/ai/PhotoNote";
 
 export function NotesView() {
   const navigate = useNavigate();
   const notes = useWorkspace((s) => s.notes);
   const projects = useWorkspace((s) => s.projects);
   const [query, setQuery] = useState("");
+  const searchWell = useGlass<HTMLLabelElement>({ level: 2, kind: "plate", inScroll: true });
+  const subjectPlate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   const [subjectId, setSubjectId] = useState<string | "all">("all");
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -66,6 +70,11 @@ export function NotesView() {
                 <BookMarked className="size-4" />
               </IconButton>
             </Tooltip>
+            <Tooltip label="Note from a photo">
+              <IconButton label="Note from a photo" onClick={() => void noteFromPhotos(navigate, { subjectId: subject?.id ?? null })}>
+                <Camera className="size-4" />
+              </IconButton>
+            </Tooltip>
             <Tooltip label="Import a Word document">
               <IconButton label="Import a Word document" onClick={() => fileInput.current?.click()}>
                 <FileUp className="size-4" />
@@ -85,7 +94,7 @@ export function NotesView() {
       <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[760px] px-6 max-md:px-5 max-md:pt-4">
           <div className="flex items-center gap-2">
-            <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm shadow-card transition-colors max-md:h-12 max-md:gap-2.5 max-md:rounded-full max-md:border max-md:border-line max-md:px-4 max-md:text-[15px]">
+            <label ref={searchWell} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm shadow-card transition-colors max-md:h-12 max-md:gap-2.5 max-md:rounded-full max-md:border max-md:border-line max-md:px-4 max-md:text-[15px]">
               <Search className="size-3.5 text-ink-3 max-md:size-[18px]" />
               <input
                 value={query}
@@ -98,7 +107,7 @@ export function NotesView() {
               <Menu
                 align="end"
                 trigger={
-                  <button type="button" className="flex h-8 max-w-[45%] min-w-0 shrink-0 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm whitespace-nowrap shadow-card transition-colors hover:bg-fill data-[state=open]:bg-fill max-md:h-12 max-md:rounded-full max-md:border max-md:border-line max-md:pr-3.5 max-md:pl-4 max-md:font-medium">
+                  <button ref={subjectPlate} type="button" className="flex h-8 max-w-[45%] min-w-0 shrink-0 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm whitespace-nowrap shadow-card transition-colors hover:bg-fill data-[state=open]:bg-fill max-md:h-12 max-md:rounded-full max-md:border max-md:border-line max-md:pr-3.5 max-md:pl-4 max-md:font-medium">
                     {subject && <span className="size-2 shrink-0 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />}
                     <span className="truncate">{subject?.title ?? "All subjects"}</span>
                     <ChevronDown className="size-3.5 shrink-0 text-ink-3" />

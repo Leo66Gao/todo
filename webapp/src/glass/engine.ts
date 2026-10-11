@@ -1,6 +1,6 @@
 "use client";
 
-import { glassEntries, isScrolling, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
+import { glassEntries, radiiLive, registryGeneration, type GlassEntry, type GlassKind } from "./registry";
 import { BACKGROUND_FS, BLIT_FS, BLUR_FS, FULLSCREEN_VS, glassFragment } from "./shaders";
 
 export const PRESET_INDEX = { harbour: 0, contour: 1, ember: 2, studio: 3, image: 4 } as const;
@@ -33,7 +33,10 @@ export interface Shape {
   opacity: number;
   /** Direction towards the light for this shape (GL space, y up), eased over time. */
   light: [number, number];
-  clip: { x: number; y: number; w: number; h: number } | null;
+  /** The box it's clipped to, that box's corner radius, and how far inside its edge shadows fade out (CSS px). */
+  clip: { x: number; y: number; w: number; h: number; r: number; fade: number } | null;
+  /** It lies on another level-2 shape (a segmented thumb on its track, a block in the schedule). */
+  onGlass: boolean;
 }
 
 type Target = { fbo: WebGLFramebuffer | null; tex: WebGLTexture | null; w: number; h: number };
@@ -133,9 +136,10 @@ export class GlassEngine {
     this.vao = gl.createVertexArray()!;
     this.bgProgram = new Program(gl, BACKGROUND_FS);
     this.blurProgram = new Program(gl, BLUR_FS);
-    // Each shape takes seven uniform vectors; fit as many as the GPU allows.
+    // Each shape takes eight uniform vectors; fit as many as the GPU allows
+    // (a month in the calendar alone is up to 42 boxes).
     const vectors = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) as number;
-    this.maxShapes = Math.max(8, Math.min(48, Math.floor((vectors - 32) / 7)));
+    this.maxShapes = Math.max(8, Math.min(96, Math.floor((vectors - 32) / 8)));
     this.glassProgram = new Program(gl, glassFragment(this.maxShapes));
     this.blitProgram = new Program(gl, BLIT_FS);
   }
@@ -168,8 +172,10 @@ export class GlassEngine {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    // Mirrored: glass at the window's edge refracts what lies beyond it, and
+    // a clamped edge would smear its last row of pixels into streaks.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
     const fbo = gl.createFramebuffer()!;
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
@@ -319,6 +325,7 @@ export class GlassEngine {
     gl.uniform1i(p.loc("uMid"), 3);
     gl.uniform2f(p.loc("uRes"), this.width, this.height);
     gl.uniform1f(p.loc("uDark"), look.dark || look.lightText ? 1 : 0);
+    gl.uniform1f(p.loc("uAsh"), look.lightText ? 1 : 0);
     gl.uniform1f(p.loc("uDpr"), dpr);
     // Key light from the upper left (GL space is y-up).
     gl.uniform2f(p.loc("uLight"), -0.55, 0.835);
@@ -332,6 +339,7 @@ export class GlassEngine {
     const optic = new Float32Array(MAX_SHAPES * 4);
     const state = new Float32Array(MAX_SHAPES * 4);
     const clip = new Float32Array(MAX_SHAPES * 4);
+    const clipRadius = new Float32Array(MAX_SHAPES * 2);
     const extra = new Float32Array(MAX_SHAPES * 4);
     for (let i = 0; i < n; i++) {
       const s = shapes[i];
@@ -347,9 +355,11 @@ export class GlassEngine {
       tint.set(m.tint, i * 4);
       extra.set([m.legible, s.light[0], s.light[1], m.frosted], i * 4);
       optic.set([m.blur, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
-      state.set([s.hover, s.press, s.opacity, s.kind === "well" ? 1 : 0], i * 4);
-      const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5 };
+      // (Last: +1 for a recessed well, +2 for a shape lying on another.)
+      state.set([s.hover, s.press, s.opacity, (s.kind === "well" ? 1 : 0) + (s.onGlass ? 2 : 0)], i * 4);
+      const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5, r: 0, fade: 10 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
+      clipRadius.set([c.r * dpr, c.fade * dpr], i * 2);
     }
     gl.uniform1i(p.loc("uCount"), n);
     gl.uniform4fv(p.loc("uRect"), rect);
@@ -358,6 +368,7 @@ export class GlassEngine {
     gl.uniform4fv(p.loc("uOptic"), optic);
     gl.uniform4fv(p.loc("uState"), state);
     gl.uniform4fv(p.loc("uClip"), clip);
+    gl.uniform2fv(p.loc("uClipR[0]"), clipRadius);
     gl.uniform4fv(p.loc("uExtra"), extra);
     this.draw();
   }
@@ -381,13 +392,14 @@ export class GlassEngine {
     switch (kind) {
       case "slab":
         return {
-          bezel: Math.min(radius, 26 * dpr),
-          height: 36 * dpr,
+          // A wide, deep bevel (wider than the corners are round) for a clear lens edge.
+          bezel: Math.min(46 * dpr, halfShort * 0.4),
+          height: 52 * dpr,
           tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.92] : [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold,
           blur: mix(0.04, 1, b),
           frosted: f,
-          dispersion: 0.12,
+          dispersion: 0.16,
           rim: 0.75,
           shadow: dark ? 0.32 : 0.14,
           shadowBlur: 34 * dpr,
@@ -395,19 +407,19 @@ export class GlassEngine {
       case "chrome":
         return {
           // Small chrome (the phone tab bar) gets a proportionally gentler lens.
-          bezel: Math.min(radius, 26 * dpr, halfShort * 0.55),
-          height: Math.min(42 * dpr, halfShort * 0.9),
+          bezel: Math.min(42 * dpr, halfShort * 0.55),
+          height: Math.min(52 * dpr, halfShort * 0.9),
           tint: solid ? [...(dark ? [0.075, 0.075, 0.085] : [1, 1, 1]), 0.88] : [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold * 0.9,
           blur: mix(0.03, 0.95, b),
           frosted: f * 0.9,
-          dispersion: 0.12,
+          dispersion: 0.16,
           rim: 1,
           shadow: dark ? 0.34 : 0.16,
           shadowBlur: 30 * dpr,
         };
       case "control":
-        // Selection pills: a clear lens, no haze, no highlights.
+        // Selection pills: a clear lens with the edge light, no haze.
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort * 1.1, 22 * dpr),
@@ -416,7 +428,7 @@ export class GlassEngine {
           blur: 0,
           frosted: 0,
           dispersion: 0.22,
-          rim: 0,
+          rim: 0.6,
           shadow: dark ? 0.16 : 0.07,
           shadowBlur: 10 * dpr,
         };
@@ -435,7 +447,8 @@ export class GlassEngine {
           shadowBlur: 12 * dpr,
         };
       case "card":
-        // Task plates: a shallow clear lens, no haze, no highlights.
+        // Task plates: a shallow clear lens with the edge light and dark
+        // sides, and the same shadow all round as a plate (the schedule box).
         return {
           bezel: Math.min(radius, 12 * dpr, halfShort),
           height: Math.min(14 * dpr, halfShort * 0.6),
@@ -444,8 +457,37 @@ export class GlassEngine {
           blur: 0,
           frosted: 0,
           dispersion: 0.12,
-          rim: 0,
-          shadow: dark ? 0.12 : 0.04,
+          rim: 1,
+          shadow: dark ? 0.16 : 0.08,
+          shadowBlur: 12 * dpr,
+        };
+      case "plate":
+        // A raised box on a panel (the profile): lightly frosted, edge-lit.
+        return {
+          bezel: Math.min(radius, 14 * dpr, halfShort),
+          height: Math.min(halfShort * 0.8, 18 * dpr),
+          tint: [1, 1, 1, 0],
+          legible: (dark ? -1 : 1) * hold * 0.6,
+          blur: mix(0.02, 0.4, b),
+          frosted: f * 0.5,
+          dispersion: 0.14,
+          rim: 0.9,
+          shadow: dark ? 0.16 : 0.08,
+          shadowBlur: 12 * dpr,
+        };
+      case "chip":
+        // Blocks in the schedule: frosted a little more than the plate they
+        // sit in, so they read apart from it.
+        return {
+          bezel: Math.min(radius, 8 * dpr, halfShort),
+          height: Math.min(halfShort * 0.8, 12 * dpr),
+          tint: [...haze, dark ? 0.08 : 0.12],
+          legible: (dark ? -1 : 1) * hold * 0.4,
+          blur: mix(0.1, 0.55, b),
+          frosted: Math.min(1, f * 0.8 + 0.15),
+          dispersion: 0.1,
+          rim: 0.7,
+          shadow: dark ? 0.12 : 0.06,
           shadowBlur: 8 * dpr,
         };
       case "well":
@@ -557,6 +599,14 @@ export interface TrackedPointer {
   influence: number;
 }
 
+
+/** How deep in the page an element is (to draw boxes under what they hold). */
+function depthOf(el: HTMLElement) {
+  let depth = 0;
+  for (let node = el.parentElement; node; node = node.parentElement) depth++;
+  return depth;
+}
+
 function scrollingAncestor(el: HTMLElement): HTMLElement | null {
   for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
     const { overflowY, overflowX } = getComputedStyle(node);
@@ -588,24 +638,63 @@ const approach = (value: number, target: number, rate: number) =>
 export class ShapeTracker {
   private motion = new WeakMap<HTMLElement, Motion>();
   private lastGeneration = -1;
+  private corners = new WeakMap<HTMLElement, number>();
   animating = false;
+  /** How many level-2 shapes the renderer can draw (its `maxShapes`). */
+  budget = 48;
 
-  collect(pointer: TrackedPointer): [Shape[], Shape[]] {
+  /**
+   * `origin` is where the canvas's corner is in the coordinates elements
+   * report. It is (0, 0) except while Safari is pinch-zoomed: there element
+   * positions are measured from the visible area, while the canvas stays
+   * attached to the page's viewport.
+   */
+  collect(pointer: TrackedPointer, origin = { x: 0, y: 0 }): [Shape[], Shape[]] {
     const level1: Shape[] = [];
     const level2: Shape[] = [];
     this.animating = false;
     const gen = registryGeneration();
-    const regenerated = gen !== this.lastGeneration;
+    // Corner radii are re-read every frame while they may be animating (the
+    // theme eases panels' corners in), or the glass keeps a stale, square one.
+    const live = radiiLive();
+    const regenerated = gen !== this.lastGeneration || live;
+    if (live) this.animating = true;
     this.lastGeneration = gen;
-    const cards: Shape[] = [];
+    const ranked: { shape: Shape; rank: number; depth: number; order: number }[] = [];
     for (const entry of glassEntries.values()) {
       const shape = this.shapeOf(entry, pointer, regenerated);
       if (!shape) continue;
-      if (entry.spec.level === 1) level1.push(shape);
-      else (shape.kind === "card" ? cards : level2).push(shape);
+      if (origin.x || origin.y) {
+        shape.x -= origin.x;
+        shape.y -= origin.y;
+        if (shape.clip) shape.clip = { ...shape.clip, x: shape.clip.x - origin.x, y: shape.clip.y - origin.y };
+      }
+      if (entry.spec.level === 1) {
+        level1.push(shape);
+        continue;
+      }
+      if (entry.depth == null) entry.depth = depthOf(entry.el);
+      entry.onGlass ??= !!entry.el.parentElement?.closest('[data-glass="2"]');
+      shape.onGlass = entry.onGlass;
+      ranked.push({ shape, rank: shape.kind === "card" ? 2 : shape.kind === "plate" ? 1 : 0, depth: entry.depth, order: ranked.length });
     }
-    // Cards go last, so a device's shape budget drops them before controls.
-    return [level1, level2.concat(cards)];
+    // Past the device's shape budget, task cards go first, then plates, so
+    // controls always keep their glass. What's kept is drawn outermost first:
+    // a box holding others (the schedule, a segmented track) lies under them.
+    const kept = ranked.length > this.budget ? [...ranked].sort((a, b) => a.rank - b.rank || a.order - b.order).slice(0, this.budget) : ranked;
+    kept.sort((a, b) => a.depth - b.depth || a.order - b.order);
+    for (const k of kept) level2.push(k.shape);
+    return [level1, level2];
+  }
+
+  /** An element's corner radius (CSS px), read again when radii may have changed. */
+  private cornerOf(el: HTMLElement, refresh: boolean) {
+    let r = refresh ? undefined : this.corners.get(el);
+    if (r == null) {
+      r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+      this.corners.set(el, r);
+    }
+    return r;
   }
 
   private shapeOf(entry: GlassEntry, pointer: TrackedPointer, refreshRadius: boolean): Shape | null {
@@ -621,20 +710,28 @@ export class ShapeTracker {
     if (entry.clip) {
       const c = entry.clip.getBoundingClientRect();
       if (c.width < 2 || c.height < 2) return null;
-      clip = { x: c.x, y: c.y, w: c.width, h: c.height };
+      clip = { x: c.x, y: c.y, w: c.width, h: c.height, r: this.cornerOf(entry.clip, refreshRadius), fade: 10 };
     }
-    // Shapes in a list are also clipped to the list's scrolling box.
+    // Shapes in a list are also clipped to the list's scrolling box, with its
+    // corners. A list that is itself a box of glass (Today's schedule) keeps
+    // what's in it just inside its rim, so its edge light shows over them.
+    // A plain list that only scrolls up and down clips only above and below,
+    // so its rows' shadows aren't cut off at its sides (the week's narrow days).
     if (spec.inScroll && entry.scroller === undefined) entry.scroller = scrollingAncestor(el);
     if (entry.scroller) {
-      const b = entry.scroller.getBoundingClientRect();
-      const x0 = Math.max(b.x, clip?.x ?? -1e5);
-      const y0 = Math.max(b.y, clip?.y ?? -1e5);
-      const x1 = Math.min(b.right, clip ? clip.x + clip.w : 1e5);
-      const y1 = Math.min(b.bottom, clip ? clip.y + clip.h : 1e5);
-      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0) };
+      const sc = entry.scroller;
+      const b = sc.getBoundingClientRect();
+      const inset = sc.dataset.glass ? 2 : 0;
+      const sides = inset > 0 || sc.scrollWidth > sc.clientWidth + 1;
+      const x0 = Math.max(sides ? b.x + inset : -1e5, clip?.x ?? -1e5);
+      const y0 = Math.max(b.y + inset, clip?.y ?? -1e5);
+      const x1 = Math.min(sides ? b.right - inset : 1e5, clip ? clip.x + clip.w : 1e5);
+      const y1 = Math.min(b.bottom - inset, clip ? clip.y + clip.h : 1e5);
+      // (Inside a box of glass, shadows reach almost to its rim.)
+      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0), r: Math.max(0, this.cornerOf(entry.scroller, refreshRadius) - inset), fade: inset > 0 ? 3 : 10 };
     }
     // Nothing to draw when it is scrolled or clipped out of sight.
-    const view = clip ?? { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight };
+    const view = clip ?? { x: 0, y: 0, w: document.documentElement.clientWidth, h: document.documentElement.clientHeight };
     if (r.right < view.x || r.left > view.x + view.w || r.bottom < view.y || r.top > view.y + view.h) return null;
     if (entry.radiusPx == null || refreshRadius) {
       entry.radiusPx =
@@ -675,11 +772,9 @@ export class ShapeTracker {
     }
     m.hover = approach(m.hover, spec.interactive && inside ? 1 : 0, 0.22);
     m.press = approach(m.press, spec.interactive && inside && pointer.down ? 1 : 0, pointer.down ? 0.45 : 0.18);
-    // While its list scrolls, a card fades to its CSS stand-in (which moves
-    // with the compositor) and returns once the list settles.
-    const moving = entry.scroller != null && spec.kind === "card" && isScrolling(entry.scroller);
-    const opacity = moving ? 0 : el.dataset.taskCard === "done" ? 0.5 : 1;
-    m.opacity = approach(m.opacity, opacity, moving ? 0.5 : 0.2);
+    // (Glass stays on while its list scrolls; it follows the list every frame.)
+    const opacity = el.dataset.taskCard === "done" ? 0.5 : 1;
+    m.opacity = approach(m.opacity, opacity, 0.2);
     if (m.opacity !== opacity || (m.hover !== 0 && m.hover !== 1) || (m.press !== 0 && m.press !== 1)) this.animating = true;
     // The highlight leans towards a nearby pointer: fully over the shape, less
     // as the pointer moves away. It glides round the rim rather than jumping
@@ -724,6 +819,7 @@ export class ShapeTracker {
       opacity: Math.round(m.opacity * 1000) / 1000,
       light: [Math.round(m.lx * 1000) / 1000, Math.round(m.ly * 1000) / 1000],
       clip,
+      onGlass: false,
     };
   }
 }

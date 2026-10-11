@@ -107,3 +107,27 @@ it("pauses Calendar after token expiry without opening Google account UI", async
   await expect(calendar.listCalendars()).rejects.toMatchObject({ status: 401 });
   expect(requestAccessToken).not.toHaveBeenCalled();
 });
+
+it("leaves out Google Calendar's alert when task alerts are off", async () => {
+  const { GoogleCalendar } = await import("../calendar");
+  const client = new GoogleCalendar();
+  client.connectWithAccessToken("owner@example.com", "fake", "owner");
+  const request = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ id: "e1" })));
+  vi.stubGlobal("fetch", request);
+  const input = { title: "Lab", description: null, startTime: new Date(), durationMinutes: 30, isAllDay: false, taskId: "t", ownerUid: "owner" };
+  await client.insertEvent(input);
+  await client.insertEvent({ ...input, alerts: false });
+  const sent = request.mock.calls.map((call) => JSON.parse(call[1].body).reminders);
+  expect(sent[0]).toEqual({ useDefault: false, overrides: [{ method: "popup", minutes: 5 }] });
+  expect(sent[1]).toEqual({ useDefault: false, overrides: [] });
+});
+
+it("stores the calendar alert setting only once it is turned off", async () => {
+  const { decodeSettings, defaultSettings, encodeSettings } = await import("../model");
+  expect(defaultSettings().calendarAlerts).toBe(true);
+  expect("calendarAlerts" in encodeSettings(defaultSettings())).toBe(false);
+  const off = encodeSettings({ ...defaultSettings(), calendarAlerts: false });
+  expect(off.calendarAlerts).toBe(false);
+  expect(decodeSettings(off).calendarAlerts).toBe(false);
+  expect(decodeSettings({}).calendarAlerts).toBe(true);
+});

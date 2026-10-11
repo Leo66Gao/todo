@@ -627,6 +627,7 @@ function upsertAction(uid: string, task: Task): CalendarAction {
     isAllDay: task.startTime == null,
     durationMinutes:
       task.startTime != null && task.durationMinutes === 0 ? 30 : task.durationMinutes,
+    ...(get().settings.calendarAlerts ? {} : { alerts: false }),
   };
 }
 
@@ -650,6 +651,8 @@ const exportFingerprint = (action: CalendarAction) =>
     action.startTime,
     action.isAllDay,
     action.durationMinutes,
+    // Only when silenced, so events exported before the setting existed match.
+    ...(action.alerts === false ? ["silent"] : []),
   ]);
 function markExported(uid: string, taskId: string, fingerprint: string | null) {
   const exported = prefs.getLocal<Record<string, string>>(exportedKey(uid), {});
@@ -749,6 +752,7 @@ async function flushCalendarOutbox(uid: string) {
         isAllDay: (action.isAllDay as boolean | undefined) ?? task.startTime == null,
         taskId,
         ownerUid: uid,
+        alerts: action.alerts !== false,
       };
       success = await calendar.updateEvent(input);
       if (!success && (calendar.lastErrorStatus === 404 || calendar.lastErrorStatus === 410)) {
@@ -1235,24 +1239,51 @@ export function rescheduleTask(id: string, day: Date) {
 }
 
 /**
- * Domino effect: shifts every timed task on [day] that starts after
- * [afterTime] by [deltaMs] — the amount the edited task moved.
+ * Domino effect: shifts every open timed task on [day] that starts after
+ * [afterTime] by [deltaMs] — the amount the edited task moved. Completed
+ * tasks keep the time they were done at.
  */
-export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, deltaMs: number) {
-  if (deltaMs === 0) return;
+export function applyDominoShift(excludeId: string, day: Date, afterTime: Date, deltaMs: number): DominoShift {
+  if (deltaMs === 0) return [];
   const moved: Task[] = [];
+  const before: DominoShift = [];
   const tasks = get().tasks.map((other) => {
-    if (other.id === excludeId || !other.startTime || !sameDay(other.date, day)) return other;
+    if (other.id === excludeId || other.isDone || !other.startTime || !sameDay(other.date, day)) return other;
     if (other.startTime.getTime() <= afterTime.getTime()) return other;
     const shifted = new Date(other.startTime.getTime() + deltaMs);
     const next = { ...other, date: startOfDay(shifted), startTime: shifted };
+    before.push({ id: other.id, date: other.date, startTime: other.startTime, movedTo: shifted });
+    moved.push(next);
+    return next;
+  });
+  if (moved.length === 0) return [];
+  set({ tasks });
+  // Only the tasks that moved change in Calendar (including any whose first
+  // export is still queued).
+  if (calendarEnabled) for (const t of moved) syncTaskToCalendar(t);
+  void saveData();
+  return before;
+}
+
+/** Where the tasks a domino shift moved were before it, and where it put them. */
+export type DominoShift = { id: string; date: Date; startTime: Date; movedTo: Date }[];
+
+/**
+ * Puts the tasks a domino shift moved back where they were. A task you have
+ * since rescheduled or completed stays as you left it; other edits are kept.
+ */
+export function undoDominoShift(shift: DominoShift) {
+  const back = new Map(shift.map((s) => [s.id, s]));
+  const moved: Task[] = [];
+  const tasks = get().tasks.map((t) => {
+    const was = back.get(t.id);
+    if (!was || t.isDone || t.startTime?.getTime() !== was.movedTo.getTime()) return t;
+    const next = { ...t, date: was.date, startTime: was.startTime };
     moved.push(next);
     return next;
   });
   if (moved.length === 0) return;
   set({ tasks });
-  // Only the tasks that moved change in Calendar (including any whose first
-  // export is still queued).
   if (calendarEnabled) for (const t of moved) syncTaskToCalendar(t);
   void saveData();
 }
@@ -1436,8 +1467,17 @@ export function deleteFolder(id: string) {
 }
 
 export function updateSettings(settings: WorkspaceSettings) {
+  const alertsChanged = settings.calendarAlerts !== get().settings.calendarAlerts;
   set({ settings });
   void saveData();
+  // Exported events take the new alert setting.
+  const uid = get().user?.uid;
+  if (alertsChanged && uid && calendarEnabled) {
+    for (const task of get().tasks) {
+      if (!task.isDone && !task.isConflictCopy && hasCalendarExport(task)) storeCalendarAction(uid, upsertAction(uid, task));
+    }
+    void scheduleCalendarFlush();
+  }
 }
 
 /** The deletion is stored on this device but hasn't reached the cloud yet. */

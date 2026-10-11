@@ -4,9 +4,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   BookOpen,
+  CalendarClock,
   ChevronLeft,
+  CircleHelp,
   Code2,
   FilePlus2,
+  File as FileGlyph,
   FileText,
   Folder,
   FolderPlus,
@@ -16,15 +19,19 @@ import {
   Play,
   Plus,
   Presentation,
+  ScrollText,
   Search,
   Sheet,
   type LucideIcon,
 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
+import { studySubject } from "@/features/ai/StudyAi";
+import { noteFromPhotos } from "@/features/ai/PhotoNote";
 import { plainText } from "@/lib/delta";
 import type { Material, Project, StudyNote } from "@/lib/model";
 import { uuid } from "@/lib/model";
-import { isOverdue } from "@/lib/time";
+import { addDays, isOverdue, pluralize } from "@/lib/time";
+import { format } from "date-fns";
 import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { ui } from "@/shell/ui";
@@ -36,21 +43,27 @@ import { addFolder, captureWorkspaceSession, deleteFolder, renameFolder, useWork
 import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
-import { confirmDialog, ContextMenu, Menu, Modal, promptDialog, type MenuItem } from "@/ui/overlay";
+import { confirmDialog, ContextMenu, Menu, Modal, Popover, promptDialog, type MenuItem } from "@/ui/overlay";
+import { DatePanel } from "@/ui/pickers";
 import { toast } from "@/ui/toast";
 import { PHONE, useMedia } from "@/ui/useMedia";
 import {
+  looksLikePath,
   looksLikeUrl,
   materialKind,
+  materialMatches,
   moveMaterial,
   normalizeUrl,
   removeMaterial,
   saveMaterial,
   setDescription,
   siteOf,
+  titleFromPath,
   titleFromUrl,
   type MaterialKind,
 } from "./materials";
+import { examDay, examIn, planReviews, reviewDays, setExamDate, unplanReviews } from "./exams";
+import { canLinkFiles, closeFileViewer, copyPath, forgetFile, linkFile, loadLinkedFiles, openFile, openOnMac, useFileViewer, useLinkedFiles, useMacOpener } from "./localFiles";
 import { deleteSubject, editSubject } from "./subjectActions";
 
 /** How many open tasks show before "Show all" (fewer on phones, where rows are taller). */
@@ -130,9 +143,9 @@ export function SubjectView({ id }: { id: string }) {
         actions={
           <>
             <Button
-              variant="secondary"
+              variant="primary"
               aria-label="New note"
-              icon={<FilePlus2 className="size-4 md:hidden" />}
+              icon={<FilePlus2 className="size-4" />}
               className="max-md:w-[30px] max-md:px-0"
               onClick={newNote}
             >
@@ -149,6 +162,8 @@ export function SubjectView({ id }: { id: string }) {
                 </IconButton>
               }
               items={[
+                { label: "Note from a photo…", onSelect: () => void noteFromPhotos(navigate, { subjectId: id, folderId: folderId === "all" ? null : folderId }) },
+                { separator: true },
                 { label: "Edit name and colour…", onSelect: () => void editSubject(project) },
                 { label: "New folder…", onSelect: () => void newFolder() },
                 { separator: true },
@@ -185,6 +200,7 @@ export function SubjectView({ id }: { id: string }) {
             )}
 
             <aside className={cn("flex flex-col gap-8 lg:col-start-2 lg:row-start-1", pinned.length > 0 && "lg:row-span-2")}>
+              <ExamPanel project={project} color={color} />
               <TasksPanel subjectId={id} open={open} done={done} />
               <MaterialsPanel project={project} />
             </aside>
@@ -388,6 +404,117 @@ function PinnedCard({ note, color }: { note: StudyNote; color: string }) {
 // ---------------------------------------------------------------------------
 // Tasks: what's next, kept short.
 
+/**
+ * The exam countdown: how many days are left, the day itself, and review
+ * sessions spread over the days before it. Without a date, a quiet way to add one.
+ */
+function ExamPanel({ project, color }: { project: Project; color: string }) {
+  const [picking, setPicking] = useState(false);
+  const tasks = useWorkspace((s) => s.tasks);
+  const hasNotes = useWorkspace((s) => s.notes.some((n) => n.subjectId === project.id && n.content.trim() !== ""));
+  const exam = examDay(project);
+  const days = examIn(project);
+  const plan = useMemo(() => (exam && days != null && days > 0 ? reviewDays(project, tasks) : []), [project, tasks, exam, days]);
+  // Reviews for this exam: the weeks before it, not ones from an earlier exam.
+  const reviews = exam
+    ? tasks.filter((t) => t.projectId === project.id && /review|revis/i.test(t.title) && t.date <= exam && t.date >= addDays(exam, -30))
+    : [];
+  const reviewsDone = reviews.filter((t) => t.isDone).length;
+  const reviewsOpen = reviews.length - reviewsDone;
+
+  const picker = (trigger: ReactNode) => (
+    <Popover open={picking} onOpenChange={setPicking} align="end" trigger={trigger}>
+      <DatePanel
+        value={exam}
+        clearLabel="No exam date"
+        onPick={(d) => {
+          setExamDate(project.id, d);
+          setPicking(false);
+        }}
+        onClear={
+          exam
+            ? () => {
+                setExamDate(project.id, null);
+                setPicking(false);
+              }
+            : undefined
+        }
+      />
+    </Popover>
+  );
+
+  if (!exam || days == null) {
+    return (
+      <div className="-mb-4">
+        {picker(
+          <button
+            type="button"
+            className="flex h-9 w-full items-center gap-2 rounded-[10px] border border-dashed border-line-strong px-3 text-sm text-ink-3 transition-colors hover:border-ink-4 hover:text-ink-2"
+          >
+            <CalendarClock className="size-4" />
+            Add exam date
+          </button>,
+        )}
+      </div>
+    );
+  }
+
+  const add = () => {
+    const ids = planReviews(project);
+    if (!ids.length) return;
+    toast(`Added ${pluralize(ids.length, "review session")} before the exam`, { label: "Undo", run: () => unplanReviews(ids) });
+  };
+
+  const past = days < 0;
+  return (
+    <section
+      className="relative overflow-hidden rounded-card border border-line bg-card px-4 pt-3.5 pb-3 shadow-card"
+      style={{ backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${color} 14%, transparent), transparent 70%)` }}
+    >
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {past ? (
+            <p className="text-sm font-medium text-ink-2">The exam was {format(exam, "EEEE d MMMM")}.</p>
+          ) : (
+            <>
+              <p className="flex items-baseline gap-2">
+                <span className="text-[34px] leading-none font-semibold tracking-[-0.03em] tnum" style={{ color: days <= 3 ? color : undefined }}>
+                  {days === 0 ? "Today" : days}
+                </span>
+                {days > 0 && <span className="text-sm text-ink-2">{days === 1 ? "day to the exam" : "days to the exam"}</span>}
+              </p>
+              <p className="mt-1.5 text-xs text-ink-3">
+                {format(exam, "EEEE d MMMM")}
+                {reviewsOpen + reviewsDone > 0 && ` · ${reviewsDone} of ${reviewsOpen + reviewsDone} reviews done`}
+              </p>
+            </>
+          )}
+        </div>
+        {picker(
+          <button type="button" className="-mt-1 -mr-1.5 rounded-[7px] px-2 py-1 text-xs font-medium text-ink-3 transition-colors hover:bg-fill hover:text-ink">
+            {past ? "New date" : "Change"}
+          </button>,
+        )}
+      </div>
+      {plan.length > 0 && (
+        <Button variant="secondary" size="sm" className="mt-3 w-full" icon={<Plus className="size-3.5" />} onClick={add}>
+          Plan {pluralize(plan.length, "review session")}
+        </Button>
+      )}
+      {!past && hasNotes && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <Button variant="secondary" size="sm" icon={<ScrollText className="size-3.5" />} onClick={() => studySubject(project.id, "sheet")}>
+            Revision sheet
+          </Button>
+          <Button variant="secondary" size="sm" icon={<CircleHelp className="size-3.5" />} onClick={() => studySubject(project.id, "quiz")}>
+            Quiz me
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function TasksPanel({ subjectId, open, done }: { subjectId: string; open: ReturnType<typeof useAllTasks>; done: ReturnType<typeof useAllTasks> }) {
   const [expanded, setExpanded] = useState(false);
   const [showDone, setShowDone] = useState(false);
@@ -439,6 +566,7 @@ const KIND_ICON: Record<MaterialKind, LucideIcon> = {
   pdf: FileText,
   code: Code2,
   link: Link2,
+  file: FileGlyph,
   item: BookOpen,
 };
 
@@ -446,17 +574,48 @@ function MaterialsPanel({ project }: { project: Project }) {
   const materials = project.materials ?? [];
   const [adding, setAdding] = useState("");
   const [editing, setEditing] = useState<Material | null>(null);
+  // A longer list gets a search over titles, links, file paths and notes.
+  const [searching, setSearching] = useState(false);
+  const [find, setFind] = useState("");
+  const shown = searching ? materials.filter((m) => materialMatches(m, find)) : materials;
+  const linked = useLinkedFiles((s) => s.handles);
+  const macOpener = useMacOpener((s) => s.on);
+  useEffect(() => void loadLinkedFiles(), []);
 
   const add = () => {
     const text = adding.trim();
     if (!text) return;
-    const saved = looksLikeUrl(text) ? saveMaterial(project.id, { title: titleFromUrl(text), url: text }) : saveMaterial(project.id, { title: text });
+    const saved = looksLikePath(text)
+      ? saveMaterial(project.id, { title: titleFromPath(text), path: text })
+      : looksLikeUrl(text)
+        ? saveMaterial(project.id, { title: titleFromUrl(text), url: text })
+        : saveMaterial(project.id, { title: text });
     setAdding("");
     toast(`Added “${saved.title}”`, { label: "Edit", run: () => setEditing(saved) });
   };
 
   const menu = (m: Material, index: number): MenuItem[] => [
     ...(m.url ? [{ label: "Open link", onSelect: () => openLink(m.url!) }, { label: "Copy link", onSelect: () => void copy(m.url!) }] : []),
+    ...(m.path
+      ? [
+          ...(macOpener
+            ? [
+                { label: "Open file", onSelect: () => openFile(m) },
+                { label: "Show in Finder", onSelect: () => openOnMac(m.path!, "reveal") },
+              ]
+            : canLinkFiles()
+              ? [{ label: "Open file", onSelect: () => openFile(m) }]
+              : []),
+          { label: "Copy path", onSelect: () => void copyPath(m) },
+          ...(canLinkFiles() && !macOpener
+            ? [
+                linked.has(m.id)
+                  ? { label: "Forget the file on this computer", onSelect: () => forgetFile(m.id) }
+                  : { label: "Choose the file on this computer…", onSelect: () => void linkFile(m) },
+              ]
+            : []),
+        ]
+      : []),
     { label: "Edit…", onSelect: () => setEditing(m) },
     { separator: true },
     { label: "Move up", disabled: index === 0, onSelect: () => moveMaterial(project.id, m.id, index - 1) },
@@ -474,10 +633,44 @@ function MaterialsPanel({ project }: { project: Project }) {
 
   return (
     <section>
-      <PanelHeading title="Materials" count={materials.length || undefined} />
+      <PanelHeading
+        title="Materials"
+        count={materials.length || undefined}
+        action={
+          materials.length >= 4 ? (
+            <PanelAction
+              icon={<Search className="size-3.5" />}
+              onClick={() => {
+                setSearching(!searching);
+                setFind("");
+              }}
+            >
+              {searching ? "Done" : "Search"}
+            </PanelAction>
+          ) : undefined
+        }
+      />
+      {searching && (
+        <input
+          autoFocus
+          value={find}
+          onChange={(e) => setFind(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearching(false);
+              setFind("");
+            }
+          }}
+          placeholder="Search titles, links and file paths"
+          aria-label="Search materials"
+          className="mb-1.5 h-8 w-full rounded-[9px] bg-fill px-3 text-sm outline-none placeholder:text-ink-3 focus:bg-fill-strong"
+        />
+      )}
+      {searching && find.trim() && shown.length === 0 && <p className="px-1 py-1.5 text-sm text-ink-3">No materials match “{find.trim()}”.</p>}
       <ul className="flex flex-col">
         <AnimatePresence initial={false}>
-          {materials.map((m, i) => {
+          {shown.map((m) => {
+            const i = materials.indexOf(m);
             const Icon = KIND_ICON[materialKind(m)];
             return (
               <motion.li key={m.id} layout="position" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={springs.layout}>
@@ -485,16 +678,18 @@ function MaterialsPanel({ project }: { project: Project }) {
                   <div className="group flex items-center rounded-[10px] transition-colors hover:bg-fill/70">
                     <button
                       type="button"
-                      onClick={() => (m.url ? openLink(m.url) : setEditing(m))}
+                      onClick={() => (m.url ? openLink(m.url) : m.path ? openFile(m) : setEditing(m))}
                       className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
-                      title={m.url}
+                      title={m.url ?? m.path}
                     >
                       <span className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-card text-ink-2 shadow-card">
                         <Icon className="size-4" strokeWidth={1.8} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{m.title}</span>
-                        {(m.detail || m.url) && <span className="block truncate text-xs text-ink-3">{m.detail ?? siteOf(m.url!)}</span>}
+                        {(m.detail || m.url || m.path) && (
+                          <span className="block truncate text-xs text-ink-3">{m.detail ?? (m.url ? siteOf(m.url) : shortPath(m.path!))}</span>
+                        )}
                       </span>
                     </button>
                     <Menu
@@ -530,7 +725,7 @@ function MaterialsPanel({ project }: { project: Project }) {
         <input
           value={adding}
           onChange={(e) => setAdding(e.target.value)}
-          placeholder={materials.length ? "Paste a link or name a book" : "Add course pages, readings, videos…"}
+          placeholder={materials.length ? "Paste a link, a file path, or name a book" : "Add course pages, files, readings, videos…"}
           aria-label="Add material: paste a link or type a name"
           enterKeyHint="done"
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-3"
@@ -542,6 +737,7 @@ function MaterialsPanel({ project }: { project: Project }) {
         )}
       </form>
       <MaterialDialog subjectId={project.id} material={editing} onClose={() => setEditing(null)} />
+      <FileViewer />
     </section>
   );
 }
@@ -556,11 +752,11 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
   if (material && material !== shown) {
     setShown(material);
     setTitle(material.title);
-    setUrl(material.url ?? "");
+    setUrl(material.url ?? material.path ?? "");
     setDetail(material.detail ?? "");
     setSession(() => captureWorkspaceSession());
   }
-  const urlOk = !url.trim() || looksLikeUrl(url);
+  const urlOk = !url.trim() || looksLikeUrl(url) || looksLikePath(url);
   const valid = title.trim().length > 0 && urlOk;
   const input =
     "mt-1 h-9 w-full rounded-ctl border border-line-strong bg-card px-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-accent focus:ring-3 focus:ring-accent-soft";
@@ -571,7 +767,8 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
         onSubmit={(e) => {
           e.preventDefault();
           if (!valid || !shown) return;
-          if (session?.()) saveMaterial(subjectId, { ...shown, title, url: url.trim() ? normalizeUrl(url) : undefined, detail });
+          const isPath = looksLikePath(url);
+          if (session?.()) saveMaterial(subjectId, { ...shown, title, url: url.trim() && !isPath ? normalizeUrl(url) : undefined, path: isPath ? url : undefined, detail });
           onClose();
         }}
       >
@@ -581,8 +778,8 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
           <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} className={input} />
         </label>
         <label className="mt-3 block text-xs font-medium text-ink-2">
-          Link
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Optional" inputMode="url" className={cn(input, !urlOk && "border-danger")} />
+          Link or file path
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… or /Users/…" inputMode="url" className={cn(input, !urlOk && "border-danger")} />
         </label>
         <label className="mt-3 block text-xs font-medium text-ink-2">
           Detail
@@ -597,6 +794,50 @@ function MaterialDialog({ subjectId, material, onClose }: { subjectId: string; m
           </Button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+/** "~/Physics/notes.pdf" for "/Users/leo/Physics/notes.pdf". */
+function shortPath(path: string) {
+  return path.replace(/^\/Users\/[^/]+/, "~").replace(/^[A-Z]:\\Users\\[^\\]+/i, "~");
+}
+
+/** PDFs, pictures, text and video from a linked file, shown in the app. */
+function FileViewer() {
+  const file = useFileViewer((s) => s.file);
+  const [shown, setShown] = useState(file);
+  if (file && file !== shown) setShown(file);
+  const f = file ?? shown;
+  return (
+    <Modal open={file != null} onOpenChange={(o) => !o && closeFileViewer()} width={980} label={f?.name ?? "File"} className="h-[min(86vh,900px)]">
+      {f && (
+        <>
+          <div className="flex h-12 shrink-0 items-center gap-3 border-b border-line px-4">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{f.name}</span>
+            <Button size="sm" onClick={() => window.open(f.url, "_blank")}>
+              Open in a new tab
+            </Button>
+            <Button size="sm" variant="ghost" onClick={closeFileViewer}>
+              Close
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 bg-fill">
+            {f.type.startsWith("image/") ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={f.url} alt={f.name} className="size-full object-contain" />
+            ) : f.type.startsWith("video/") ? (
+              <video src={f.url} controls className="size-full" />
+            ) : f.type.startsWith("audio/") ? (
+              <div className="flex size-full items-center justify-center">
+                <audio src={f.url} controls />
+              </div>
+            ) : (
+              <iframe src={f.url} title={f.name} className="size-full border-0 bg-white" />
+            )}
+          </div>
+        </>
+      )}
     </Modal>
   );
 }

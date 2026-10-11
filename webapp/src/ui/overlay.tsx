@@ -223,7 +223,8 @@ export type MenuItem =
   | { heading: string };
 
 const itemClass = cn(
-  "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-sm text-ink outline-none",
+  // The highlight's corners follow the menu's, inset by its 4px padding.
+  "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[max(6px,calc(var(--radius-pop)_-_4px))] px-2 text-sm text-ink outline-none",
   "data-[highlighted]:bg-fill data-[state=open]:bg-fill data-[disabled]:opacity-40",
 );
 const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] max-w-[calc(100vw-24px)] rounded-pop bg-raised p-1 shadow-pop max-sm:min-w-[156px]";
@@ -231,6 +232,8 @@ const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] max-w-[calc
 type Parts = typeof RDM | typeof RCM;
 
 function renderItems(P: Parts, items: MenuItem[]): ReactNode {
+  // Room for icons only in menus that have some, so plain menus aren't indented.
+  const gutter = items.some((item) => "label" in item && (item.icon || item.swatch));
   return items.map((item, i) => {
     if ("separator" in item) return <P.Separator key={i} className="mx-2 my-1 h-px bg-line" />;
     if ("heading" in item)
@@ -241,13 +244,11 @@ function renderItems(P: Parts, items: MenuItem[]): ReactNode {
       );
     const content = (
       <>
-        <span className="flex w-4 shrink-0 justify-center text-ink-3 [&>svg]:size-[15px]">
-          {item.swatch ? (
-            <span className="size-2.5 rounded-full" style={{ background: item.swatch }} />
-          ) : (
-            item.icon
-          )}
-        </span>
+        {gutter && (
+          <span className="flex w-4 shrink-0 justify-center text-ink-3 [&>svg]:size-[15px]">
+            {item.swatch ? <span className="size-2.5 rounded-full" style={{ background: item.swatch }} /> : item.icon}
+          </span>
+        )}
         <span className={cn("flex-1 truncate", item.destructive && "text-danger")}>{item.label}</span>
         {item.checked && <Check className="size-3.5 text-ink-2" />}
         {item.shortcut && <span className="hover-only text-2xs text-ink-3">{item.shortcut}</span>}

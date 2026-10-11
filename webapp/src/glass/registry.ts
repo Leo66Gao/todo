@@ -10,9 +10,8 @@ import { useCallback, useMemo, type Ref, type RefCallback } from "react";
  * Level 1 sits on the background (sidebar, content panel, tab bar). Level 2
  * sits on a level-1 surface (selection pills, primary buttons, task cards) and
  * refracts that surface. Overlays are left to CSS: the renderer is behind the
- * page, so it can't draw over DOM content. Scrolled content moves on the
- * compositor ahead of the next frame, so shapes in a list (`inScroll`) hand
- * over to a CSS look while their list is scrolling.
+ * page, so it can't draw over DOM content. Shapes in a list (`inScroll`)
+ * keep their glass while it scrolls, clipped to the list.
  */
 export type GlassKind =
   /** The large reading surface behind task content: frosted and well tinted. */
@@ -25,6 +24,10 @@ export type GlassKind =
   | "ink"
   /** A recessed well, e.g. the search field. */
   | "well"
+  /** A raised, lightly frosted box on a panel, e.g. the profile. */
+  | "plate"
+  /** A small, more frosted box inside a plate, e.g. a block in the schedule. */
+  | "chip"
   /** A thin plate under a task in a scrolling list. */
   | "card";
 
@@ -50,6 +53,10 @@ export interface GlassEntry {
   /** Nearest scrolling ancestor of a shape in a list (null: none; undefined: not looked up). */
   scroller?: HTMLElement | null;
   radiusPx: number | null;
+  /** Ancestors in the page, counted on first sight (boxes are drawn under what they hold). */
+  depth?: number;
+  /** Lies inside another level-2 shape, counted on first sight. */
+  onGlass?: boolean;
   born: number;
 }
 
@@ -58,6 +65,13 @@ let generation = 0;
 export const registryGeneration = () => generation;
 /** Makes the renderer re-read shapes' corner radii (after their CSS changes). */
 export const refreshGlassShapes = () => void generation++;
+
+let radiiLiveUntil = 0;
+/** Has the renderer re-read corner radii every frame for [ms] (while they animate). */
+export function followGlassRadii(ms = 700) {
+  radiiLiveUntil = Math.max(radiiLiveUntil, performance.now() + ms);
+}
+export const radiiLive = () => performance.now() < radiiLiveUntil;
 
 const OVERLAY = '[data-overlay], [role="dialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 /** A solid panel (the notes page): what sits on it keeps the regular look. */
@@ -76,24 +90,6 @@ export function registerGlass(el: HTMLElement, spec: GlassSpec): () => void {
     generation++;
   };
 }
-
-// Scroll activity per scrolling element, so list shapes can step aside while it moves.
-const scrolledAt = new WeakMap<Element, number>();
-const settle = new WeakMap<Element, number>();
-/** How long after the last scroll event a list counts as still moving (ms). */
-export const SCROLL_SETTLE = 140;
-
-export function noteScroll(el: Element) {
-  scrolledAt.set(el, performance.now());
-  el.classList.add("glass-scrolling");
-  clearTimeout(settle.get(el));
-  settle.set(
-    el,
-    window.setTimeout(() => el.classList.remove("glass-scrolling"), SCROLL_SETTLE),
-  );
-}
-
-export const isScrolling = (el: Element) => performance.now() - (scrolledAt.get(el) ?? -1e9) < SCROLL_SETTLE;
 
 /** Ref callback that registers the element as a glass surface while mounted. */
 export function useGlass<T extends HTMLElement>(spec: GlassSpec) {

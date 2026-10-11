@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { CalendarClock, Plus } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
 import type { Project } from "@/lib/model";
 import { isOverdue, relativeDay } from "@/lib/time";
@@ -10,9 +10,11 @@ import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { useAllTasks } from "@/features/tasks/meta";
 import { useWorkspace } from "@/store/workspace";
+import { useGlass } from "@/glass/registry";
 import { cn } from "@/ui/cn";
 import { Button } from "@/ui/controls";
 import { ContextMenu } from "@/ui/overlay";
+import { examIn, examLabel } from "./exams";
 import { createSubject, subjectMenu } from "./subjectActions";
 
 export function SubjectsView() {
@@ -80,9 +82,11 @@ function SubjectTile({
   info: { open: number; overdue: number; next: Date | null; notes: number };
 }) {
   const navigate = useNavigate();
+  const plate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   return (
     <ContextMenu items={() => subjectMenu(project, navigate)}>
       <button
+        ref={plate}
         type="button"
         onClick={() => navigate({ view: "subject", id: project.id })}
         className="card group flex min-w-0 flex-col px-4 py-3.5 text-left transition-[background-color,transform] duration-150 hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] active:scale-[0.99]"
@@ -92,6 +96,12 @@ function SubjectTile({
           <span className="truncate text-sm font-semibold">{project.title}</span>
         </span>
         {project.description && <span className="mt-1 line-clamp-2 text-xs leading-[18px] text-ink-3">{project.description}</span>}
+        {examLabel(examIn(project)) && (
+          <span className={cn("mt-1.5 flex items-center gap-1 text-xs font-medium", (examIn(project) ?? 99) <= 3 ? "text-ink" : "text-ink-2")}>
+            <CalendarClock className="size-3.5" />
+            {examLabel(examIn(project))}
+          </span>
+        )}
         <span className="mt-auto flex pt-3 items-end justify-between gap-3 text-xs text-ink-3">
           <span className="flex gap-3 whitespace-nowrap">
             <span>

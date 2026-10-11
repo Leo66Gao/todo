@@ -93,9 +93,10 @@ it("groups note typing into one upload, and sends task changes within a second",
   }
 });
 
-const task = (id: string, hour: number) =>
+const task = (id: string, hour: number, isDone = false) =>
   JSON.stringify({
     id,
+    isDone,
     title: id,
     date: "2026-09-28T00:00:00.000",
     startTime: `2026-09-28T${String(hour).padStart(2, "0")}:00:00.000`,
@@ -104,13 +105,34 @@ const task = (id: string, hour: number) =>
 it("moves only the tasks after the edited one in a domino shift", async () => {
   stubStorage();
   const ws = await import("@/store/workspace");
-  ws.loadGuestRecords({ "task:a": task("a", 9), "task:b": task("b", 11), "task:c": task("c", 13) });
+  ws.loadGuestRecords({ "task:a": task("a", 9), "task:b": task("b", 11), "task:c": task("c", 13), "task:d": task("d", 12, true) });
   const day = new Date(2026, 8, 28);
-  ws.applyDominoShift("a", day, new Date(2026, 8, 28, 10), 30 * 60000);
+  const shift = ws.applyDominoShift("a", day, new Date(2026, 8, 28, 10), 30 * 60000);
   const hours = Object.fromEntries(
     ws.useWorkspace.getState().tasks.map((t) => [t.id, t.startTime!.getHours() + t.startTime!.getMinutes() / 60]),
   );
-  expect(hours).toEqual({ a: 9, b: 11.5, c: 13.5 });
+  // The completed task keeps its time.
+  expect(hours).toEqual({ a: 9, b: 11.5, c: 13.5, d: 12 });
+  // Undo puts the moved tasks back.
+  ws.undoDominoShift(shift);
+  expect(ws.useWorkspace.getState().tasks.map((t) => t.startTime!.getHours() + t.startTime!.getMinutes() / 60)).toEqual([9, 11, 13, 12]);
+});
+
+it("leaves tasks rescheduled or completed since a domino shift when undoing it", async () => {
+  stubStorage();
+  const ws = await import("@/store/workspace");
+  ws.loadGuestRecords({ "task:a": task("a", 9), "task:b": task("b", 11), "task:c": task("c", 13), "task:e": task("e", 15) });
+  const day = new Date(2026, 8, 28);
+  const shift = ws.applyDominoShift("a", day, new Date(2026, 8, 28, 10), 30 * 60000);
+  const get = (id: string) => ws.useWorkspace.getState().tasks.find((t) => t.id === id)!;
+  // b moved again by hand, c completed, e renamed.
+  ws.updateTask({ ...get("b"), startTime: new Date(2026, 8, 28, 16) });
+  ws.updateTask({ ...get("c"), isDone: true });
+  ws.updateTask({ ...get("e"), title: "renamed" });
+  ws.undoDominoShift(shift);
+  const hour = (id: string) => get(id).startTime!.getHours() + get(id).startTime!.getMinutes() / 60;
+  expect([hour("b"), hour("c"), hour("e")]).toEqual([16, 13.5, 15]);
+  expect(get("e").title).toBe("renamed");
 });
 
 it("fails a workspace deletion that could not be stored", async () => {

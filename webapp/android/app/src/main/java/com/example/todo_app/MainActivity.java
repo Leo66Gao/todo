@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(GoogleAuthorizationPlugin.class);
         registerPlugin(AppChromePlugin.class);
         registerPlugin(NotePrinterPlugin.class);
+        registerPlugin(FocusTimerPlugin.class);
         super.onCreate(savedInstanceState);
         preferFastestRefreshRate();
     }

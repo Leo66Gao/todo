@@ -75,6 +75,8 @@ export function WorkBack({ task, open, onOpenChange }: { task: Task; open: boole
           request,
         }),
         controller.signal,
+        // Planning backwards from a deadline is worth a moment's thought.
+        "think",
       );
       const found = readSteps(answer, task.date, today());
       if (found.length === 0) throw new AiError("No steps came back. Try again, or add a note about the assignment.");

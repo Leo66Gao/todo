@@ -48,6 +48,9 @@ it("leaves ordinary words alone", () => {
   expect(parse("SAT prep").date).toBeUndefined();
   expect(parse("May the force").date).toBeUndefined();
   expect(parse("Read chapter 12 of Macbeth")).toMatchObject({ title: "Read chapter 12 of Macbeth" });
+  expect(parse("Revise physics ch 3").time).toBeUndefined();
+  expect(parse("Maths exercise 12").time).toBeUndefined();
+  expect(parse("Gym 18").time).toEqual({ hour: 18, minute: 0 });
   expect(parse("Buy 2 notebooks").minutes).toBeUndefined();
   expect(parse("Mark answers").date).toBeUndefined();
 });
@@ -57,4 +60,27 @@ it("skips what it's told to ignore", () => {
   expect(r.title).toBe("gym 18");
   expect(r.time).toBeUndefined();
   expect(day(r.date)).toBe("2026-9-27");
+});
+
+it("reads time ranges as a start and a length", () => {
+  const r = parse("physics review fri 18-20 urgent");
+  expect(r).toMatchObject({ title: "physics review", projectId: "phys", time: { hour: 18, minute: 0 }, minutes: 120, priority: "critical" });
+  expect(day(r.date)).toBe("2026-10-2");
+  expect(parse("essay 6-8pm")).toMatchObject({ title: "essay", time: { hour: 18, minute: 0 }, minutes: 120 });
+  expect(parse("lab 9.15–10.45")).toMatchObject({ title: "lab", time: { hour: 9, minute: 15 }, minutes: 90 });
+  expect(parse("revise from 4 to 5:30pm")).toMatchObject({ title: "revise", time: { hour: 16, minute: 0 }, minutes: 90 });
+  // A set length wins over the range's.
+  expect(parse("run 7-9 1h").minutes).toBe(60);
+  // Ranges of other things stay in the title.
+  expect(parse("read pages 12-14")).toMatchObject({ title: "read pages 12-14" });
+  expect(parse("questions 3-7 tomorrow").time).toBeUndefined();
+});
+
+it("reads priority in words", () => {
+  expect(parse("tok essay high priority").priority).toBe("high");
+  expect(parse("tok essay high priority").title).toBe("tok essay");
+  expect(parse("call school asap").priority).toBe("high");
+  expect(parse("chem lab write-up critical")).toMatchObject({ title: "chem lab write-up", priority: "critical" });
+  expect(parse("critical thinking essay").priority).toBeUndefined();
+  expect(parse("low prio: tidy desk").priority).toBe("low");
 });

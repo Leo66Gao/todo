@@ -15,6 +15,7 @@ import { openTask, taskMenu } from "@/features/tasks/actions";
 import { tasksForDay, useAllTasks, useProjectMap } from "@/features/tasks/meta";
 import { Section, TaskList } from "@/features/tasks/TaskList";
 import type { TaskDragData } from "@/features/tasks/TaskRow";
+import { useGlass, useMergedRefs } from "@/glass/registry";
 import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
@@ -39,6 +40,8 @@ export function CalendarView() {
   const selected = useUI((s) => s.calendarDay);
   const list = useUI((s) => s.calendarList);
   const all = useAllTasks();
+  // The same glass as New task beside it.
+  const togglePlate = useGlass<HTMLButtonElement>({ level: 2, kind: "ink", interactive: true });
   const phone = useMedia(PHONE);
   const month = new Date(selected.getFullYear(), selected.getMonth(), 1);
   const monthKey = month.getTime();
@@ -97,7 +100,7 @@ export function CalendarView() {
   // The original app's Schedule: everything ahead, day by day.
   const listToggle = (
     <Tooltip label={list ? "Month" : "Upcoming"}>
-      <IconButton label={list ? "Show the month" : "Show upcoming"} onClick={() => ui.setCalendarList(!list)}>
+      <IconButton ref={togglePlate} label={list ? "Show the month" : "Show upcoming"} onClick={() => ui.setCalendarList(!list)}>
         {list ? <CalendarDays className="size-4" /> : <List className="size-4" />}
       </IconButton>
     </Tooltip>
@@ -131,7 +134,6 @@ export function CalendarView() {
         eyebrow={String(month.getFullYear())}
         actions={
           <>
-            {listToggle}
             <Stepper
               prev={prevLabel}
               next={nextLabel}
@@ -144,6 +146,8 @@ export function CalendarView() {
                 pick(today());
               }}
             />
+            {/* Next to New task in both views, so it stays put while switching. */}
+            {listToggle}
             <Button variant="primary" className="max-md:hidden" icon={<Plus className="size-4" />} onClick={() => ui.newTask({ date: selected })}>
               <span className="max-sm:hidden">New task</span>
             </Button>
@@ -367,6 +371,9 @@ function MonthCell({
     return [...allDay, ...timed];
   }, [events, date]);
   const { setNodeRef, isOver } = useDroppable({ id: `cal-${date.getTime()}`, data: { type: "day", date } });
+  // On wide screens each day is a plate of glass.
+  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", interactive: true });
+  const cellRef = useMergedRefs(setNodeRef, phone ? undefined : plate);
   const projects = useProjectMap();
   const lastClick = useRef(0);
   const pointer = useRef<string>("mouse");
@@ -440,15 +447,16 @@ function MonthCell({
   const more = tasks.length + dayEvents.length - visible.length - shownEvents.length;
   return (
     <div
-      ref={setNodeRef}
+      ref={cellRef}
       onPointerDown={(e) => (pointer.current = e.pointerType)}
       onClick={onClick}
       className={cn(
-        "relative flex min-h-0 flex-col gap-px overflow-hidden rounded-[12px] px-1 pt-1 pb-1 transition-[background-color,box-shadow] duration-150",
+        // (The selection ring is an outline: glass clears a box's shadows.)
+        "relative flex min-h-0 flex-col gap-px overflow-hidden rounded-[12px] px-1 pt-1 pb-1 transition-[background-color,outline-color] duration-150",
         isOver
-          ? "bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent)]"
+          ? "bg-accent-soft outline-[1.5px] -outline-offset-[1.5px] outline-accent outline-solid"
           : selected
-            ? "bg-card shadow-[inset_0_0_0_1.5px_var(--ink)]"
+            ? "bg-card outline-[1.5px] -outline-offset-[1.5px] outline-ink outline-solid"
             : inMonth
               ? "bg-fill/45 hover:bg-fill"
               : "hover:bg-fill/45",

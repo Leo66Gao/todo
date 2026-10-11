@@ -3,10 +3,10 @@ import { mergeAiTask, parseAiTask, smartAdd, tasksFromPhoto } from "../aiCapture
 import { newTask, useWorkspace } from "@/store/workspace";
 import { useAiKey } from "../ai";
 
-const ai = vi.hoisted(() => ({ answer: vi.fn(), terminate: vi.fn() }));
+const ai = vi.hoisted(() => ({ answer: vi.fn() }));
 vi.mock("../ai", async (original) => ({ ...await original<typeof import("../ai")>(), chatJson: ai.answer }));
 vi.mock("@/ui/toast", () => ({ toast: vi.fn() }));
-vi.mock("tesseract.js", () => ({ createWorker: async () => ({ recognize: async () => ({ data: { text: "Homework: essay and maths" } }), terminate: ai.terminate }) }));
+vi.mock("../photoData", () => ({ photoDataUrl: async () => "data:image/jpeg;base64,AAAA" }));
 
 afterEach(() => { useWorkspace.setState({ user: null, tasks: [], projects: [] }); ai.answer.mockReset(); });
 
@@ -40,6 +40,15 @@ it.each(["switch", "delete"])("cancels photo results when the account or placeho
   await new Promise((r) => setTimeout(r, 0));
   expect(useWorkspace.getState().tasks).toEqual([]);
   expect(ai.answer.mock.calls[0][1].aborted).toBe(true);
+});
+
+it("sends the photo itself to the AI", async () => {
+  useAiKey.setState({ key: "fake" });
+  ai.answer.mockResolvedValue({ tasks: [{ title: "Essay", type: "assignment" }] });
+  tasksFromPhoto({} as File, {});
+  await vi.waitFor(() => expect(useWorkspace.getState().tasks[0]?.title).toBe("Essay"));
+  const [, user] = ai.answer.mock.calls[0][0];
+  expect(user.content[1]).toEqual({ type: "image_url", image_url: { url: "data:image/jpeg;base64,AAAA" } });
 });
 
 it("keeps a manual title and duration changed during smart add", async () => {
