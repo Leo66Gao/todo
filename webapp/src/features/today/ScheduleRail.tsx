@@ -11,6 +11,7 @@ import { ui, useUI } from "@/shell/ui";
 import { openTask, taskMenu } from "@/features/tasks/actions";
 import { useProjectMap } from "@/features/tasks/meta";
 import { patchTask } from "@/store/workspace";
+import { useGlass, useMergedRefs } from "@/glass/registry";
 import { cn } from "@/ui/cn";
 import { springs } from "@/ui/motion";
 import { ContextMenu } from "@/ui/overlay";
@@ -100,6 +101,9 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
   const top = (m: number) => ((m - first * 60) / 60) * HOUR;
 
   const scroller = useRef<HTMLDivElement>(null);
+  // The schedule sits on its own plate of glass (it scrolls inside it).
+  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", inScroll: true });
+  const scrollerRef = useMergedRefs(scroller, plate);
   const dayKey = day.getTime();
   useEffect(() => {
     // Bring the current hour (or the first block) into view when the day changes.
@@ -138,7 +142,7 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
       <div className="flex h-7 items-center px-2">
         <span className="text-xs font-semibold text-ink-2">Schedule</span>
       </div>
-      <div ref={scroller} className="card scroll-area relative mt-1 min-h-0 flex-1">
+      <div ref={scrollerRef} className="card scroll-area relative mt-1 min-h-0 flex-1">
         <div
           ref={(el) => {
             timeline.current = el;

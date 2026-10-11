@@ -418,7 +418,8 @@ export function PageHeader({
     // aligned to the title's baseline.
     <header
       className={cn(
-        "flex h-[60px] shrink-0 items-center gap-3 px-6 max-md:h-auto max-md:items-center max-md:px-5 max-md:pb-4",
+        // The buttons (30px) sit 24px from the top, as far as from the side.
+        "flex shrink-0 items-center gap-3 px-6 md:min-h-[64px] md:pt-6 md:pb-2.5 max-md:items-center max-md:px-5 max-md:pb-4",
         // Without the small line, the title drops to where the buttons sit on
         // pages that have one, so titles don't jump between pages.
         sub ? "max-md:pt-[calc(max(env(safe-area-inset-top),12px)+6px)]" : "max-md:pt-[calc(max(env(safe-area-inset-top),12px)+15px)]",
@@ -480,8 +481,10 @@ export function Stepper({
   nextShortcut?: string[];
 }) {
   const phone = useMedia("(max-width: 767px)");
+  // On wider screens the arrows and the jump back share one capsule of glass.
+  const capsule = useGlass<HTMLDivElement>({ level: 2, kind: "plate", radius: "pill" });
   return (
-    <div className="relative mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full">
+    <div ref={phone ? undefined : capsule} className="relative mr-1 flex items-center max-md:mr-0 max-md:h-11 max-md:rounded-full md:rounded-full md:px-0.5">
       <GlassLens radius={22} bezel={15} className="lens-soft md:hidden" />
       <Tooltip label={prev} shortcut={prevShortcut}>
         <IconButton label={prev} onClick={() => { haptic(); onPrev(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink max-md:transition-colors max-md:duration-300 max-md:active:bg-fill-strong max-md:active:duration-0">

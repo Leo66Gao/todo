@@ -10,6 +10,7 @@ import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { useAllTasks } from "@/features/tasks/meta";
 import { useWorkspace } from "@/store/workspace";
+import { useGlass } from "@/glass/registry";
 import { cn } from "@/ui/cn";
 import { Button } from "@/ui/controls";
 import { ContextMenu } from "@/ui/overlay";
@@ -81,9 +82,11 @@ function SubjectTile({
   info: { open: number; overdue: number; next: Date | null; notes: number };
 }) {
   const navigate = useNavigate();
+  const plate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   return (
     <ContextMenu items={() => subjectMenu(project, navigate)}>
       <button
+        ref={plate}
         type="button"
         onClick={() => navigate({ view: "subject", id: project.id })}
         className="card group flex min-w-0 flex-col px-4 py-3.5 text-left transition-[background-color,transform] duration-150 hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] active:scale-[0.99]"

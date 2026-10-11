@@ -6,6 +6,7 @@ import { plainText } from "@/lib/delta";
 import type { StudyNote } from "@/lib/model";
 import { useNavigate } from "@/shell/nav";
 import { useWorkspace } from "@/store/workspace";
+import { useGlass } from "@/glass/registry";
 import { ContextMenu } from "@/ui/overlay";
 import { editedLabel, removeNote, togglePin } from "./noteActions";
 
@@ -14,6 +15,7 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
   const subject = useWorkspace((s) => (note.subjectId ? s.projects.find((p) => p.id === note.subjectId) : undefined));
   const folder = useWorkspace((s) => (note.folderId ? s.folders.find((f) => f.id === note.folderId) : undefined));
   const preview = plainText(note.content);
+  const plate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   return (
     <ContextMenu
       items={() => [
@@ -24,6 +26,7 @@ export function NoteRow({ note, showSubject = true }: { note: StudyNote; showSub
       ]}
     >
       <button
+        ref={plate}
         type="button"
         onClick={() => navigate({ view: "note", id: note.id })}
         className="card mb-2 block w-full px-4 py-3 text-left transition-colors hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] max-md:mb-2.5 max-md:rounded-[22px] max-md:border max-md:border-line max-md:px-[18px] max-md:py-4"
