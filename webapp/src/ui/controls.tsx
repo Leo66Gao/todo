@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useId, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Slider as RSlider, Switch as RSwitch } from "radix-ui";
 import { cn } from "./cn";
@@ -102,7 +102,11 @@ export interface SegmentOption<T extends string> {
   label: ReactNode;
 }
 
-/** Segmented control with a sliding thumb. */
+/**
+ * Segmented control with a sliding thumb. As on Apple's, pressing lifts the
+ * thumb (it swells past the track) and it follows the pointer from option to
+ * option; letting go picks the one under it.
+ */
 export function Segmented<T extends string>({
   value,
   options,
@@ -120,25 +124,62 @@ export function Segmented<T extends string>({
   const thumbGlass = useGlass<HTMLSpanElement>({ level: 2, kind: "control" });
   // The track is a plate of glass the thumb slides on.
   const trackGlass = useGlass<HTMLDivElement>({ level: 2, kind: "plate", inScroll: true });
+  const buttons = useRef(new Map<T, HTMLButtonElement>());
+  // The option under a pressed pointer (the thumb sits there, lifted).
+  const [held, setHeld] = useState<T | null>(null);
+  const optionAt = (x: number) => {
+    let best: T | null = null;
+    let distance = Infinity;
+    for (const [v, el] of buttons.current) {
+      const r = el.getBoundingClientRect();
+      const d = Math.abs(x - (r.left + r.width / 2));
+      if (d < distance) {
+        distance = d;
+        best = v;
+      }
+    }
+    return best;
+  };
+  const shown = held ?? value;
   return (
     <div
       ref={trackGlass}
       role="radiogroup"
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setHeld(optionAt(e.clientX));
+      }}
+      onPointerMove={(e) => {
+        if (held != null) setHeld(optionAt(e.clientX));
+      }}
+      onPointerUp={() => {
+        if (held != null && held !== value) onChange(held);
+        setHeld(null);
+      }}
+      onPointerCancel={() => setHeld(null)}
       className={cn(
-        "relative inline-flex rounded-[calc(var(--radius-ctl)_+_1px)] bg-fill p-[2px]",
+        "relative inline-flex touch-pan-y rounded-[calc(var(--radius-ctl)_+_1px)] bg-fill p-[2px]",
         size === "sm" ? "h-[26px]" : "h-[30px]",
         className,
       )}
     >
       {options.map((option) => {
-        const selected = option.value === value;
+        const selected = option.value === shown;
         return (
           <button
             key={option.value}
+            ref={(el) => {
+              if (el) buttons.current.set(option.value, el);
+              else buttons.current.delete(option.value);
+            }}
             type="button"
             role="radio"
-            aria-checked={selected}
-            onClick={() => onChange(option.value)}
+            aria-checked={option.value === value}
+            // Pointer presses are handled by the track; this is for the keyboard.
+            onClick={(e) => {
+              if (e.detail === 0) onChange(option.value);
+            }}
             className={cn(
               "relative flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)] px-3 font-medium whitespace-nowrap max-sm:gap-1 max-sm:px-2",
               "transition-colors duration-150",
@@ -151,6 +192,8 @@ export function Segmented<T extends string>({
                 ref={thumbGlass}
                 layoutId={`seg-${id}`}
                 transition={springs.snappy}
+                // Lifted, the thumb swells past the track like a drop of glass.
+                animate={{ scaleX: held != null ? 1.08 : 1, scaleY: held != null ? 1.34 : 1 }}
                 className="absolute inset-0 rounded-[calc(var(--radius-ctl)_-_1px)] bg-raised shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_1px_3px_rgb(0_0_0/0.1)] dark:bg-fill-strong"
               />
             )}

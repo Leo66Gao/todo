@@ -22,7 +22,7 @@ export function NotesView() {
   const notes = useWorkspace((s) => s.notes);
   const projects = useWorkspace((s) => s.projects);
   const [query, setQuery] = useState("");
-  const searchWell = useGlass<HTMLLabelElement>({ level: 2, kind: "well", inScroll: true });
+  const searchWell = useGlass<HTMLLabelElement>({ level: 2, kind: "plate", inScroll: true });
   const subjectPlate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   const [subjectId, setSubjectId] = useState<string | "all">("all");
   const fileInput = useRef<HTMLInputElement>(null);

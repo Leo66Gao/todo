@@ -21,7 +21,6 @@ import { useMedia } from "@/ui/useMedia";
 import { useNavigate } from "@/shell/nav";
 import { argbToCss } from "@/lib/dart";
 import { useWorkspace } from "@/store/workspace";
-import { useGlass } from "@/glass/registry";
 import { examLabel, upcomingExams } from "@/features/subjects/exams";
 import { DayStrip } from "./DayStrip";
 import { ScheduleRail } from "./ScheduleRail";
@@ -32,8 +31,6 @@ export function TodayView() {
   const { timed, untimed, done } = useMemo(() => tasksForDay(all, day), [all, day]);
   const events = useEvents(day, addDays(day, 1));
   const isToday = sameDay(day, today());
-  // The day strip is one plate of glass, the selected day a lens on it.
-  const stripPlate = useGlass<HTMLDivElement>({ level: 2, kind: "plate" });
   const overdue = useMemo(() => (isToday ? overdueTasks(all) : []), [all, isToday]);
   const [reviewing, setReviewing] = useState(false);
 
@@ -91,7 +88,7 @@ export function TodayView() {
       <div className="@container flex min-h-0 flex-1 flex-col">
         {!phone && (
           <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 @min-[1060px]:max-w-[1160px]">
-            <div ref={stripPlate} className="card rounded-[calc(var(--radius-ctl)_+_8px)] p-1.5">
+            <div className="card p-1.5">
               <DayStrip day={day} onPick={setDay} tasks={all} />
             </div>
           </div>

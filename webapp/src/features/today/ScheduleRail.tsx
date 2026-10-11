@@ -275,8 +275,10 @@ function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent
   const shown = start + clamped;
   const height = ((end - start) / 60) * HOUR;
   const compact = height < 40;
+  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   return (
     <motion.div
+      ref={plate}
       layout={shift === 0 ? "position" : false}
       transition={springs.layout}
       role="button"
@@ -294,9 +296,10 @@ function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent
         width: `calc(${100 / lanes}% - 6px)`,
         // The calendar's own colour, softly: events read apart from tasks.
         background: `color-mix(in srgb, ${event.color} 18%, transparent)`,
-        boxShadow: `inset 2px 0 0 ${event.color}`,
       }}
     >
+      {/* (A child, not a border or shadow: on glass those are cleared.) */}
+      <span className="absolute inset-y-0 left-0 w-[2px]" style={{ background: event.color }} />
       <span className="truncate text-xs leading-4 font-medium">{event.title}</span>
       {!compact && (
         <span className="truncate text-2xs leading-4 text-ink-3 tnum">
@@ -326,10 +329,12 @@ function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
   const shown = start + clamped;
   const height = ((end - start) / 60) * HOUR;
   const compact = height < 40;
+  const plate = useGlass<HTMLDivElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
 
   return (
     <ContextMenu items={() => taskMenu(task, navigate)}>
       <motion.div
+        ref={plate}
         layout={shift === 0 ? "position" : false}
         transition={springs.layout}
         role="button"
@@ -337,7 +342,7 @@ function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
         data-task-id={task.id}
         {...handlers}
         className={cn(
-          "absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] border-l-2 px-2 select-none",
+          "absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] px-2 select-none",
           compact ? "justify-center py-0" : "py-1",
           selected ? "bg-accent-soft" : "bg-fill hover:bg-fill-strong",
           task.isDone && "opacity-55",
@@ -348,9 +353,9 @@ function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
           height: height - 2,
           left: `calc(${(lane / lanes) * 100}% + 4px)`,
           width: `calc(${100 / lanes}% - 6px)`,
-          borderLeftColor: project ? argbToCss(project.colorValue) : "var(--ink-4)",
         }}
       >
+        <span className="absolute inset-y-0 left-0 w-[2px]" style={{ background: project ? argbToCss(project.colorValue) : "var(--ink-4)" }} />
         <span className={cn("truncate text-xs leading-4 font-medium", task.isDone && "text-ink-3 line-through decoration-ink-4")}>
           {task.title}
         </span>

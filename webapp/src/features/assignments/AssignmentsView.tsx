@@ -65,7 +65,6 @@ export function AssignmentsView() {
         actions={
           <>
             <Segmented
-              size="sm"
               value={filter}
               onChange={setFilter}
               className="mr-1 max-sm:hidden"

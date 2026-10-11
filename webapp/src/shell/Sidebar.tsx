@@ -40,7 +40,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const cloudStatus = useWorkspace((s) => s.cloudStatus);
   // A save or sync problem shows here in red (details are in Settings).
   const cloudError = useWorkspace((s) => s.cloudError);
-  const searchWell = useGlass<HTMLButtonElement>({ level: 2, kind: "well", interactive: true });
+  const searchWell = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true });
   const glass = useGlassOn();
   // In Liquid Glass the profile sits on its own raised box of glass.
   const profilePlate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true });
