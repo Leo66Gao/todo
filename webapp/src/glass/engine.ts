@@ -439,7 +439,7 @@ export class GlassEngine {
           shadowBlur: 12 * dpr,
         };
       case "card":
-        // Task plates: a shallow clear lens, no haze, no highlights, no shadow.
+        // Task plates: a shallow clear lens with the edge light, no haze, no shadow.
         return {
           bezel: Math.min(radius, 12 * dpr, halfShort),
           height: Math.min(14 * dpr, halfShort * 0.6),
@@ -448,11 +448,25 @@ export class GlassEngine {
           blur: 0,
           frosted: 0,
           dispersion: 0.12,
-          rim: 0,
+          rim: 0.55,
           // No drop shadow: stacked plates' shadows merge through the gaps
           // into one dark slab under the list.
           shadow: 0,
           shadowBlur: 8 * dpr,
+        };
+      case "plate":
+        // A raised box on a panel (the profile): lightly frosted, edge-lit.
+        return {
+          bezel: Math.min(radius, 14 * dpr, halfShort),
+          height: Math.min(halfShort * 0.8, 18 * dpr),
+          tint: [1, 1, 1, 0],
+          legible: (dark ? -1 : 1) * hold * 0.6,
+          blur: mix(0.02, 0.4, b),
+          frosted: f * 0.5,
+          dispersion: 0.14,
+          rim: 0.9,
+          shadow: dark ? 0.16 : 0.08,
+          shadowBlur: 12 * dpr,
         };
       case "well":
         // The search field: a shallow recessed well.

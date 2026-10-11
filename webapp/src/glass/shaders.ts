@@ -290,6 +290,16 @@ vec2 gradRoundBox(vec2 p, vec2 b, float r) {
   float l = length(q);
   return s * ((g > 0.0 && l > 1e-4) ? q / l : ((w.x > w.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0)));
 }
+// How much of the top/bottom edge light (x) and the side darkening (y) a point
+// near the outline gets: full along the middle of each edge, fading smoothly
+// away close to the corners and round them.
+vec2 edgeWeights(vec2 q, vec2 b, float r) {
+  vec2 g = gradRoundBox(q, b, r);
+  vec2 fade = r * 1.3 + 0.12 * b;
+  float alongX = smoothstep(0.0, 1.0, (b.x - abs(q.x) - r * 0.15) / fade.x);
+  float alongY = smoothstep(0.0, 1.0, (b.y - abs(q.y) - r * 0.15) / fade.y);
+  return vec2(g.y * g.y * alongX * alongX, g.x * g.x * alongY * alongY);
+}
 vec3 fetch3(sampler2D t, vec2 a, vec2 b, vec2 c) {
   return vec3(texture(t, a).r, texture(t, b).g, texture(t, c).b);
 }
@@ -357,6 +367,13 @@ void main() {
     float k = uOptic[i].w * uState[i].z * inClip;
     shade = max(shade, k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2));
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
+    // A 1 px darkening just outside the sides, against the edge light on
+    // the top and bottom (outside, so the sides don't look pinched in).
+    if (d0 > -1.0 && d0 < 2.0 * uDpr) {
+      float sideLine = 1.0 - smoothstep(0.15 * uDpr, 1.15 * uDpr, d0);
+      float side = edgeWeights(p - R.xy, R.zw, S.x).y;
+      col *= 1.0 - sideLine * side * 0.22 * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
+    }
     if (d0 > 0.0) {
       vec2 g = gradRoundBox(p - R.xy, R.zw, S.x);
       caustic += uState[i].z * inClip * exp(-d0 / (blur * 0.22)) * max(dot(g, -uLight), 0.0);
@@ -487,26 +504,18 @@ void main() {
     }
 
     // Edge light: a thin bright line along the top and bottom edges (the top
-    // brighter), strongest in the middle and fading away into the corners,
-    // with a faint glow just inside it. It gives the glass its thickness.
-    // The sides get the opposite, a 1 px darkening that also fades into the
-    // corners, for contrast.
+    // brighter), fading away close to the corners, with a faint glow just
+    // inside it. It gives the glass its thickness. (The sides get a 1 px
+    // darkening outside them instead, drawn with the shadows.)
     float line = 1.0 - smoothstep(0.35 * uDpr, 1.6 * uDpr, depth);
     float sheen = 1.0 - smoothstep(0.0, 9.0 * uDpr, depth);
-    vec2 gE = gradRoundBox(q, R.zw, S.x);
-    float across = abs(q.x) / max(R.z, 1.0);
-    float along = 1.0 - smoothstep(0.15, 1.0, across);
-    float vert = pow(abs(gE.y), 4.0) * along * along * (gE.y > 0.0 ? 1.0 : 0.75);
+    float vert = edgeWeights(q, R.zw, S.x).x * (q.y > 0.0 ? 1.0 : 0.75);
     // With a mouse about, the edges brighten near it and fade away from it.
     vec2 toPointer = p - uPointer.xy;
     float reach = 240.0 * uDpr;
     float gain = mix(1.0, 0.45 + 1.6 * exp(-dot(toPointer, toPointer) / (reach * reach)), uPointer.z);
     float rimK = O.z * (1.0 + 0.5 * st.x) * (uDark > 0.5 ? 0.7 : 1.0) * gain;
-    base += vec3(1.0) * (line * 0.4 * vert + sheen * sheen * 0.06 * vert) * rimK;
-    float sideLine = 1.0 - smoothstep(0.35 * uDpr, 1.0 * uDpr + 0.35, depth);
-    float down = 1.0 - smoothstep(0.15, 1.0, abs(q.y) / max(R.w, 1.0));
-    float side = pow(abs(gE.x), 4.0) * down * down;
-    base *= 1.0 - sideLine * side * 0.22 * min(O.z, 1.0) * (uDark > 0.5 ? 1.2 : 1.0);
+    base += vec3(1.0) * (line * 0.2 * vert + sheen * sheen * 0.03 * vert) * rimK;
 
     // Pressing lights the glass where it is touched.
     vec2 dp = p - uPointer.xy;

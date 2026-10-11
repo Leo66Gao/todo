@@ -291,6 +291,12 @@ html.glass.glass-css.dark [data-glass-kind="slab"] {
 html.glass.glass-css.dark [data-glass-kind="chrome"] {
   background: rgb(20 20 24 / 0.42) !important;
 }
+html.glass.glass-css [data-glass-kind="plate"] {
+  background: rgb(255 255 255 / 0.4) !important;
+}
+html.glass.glass-css.dark [data-glass-kind="plate"] {
+  background: rgb(255 255 255 / 0.08) !important;
+}
 html.glass.glass-css.dark [data-glass-kind="control"] {
   background: rgb(255 255 255 / 0.12) !important;
 }

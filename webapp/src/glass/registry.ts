@@ -25,6 +25,8 @@ export type GlassKind =
   | "ink"
   /** A recessed well, e.g. the search field. */
   | "well"
+  /** A raised, lightly frosted box on a panel, e.g. the profile. */
+  | "plate"
   /** A thin plate under a task in a scrolling list. */
   | "card";
 
