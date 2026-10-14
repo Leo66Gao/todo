@@ -487,7 +487,7 @@ export class GlassEngine {
           blur: mix(0.13, 0.715, b),
           frosted: Math.min(1, (f * 0.8 + 0.15) * 1.3),
           dispersion: 0.1,
-          rim: 0.7,
+          rim: 0.91,
           shadow: dark ? 0.12 : 0.06,
           shadowBlur: 8 * dpr,
         };

@@ -97,6 +97,18 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
   const last = Math.min(24, Math.max(22, nowHour, ...placed.map((p) => Math.ceil(p.end / 60))));
   const hours = Array.from({ length: last - first }, (_, i) => first + i);
   const top = (m: number) => ((m - first * 60) / 60) * HOUR;
+  // An hour's line runs behind the blocks across it: it's left out under
+  // them (it would read as seen through their glass).
+  const lineMask = (h: number) => {
+    const under = placed.filter((p) => p.start < h * 60 && p.end > h * 60).sort((a, b) => a.lane / a.lanes - b.lane / b.lanes);
+    if (under.length === 0) return undefined;
+    const gaps = under.map((p) => {
+      const from = `calc(${(p.lane / p.lanes) * 100}% + 4px)`;
+      const to = `calc(${((p.lane + 1) / p.lanes) * 100}% - 2px)`;
+      return `#000 ${from}, transparent ${from}, transparent ${to}, #000 ${to}`;
+    });
+    return `linear-gradient(to right, ${gaps.join(", ")})`;
+  };
 
   const scroller = useRef<HTMLDivElement>(null);
   // The schedule sits on its own plate of glass (it scrolls inside it).
@@ -160,7 +172,7 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
               >
                 {h === 24 ? "" : `${String(h).padStart(2, "0")}.00`}
               </span>
-              <span className="mr-3 h-px flex-1 bg-line" />
+              <span className="mr-3 h-px flex-1 bg-line" style={{ maskImage: lineMask(h) }} />
             </div>
           ))}
 
