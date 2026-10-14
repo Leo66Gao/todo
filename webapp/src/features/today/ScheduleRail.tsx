@@ -3,13 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useDroppable } from "@dnd-kit/core";
-import { argbToCss } from "@/lib/dart";
 import type { Task } from "@/lib/model";
 import { formatClock, sameDay } from "@/lib/time";
 import { useNavigate } from "@/shell/nav";
 import { ui, useUI } from "@/shell/ui";
 import { openTask, taskMenu } from "@/features/tasks/actions";
-import { useProjectMap } from "@/features/tasks/meta";
 import { patchTask } from "@/store/workspace";
 import { useGlass, useMergedRefs } from "@/glass/registry";
 import { cn } from "@/ui/cn";
@@ -298,8 +296,6 @@ function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent
         background: `color-mix(in srgb, ${event.color} 18%, transparent)`,
       }}
     >
-      {/* (A child, not a border or shadow: on glass those are cleared.) */}
-      <span className="absolute inset-y-0 left-0 w-[2px]" style={{ background: event.color }} />
       <span className="truncate text-xs leading-4 font-medium">{event.title}</span>
       {!compact && (
         <span className="truncate text-2xs leading-4 text-ink-3 tnum">
@@ -313,9 +309,7 @@ function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent
 function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
   const { start, end, lane, lanes } = placed;
   const navigate = useNavigate();
-  const projects = useProjectMap();
   const selected = useUI((s) => s.selectedId === task.id || s.inspectorId === task.id);
-  const project = task.projectId ? projects.get(task.projectId) : undefined;
   const { shift, clamped, handlers } = useBlockDrag(
     start,
     end,
@@ -355,7 +349,6 @@ function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
           width: `calc(${100 / lanes}% - 6px)`,
         }}
       >
-        <span className="absolute inset-y-0 left-0 w-[2px]" style={{ background: project ? argbToCss(project.colorValue) : "var(--ink-4)" }} />
         <span className={cn("truncate text-xs leading-4 font-medium", task.isDone && "text-ink-3 line-through decoration-ink-4")}>
           {task.title}
         </span>
