@@ -400,7 +400,8 @@ html.glass:not(.glass-css) [data-glass-kind="ink"] {
    the stand-in for the CSS fallback. */
 html.glass [data-task-card] {
   border-radius: calc(var(--glass-radius, 22px) * 0.46);
-  margin-block: 3px;
+  /* (Neighbouring margins overlap: this is the gap between two tasks.) */
+  margin-block: 5.25px;
   transition: background-color 0.16s, box-shadow 0.16s;
 }
 html.glass:is(.glass-css) [data-task-card] {

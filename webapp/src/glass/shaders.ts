@@ -268,7 +268,7 @@ uniform vec4 uRect[${MAX_SHAPES}];  // centre xy, half size xy (px, GL space)
 uniform vec4 uShape[${MAX_SHAPES}]; // radius, bezel, height, shadow blur
 uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
 uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
-uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, form (+1 recessed well, +2 lying on another shape)
+uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, form (+1 recessed well, +2 lying on another shape, +4 lens edge)
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
 uniform vec2 uClipR[${MAX_SHAPES}];  // the clip's corner radius, how far inside it shadows fade out
 uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy, frost
@@ -379,7 +379,7 @@ void main() {
     float k = uOptic[i].w * uState[i].z * inClip;
     float own = k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2);
     shade = max(shade, own);
-    bool onGlass = uState[i].w > 1.5;
+    bool onGlass = mod(uState[i].w, 4.0) > 1.5;
     if (onGlass) onShade = max(onShade, own);
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     // A 1 px darkening just outside the sides, against the edge light on
@@ -428,9 +428,11 @@ void main() {
     float depth = mix(depthOut, max(-sdRoundBox(q, R.zw, fieldR), 0.0), smoothstep(0.0, S.y, depthOut));
     float t = clamp(depth / S.y, 0.0, 1.0);
     float u = 1.0 - t;
-    // A superellipse profile. Wide bevels (the big panels) are rounder, so the
-    // bending spreads across the edge instead of crowding into the last pixels.
-    float nE = S.y > 28.0 * uDpr ? 2.6 : 4.0;
+    // A superellipse profile. A lens edge (the panels, and the boxes on
+    // them) is rounder, so the bending spreads across the edge instead of
+    // crowding into the last pixels.
+    bool lens = S.y > 28.0 * uDpr || st.w > 3.5;
+    float nE = lens ? 2.6 : 4.0;
     float un = pow(u, nE);
     float prof = pow(1.0 - un, 1.0 / nE);
     float slopeRaw = pow(u, nE - 1.0) * pow(max(1.0 - un, 1e-4), 1.0 / nE - 1.0);
@@ -453,11 +455,10 @@ void main() {
     // (At most about 4x compression at the rim: a clear lens, short of folding.)
     float fold = 0.76 * S.y * u + 0.5 * uDpr;
     if (offLen > fold) off *= fold / offLen;
-    // The big panels are thick glass with a rounded edge, as on macOS: the
+    // A lens edge is thick glass with a rounded edge, as on macOS: the
     // edge draws in a wide strip of what lies beyond it (up to 1.35 bevel
     // widths out), squeezed hardest at the very rim like the side of a glass
     // block. Pulling from outside never folds the image, however strong.
-    bool lens = nE < 3.0;
     float squeeze = 1.0;
     if (lens) {
       // (A soft start: the bending eases in from nothing across the bevel,
@@ -558,7 +559,7 @@ void main() {
     base += st.y * 0.16 * exp(-dot(dp, dp) / (r2 * r2)) * (uDark > 0.5 ? 0.8 : 1.0);
 
     // A shape that others lie on carries their shadows and dark sides.
-    if (st.w < 1.5) base *= (1.0 - onShade) * onSide;
+    if (mod(st.w, 4.0) < 1.5) base *= (1.0 - onShade) * onSide;
     col = mix(col, clamp(base, 0.0, 1.0), cover);
   }
   frag = vec4(col, 1.0);

@@ -355,8 +355,9 @@ export class GlassEngine {
       tint.set(m.tint, i * 4);
       extra.set([m.legible, s.light[0], s.light[1], m.frosted], i * 4);
       optic.set([m.blur, m.dispersion, m.rim, m.shadow * (1 + s.hover * 0.35)], i * 4);
-      // (Last: +1 for a recessed well, +2 for a shape lying on another.)
-      state.set([s.hover, s.press, s.opacity, (s.kind === "well" ? 1 : 0) + (s.onGlass ? 2 : 0)], i * 4);
+      // (Last: +1 for a recessed well, +2 for a shape lying on another, +4 for
+      // a lens edge like the big panels', which every box but a well has.)
+      state.set([s.hover, s.press, s.opacity, (s.kind === "well" ? 1 : 4) + (s.onGlass ? 2 : 0)], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5, r: 0, fade: 10 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
       clipRadius.set([c.r * dpr, c.fade * dpr], i * 2);
@@ -421,7 +422,7 @@ export class GlassEngine {
       case "control":
         // Selection pills: a clear lens with the edge light, no haze.
         return {
-          bezel: Math.min(radius, halfShort),
+          bezel: Math.min(14 * dpr, halfShort * 0.6),
           height: Math.min(halfShort * 1.1, 22 * dpr),
           tint: [1, 1, 1, 0],
           legible: 0,
@@ -435,7 +436,7 @@ export class GlassEngine {
       case "ink":
         // Primary actions: a clear lens with a little frost and light.
         return {
-          bezel: Math.min(radius, halfShort),
+          bezel: Math.min(14 * dpr, halfShort * 0.6),
           height: Math.min(halfShort * 1.3, 26 * dpr),
           tint: [...haze, dark ? 0.06 : 0.14],
           legible: (dark ? -1 : 1) * hold * 0.9,
@@ -450,7 +451,7 @@ export class GlassEngine {
         // Task plates: a shallow clear lens with the edge light and dark
         // sides, and the same shadow all round as a plate (the schedule box).
         return {
-          bezel: Math.min(radius, 12 * dpr, halfShort),
+          bezel: Math.min(16 * dpr, halfShort * 0.45),
           height: Math.min(14 * dpr, halfShort * 0.6),
           tint: [1, 1, 1, 0],
           legible: 0,
@@ -464,7 +465,7 @@ export class GlassEngine {
       case "plate":
         // A raised box on a panel (the profile): lightly frosted, edge-lit.
         return {
-          bezel: Math.min(radius, 14 * dpr, halfShort),
+          bezel: Math.min(18 * dpr, halfShort * 0.45),
           height: Math.min(halfShort * 0.8, 18 * dpr),
           tint: [1, 1, 1, 0],
           legible: (dark ? -1 : 1) * hold * 0.6,
@@ -479,7 +480,7 @@ export class GlassEngine {
         // Blocks in the schedule: frosted a little more than the plate they
         // sit in, so they read apart from it.
         return {
-          bezel: Math.min(radius, 8 * dpr, halfShort),
+          bezel: Math.min(10 * dpr, halfShort * 0.45),
           height: Math.min(halfShort * 0.8, 12 * dpr),
           tint: [...haze, dark ? 0.08 : 0.12],
           legible: (dark ? -1 : 1) * hold * 0.4,
