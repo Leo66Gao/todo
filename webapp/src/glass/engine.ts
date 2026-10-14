@@ -477,15 +477,15 @@ export class GlassEngine {
           shadowBlur: 12 * dpr,
         };
       case "chip":
-        // Blocks in the schedule: frosted a little more than the plate they
-        // sit in, so they read apart from it.
+        // Blocks in the schedule: frosted and blurred more than the plate
+        // they sit in, so they read apart from it.
         return {
           bezel: Math.min(10 * dpr, halfShort * 0.45),
           height: Math.min(halfShort * 0.8, 12 * dpr),
-          tint: [...haze, dark ? 0.08 : 0.12],
+          tint: [...haze, dark ? 0.104 : 0.156],
           legible: (dark ? -1 : 1) * hold * 0.4,
-          blur: mix(0.1, 0.55, b),
-          frosted: Math.min(1, f * 0.8 + 0.15),
+          blur: mix(0.13, 0.715, b),
+          frosted: Math.min(1, (f * 0.8 + 0.15) * 1.3),
           dispersion: 0.1,
           rim: 0.7,
           shadow: dark ? 0.12 : 0.06,
