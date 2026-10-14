@@ -172,7 +172,8 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
               >
                 {h === 24 ? "" : `${String(h).padStart(2, "0")}.00`}
               </span>
-              <span className="mr-3 h-px flex-1 bg-line" style={{ maskImage: lineMask(h) }} />
+              {/* A dark hairline in every theme: a light one reads like the blocks' edge light. */}
+              <span className="mr-3 h-[0.5px] flex-1 bg-black/15 dark:bg-black/30" style={{ maskImage: lineMask(h) }} />
             </div>
           ))}
 
