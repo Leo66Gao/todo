@@ -378,7 +378,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
 
         {settings.showNotes && (
           <div className="mt-6">
-            <div className="mb-2 pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Notes</div>
+            <div className="mb-2 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Notes</div>
             <NotesEditor task={task} page={variant === "page"} />
           </div>
         )}
@@ -541,7 +541,7 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
   return (
     <div className="mt-6">
       <div className="mb-1.5 flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate pl-1 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Subtasks</span>
+        <span className="min-w-0 truncate text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">Subtasks</span>
         {canPlan && (
           <Tooltip label="Suggest steps, dated back from the deadline">
             <Button size="sm" variant="ghost" className="-my-1 h-6 px-1.5 text-xs text-ink-3" icon={<Route className="size-3.5" />} onClick={() => setPlanning(true)}>

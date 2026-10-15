@@ -332,23 +332,13 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             {!phone && (
             <Tooltip label={editing ? "Done editing" : "Edit the note"}>
               {editing ? (
-                <button
-                  type="button"
-                  onClick={() => setEditing(false)}
-                  className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-3.5 text-sm font-semibold text-on-ink transition-transform active:scale-[0.97] max-md:size-11 max-md:justify-center max-md:border-transparent! max-md:bg-ink! max-md:px-0 max-md:text-on-ink!"
-                >
-                  <Check className="size-4 max-md:size-5" strokeWidth={2.4} />
-                  <span className="max-md:hidden">Done</span>
-                </button>
+                <Button variant="primary" icon={<Check className="size-4" strokeWidth={2.4} />} onClick={() => setEditing(false)}>
+                  Done
+                </Button>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setEditing(true)}
-                  className="flex h-8 items-center gap-1.5 rounded-full border border-line bg-card px-3.5 text-sm font-medium shadow-card transition-transform active:scale-[0.97] max-md:size-11 max-md:justify-center max-md:px-0 max-md:lens-chip"
-                >
-                  <PenLine className="size-4 max-md:size-[18px]" />
-                  <span className="max-md:hidden">Edit</span>
-                </button>
+                <Button icon={<PenLine className="size-4" />} onClick={() => setEditing(true)}>
+                  Edit
+                </Button>
               )}
             </Tooltip>
             )}
@@ -356,7 +346,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
               <Menu
                 align="end"
                 trigger={
-                  <Button size="sm" icon={pageTheme === "dark" ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}>
+                  <Button icon={pageTheme === "dark" ? <Moon className="size-4" /> : <Sun className="size-4" />}>
                     Page: {pageMode === "follow" ? "Auto" : pageMode === "dark" ? "Dark" : "Light"}
                   </Button>
                 }
