@@ -131,7 +131,7 @@ function AccountSection() {
               </span>
             }
           >
-            <Button size="sm" variant="ghost" aria-expanded={showSync} onClick={() => setShowSync(!showSync)}>Sync details</Button>
+            <Button size="sm" aria-expanded={showSync} onClick={() => setShowSync(!showSync)}>Sync details</Button>
             <Button size="sm" disabled={busy} onClick={() => void signOut()}>
               Sign out
             </Button>
@@ -147,7 +147,7 @@ function AccountSection() {
         </>
       ) : (
         <Item title="Not signed in" detail="Sign in with the same Google account on every device to keep them in sync.">
-          <Button size="sm" variant="ghost" aria-expanded={showSync} onClick={() => setShowSync(!showSync)}>Sync details</Button>
+          <Button size="sm" aria-expanded={showSync} onClick={() => setShowSync(!showSync)}>Sync details</Button>
           <Button size="sm" variant="primary" disabled={busy} onClick={() => void signInWithGoogle()}>
             {busy ? <Spinner className="size-3.5 border-on-ink/40 border-t-on-ink" /> : null}
             Sign in with Google

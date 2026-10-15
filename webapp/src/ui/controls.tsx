@@ -35,7 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   // In the Liquid Glass theme primary actions are ink-tinted glass, and
   // secondary ones a raised plate of glass.
-  const glassRef = useGlass<HTMLButtonElement>({ level: 2, kind: "ink", interactive: true });
+  const glassRef = useGlass<HTMLButtonElement>({ level: 2, kind: "ink", interactive: true, inScroll: true });
   const plateRef = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
   const glass = rest.disabled ? undefined : variant === "primary" ? glassRef : variant === "secondary" ? plateRef : undefined;
   const refs = useMergedRefs(ref, glass);
@@ -121,7 +121,7 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
 }) {
   const id = useId();
-  const thumbGlass = useGlass<HTMLSpanElement>({ level: 2, kind: "control" });
+  const thumbGlass = useGlass<HTMLSpanElement>({ level: 2, kind: "control", inScroll: true });
   // The track is a plate of glass the thumb slides on.
   const trackGlass = useGlass<HTMLDivElement>({ level: 2, kind: "plate", inScroll: true });
   const buttons = useRef(new Map<T, HTMLButtonElement>());

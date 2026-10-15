@@ -24,6 +24,8 @@ export function NotesView() {
   const [query, setQuery] = useState("");
   const searchWell = useGlass<HTMLLabelElement>({ level: 2, kind: "plate", inScroll: true });
   const subjectPlate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true, inScroll: true });
+  // The three tools share one box of glass, like the arrows on Today.
+  const tools = useGlass<HTMLDivElement>({ level: 2, kind: "ink" });
   const [subjectId, setSubjectId] = useState<string | "all">("all");
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -65,21 +67,23 @@ export function NotesView() {
                 if (file) void importNote(file, navigate, subject?.id ?? null);
               }}
             />
-            <Tooltip label="Sources">
-              <IconButton label="Sources" onClick={() => openSources()}>
-                <BookMarked className="size-4" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip label="Note from a photo">
-              <IconButton label="Note from a photo" onClick={() => void noteFromPhotos(navigate, { subjectId: subject?.id ?? null })}>
-                <Camera className="size-4" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip label="Import a Word document">
-              <IconButton label="Import a Word document" onClick={() => fileInput.current?.click()}>
-                <FileUp className="size-4" />
-              </IconButton>
-            </Tooltip>
+            <div ref={tools} className="flex items-center md:rounded-ctl md:px-0.5">
+              <Tooltip label="Sources">
+                <IconButton label="Sources" onClick={() => openSources()}>
+                  <BookMarked className="size-4" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip label="Note from a photo">
+                <IconButton label="Note from a photo" onClick={() => void noteFromPhotos(navigate, { subjectId: subject?.id ?? null })}>
+                  <Camera className="size-4" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip label="Import a Word document">
+                <IconButton label="Import a Word document" onClick={() => fileInput.current?.click()}>
+                  <FileUp className="size-4" />
+                </IconButton>
+              </Tooltip>
+            </div>
             <Button
               variant="primary"
               className="max-md:hidden"

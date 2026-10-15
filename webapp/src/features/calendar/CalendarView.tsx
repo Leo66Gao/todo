@@ -456,7 +456,7 @@ function MonthCell({
         isOver
           ? "bg-accent-soft outline-[1.5px] -outline-offset-[1.5px] outline-accent outline-solid"
           : selected
-            ? "bg-card outline-[1.5px] -outline-offset-[1.5px] outline-ink outline-solid"
+            ? "bg-card outline-[1.5px] -outline-offset-[1.5px] outline-ink outline-solid [html.glass_&]:outline-accent"
             : inMonth
               ? "bg-fill/45 hover:bg-fill"
               : "hover:bg-fill/45",

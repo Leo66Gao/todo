@@ -420,12 +420,13 @@ export class GlassEngine {
           shadowBlur: 30 * dpr,
         };
       case "control":
-        // Selection pills: a clear lens with the edge light, no haze.
+        // Selection pills: a clear lens with the edge light, no haze. It
+        // holds its label legible (light text on a bright backdrop washed out).
         return {
           bezel: Math.min(14 * dpr, halfShort * 0.6),
           height: Math.min(halfShort * 1.1, 22 * dpr),
           tint: [1, 1, 1, 0],
-          legible: 0,
+          legible: (dark ? -1 : 1) * hold * 0.6,
           blur: 0,
           frosted: 0,
           dispersion: 0.22,
