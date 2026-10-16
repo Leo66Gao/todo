@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { animate, AnimatePresence, motion, MotionConfig, useMotionValue } from "motion/react";
+import { animate, AnimatePresence, motion, MotionConfig, useMotionValue, useTransform } from "motion/react";
 import {
   DndContext,
   DragOverlay,
@@ -149,7 +149,9 @@ export function Shell() {
 // day cells); fall back to overlap for sortable lists.
 const collision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);
-  return hits.length > 0 ? hits : rectIntersection(args);
+  // (The day strip's week arrows only answer the pointer itself: a task
+  // dragged past them mustn't turn the week.)
+  return hits.length > 0 ? hits : rectIntersection(args).filter((hit) => hit.data?.droppableContainer?.data.current?.type !== "flip");
 };
 
 function Workspace() {
@@ -161,6 +163,8 @@ function Workspace() {
   const [drawerShown, setDrawerShown] = useState(false);
   const drawerSwipe = useDrawerSwipe(drawer, useCallback((open: boolean) => ui.set({ sidebarOpen: open }), []));
   if ((drawer || drawerSwipe.pulling) && !drawerShown) setDrawerShown(true);
+  // The shade over the page darkens as far as the drawer is out.
+  const scrimOpacity = useTransform(drawerSwipe.x, [-DRAWER_W, 0], [0, 1]);
   const glass = useGlassOn();
   const wide = useMedia("(min-width: 1024px)");
   const sidebarGlass = useGlass({ level: 1, kind: "chrome" });
@@ -303,17 +307,16 @@ function Workspace() {
 
         {/* Drawer on narrow windows. It stays built while shut (off screen and
             hidden), so opening it only has to slide, not assemble the sidebar. */}
-        <AnimatePresence>
-          {drawer && (
-            <motion.div
-              className="fixed inset-0 z-30 bg-scrim lg:hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => ui.set({ sidebarOpen: false })}
-            />
-          )}
-        </AnimatePresence>
+        {/* The shade follows the drawer, and a swipe that starts on it (as far
+            right as you like) drags the drawer shut. */}
+        {!wide && drawerShown && (
+          <motion.div
+            className="fixed inset-0 z-30 bg-scrim lg:hidden"
+            style={{ opacity: scrimOpacity, pointerEvents: drawer ? "auto" : "none", touchAction: "pan-y" }}
+            onClick={() => ui.set({ sidebarOpen: false })}
+            {...drawerSwipe.handlers}
+          />
+        )}
         {!wide && (
           <motion.aside
             data-overlay={drawer || undefined}
@@ -488,7 +491,7 @@ export function Stepper({
     <div ref={phone ? undefined : capsule} className="relative flex items-center max-md:h-11 max-md:rounded-full md:rounded-ctl md:px-0.5">
       <GlassLens radius={22} bezel={15} className="lens-soft md:hidden" />
       <Tooltip label={prev} shortcut={prevShortcut}>
-        <IconButton label={prev} onClick={() => { haptic(); onPrev(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink max-md:transition-colors max-md:duration-300 max-md:active:bg-fill-strong max-md:active:duration-0">
+        <IconButton label={prev} onClick={() => { haptic(); onPrev(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronLeft className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
@@ -517,7 +520,7 @@ export function Stepper({
         </Button>
       )}
       <Tooltip label={next} shortcut={nextShortcut}>
-        <IconButton label={next} onClick={() => { haptic(); onNext(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink max-md:transition-colors max-md:duration-300 max-md:active:bg-fill-strong max-md:active:duration-0">
+        <IconButton label={next} onClick={() => { haptic(); onNext(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
           <ChevronRight className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
@@ -697,8 +700,27 @@ function sideScroller(el: Element | null): Element | null {
   }
   return null;
 }
+/** How fast a finger is moving sideways (px/s), from its last few positions. */
+function fingerSpeed() {
+  let points: { x: number; t: number }[] = [];
+  return {
+    track(x: number) {
+      const t = performance.now();
+      points = [...points.filter((p) => t - p.t < 100), { x, t }];
+    },
+    speed() {
+      if (points.length < 2) return 0;
+      const a = points[0];
+      const b = points[points.length - 1];
+      return ((b.x - a.x) / Math.max(1, b.t - a.t)) * 1000;
+    },
+    reset() {
+      points = [];
+    },
+  };
+}
 const OPEN_AT = 150;
-const CLOSE_AT = 130;
+const CLOSE_AT = 90;
 
 function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
   const x = useMotionValue(-DRAWER_W);
@@ -714,6 +736,7 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
   useEffect(() => {
     if (!matchMedia("(max-width: 767px)").matches) return;
     let s: { x: number; y: number; t: number; axis: "x" | "y" | null } | null = null;
+    const v = fingerSpeed();
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       const target = e.target as Element | null;
@@ -747,6 +770,7 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
         setPulling(true);
         setOpen(true);
       }
+      v.track(t.clientX);
       x.set(Math.min(0, -DRAWER_W + dx * 0.9));
     };
     const up = (e: TouchEvent) => {
@@ -755,11 +779,14 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       if (!cur || cur.axis !== "x") return;
       const dx = (e.changedTouches[0]?.clientX ?? cur.x) - cur.x;
       const speed = dx / Math.max(1, performance.now() - cur.t);
+      // (The spring carries on at the finger's speed.)
+      const velocity = v.speed() * 0.9;
+      v.reset();
       if (dx > OPEN_AT || (dx > 90 && speed > 0.9)) {
         haptic();
-        void animate(x, 0, springs.panel).then(() => setPulling(false));
+        void animate(x, 0, { ...springs.panel, velocity }).then(() => setPulling(false));
       } else {
-        void animate(x, -DRAWER_W, springs.panel).then(() => {
+        void animate(x, -DRAWER_W, { ...springs.panel, velocity }).then(() => {
           setOpen(false);
           setPulling(false);
         });
@@ -777,10 +804,12 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
     };
   }, [setOpen, x]);
 
+  const closeSpeed = useRef(fingerSpeed());
   const handlers = {
     onTouchStart(e: React.TouchEvent) {
       const t = e.touches[0];
       start.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: performance.now(), axis: null } : null;
+      closeSpeed.current.reset();
     },
     onTouchMove(e: React.TouchEvent) {
       const s = start.current;
@@ -792,7 +821,10 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
         if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
         s.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
       }
-      if (s.axis === "x") x.set(Math.min(0, dx));
+      if (s.axis === "x") {
+        closeSpeed.current.track(t.clientX);
+        x.set(Math.min(0, dx));
+      }
     },
     onTouchEnd(e: React.TouchEvent) {
       const s = start.current;
@@ -800,8 +832,10 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       if (!s || s.axis !== "x") return;
       const dx = (e.changedTouches[0]?.clientX ?? s.x) - s.x;
       const speed = dx / Math.max(1, performance.now() - s.t);
-      if (dx < -CLOSE_AT || (dx < -90 && speed < -0.9)) setOpen(false);
-      else void animate(x, 0, springs.panel);
+      const velocity = closeSpeed.current.speed();
+      // (Shutting, the drawer's own spring picks up the finger's speed.)
+      if (dx < -CLOSE_AT || (dx < -40 && speed < -0.5)) setOpen(false);
+      else void animate(x, 0, { ...springs.panel, velocity });
     },
   };
   return { x, handlers, pulling };

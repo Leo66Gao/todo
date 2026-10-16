@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useDroppable } from "@dnd-kit/core";
 import { format } from "date-fns";
@@ -12,12 +12,16 @@ import { useGlass } from "@/glass/registry";
 import { IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { useMedia } from "@/ui/useMedia";
+import { haptic } from "@/lib/native";
+import { useUI } from "@/shell/ui";
 
 /**
  * Two weeks of days (one on phones). Under each date a hairline fills as that
  * day's tasks are completed. Days accept dropped tasks; phones change week by
  * swiping. Picking a day that's on show only moves the selection: the strip
- * moves when the day is off it, or with the arrows.
+ * moves when the day is off it, or with the arrows. A task held over an arrow
+ * for half a second turns the strip to that week (and on, while it stays);
+ * the arrows show on phones too while a task is being dragged.
  */
 export function DayStrip({
   day,
@@ -33,7 +37,12 @@ export function DayStrip({
   const shown = phone ? 7 : 14;
   // A day picked elsewhere (or off the strip) brings its week into view.
   if (day < start || day >= addDays(start, shown)) setStart(startOfWeek(day));
-  const startKey = start.getTime();
+  // Weeks turned by holding a dragged task over an arrow; back to none once
+  // the drag is over.
+  const dragging = useUI((s) => s.dragging);
+  const [peek, setPeek] = useState(0);
+  if (!dragging && peek !== 0) setPeek(0);
+  const startKey = addDays(start, peek * 7).getTime();
   const days = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(startKey), i)), [startKey]);
   const shift = (weeks: number) => {
     setStart(addDays(start, weeks * 7));
@@ -53,9 +62,7 @@ export function DayStrip({
 
   return (
     <div className="flex items-center gap-1">
-      <IconButton label="Previous week" size="sm" className="max-md:hidden" onClick={() => shift(-1)}>
-        <ChevronLeft className="size-4" />
-      </IconButton>
+      <WeekArrow dir={-1} dragging={dragging} onClick={() => shift(-1)} onFlip={() => setPeek((p) => p - 1)} />
       <motion.div
         onPanEnd={(_, info) => {
           if (!phone || Math.abs(info.offset.x) < Math.abs(info.offset.y) * 1.2) return;
@@ -75,10 +82,38 @@ export function DayStrip({
           />
         ))}
       </motion.div>
-      <IconButton label="Next week" size="sm" className="max-md:hidden" onClick={() => shift(1)}>
-        <ChevronRight className="size-4" />
-      </IconButton>
+      <WeekArrow dir={1} dragging={dragging} onClick={() => shift(1)} onFlip={() => setPeek((p) => p + 1)} />
     </div>
+  );
+}
+
+/** Turns a week; a task held over it turns the strip after half a second, and on every 0.7 s. */
+function WeekArrow({ dir, dragging, onClick, onFlip }: { dir: 1 | -1; dragging: boolean; onClick: () => void; onFlip: () => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `strip-flip-${dir}`, data: { type: "flip" } });
+  // (The latest callback, so re-renders mid-hover don't restart the wait.)
+  const flip = useRef(onFlip);
+  useEffect(() => {
+    flip.current = onFlip;
+  });
+  useEffect(() => {
+    if (!isOver) return;
+    let timer = window.setTimeout(function turn() {
+      haptic();
+      flip.current();
+      timer = window.setTimeout(turn, 700);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [isOver]);
+  return (
+    <IconButton
+      ref={setNodeRef}
+      label={dir < 0 ? "Previous week" : "Next week"}
+      size="sm"
+      className={cn(!dragging && "max-md:hidden", isOver && "bg-accent-soft text-accent", dragging && "max-md:h-[62px] max-md:w-7")}
+      onClick={onClick}
+    >
+      {dir < 0 ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />}
+    </IconButton>
   );
 }
 

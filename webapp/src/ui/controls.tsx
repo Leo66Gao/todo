@@ -70,7 +70,9 @@ export const IconButton = forwardRef<
       aria-label={label}
       className={cn(
         "inline-flex shrink-0 select-none items-center justify-center rounded-ctl text-ink-3",
-        "transition-[background-color,color,transform] duration-150 hover:bg-fill hover:text-ink active:scale-[0.94] active:bg-fill-strong",
+        // (Pressed with a mouse it sinks and darkens; a touch gets the shared
+        // press feedback instead: a grey disc flashing over glass looked off.)
+        "transition-[background-color,color,transform] duration-150 hover:bg-fill hover:text-ink pointer-fine:active:scale-[0.94] pointer-fine:active:bg-fill-strong",
         "disabled:pointer-events-none disabled:opacity-40",
         active && "bg-fill text-ink",
         size === "sm" ? "size-6" : "size-[30px]",

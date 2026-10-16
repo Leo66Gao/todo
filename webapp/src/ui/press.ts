@@ -3,8 +3,9 @@
 // Touch feedback for the phone. A tap is often shorter than a frame or two,
 // so :active barely shows; instead, anything pressable sinks the moment a
 // finger lands, stays down for at least a beat, and springs back on release.
-// Small controls sink further than wide rows. Uses the `scale` property, so it
-// composes with transforms set elsewhere (motion, drag).
+// Small controls sink further than mid-sized ones. Wide rows don't move: in a
+// card, a shrunken row showed the card's edge around its highlight. Uses the
+// `scale` property, so it composes with transforms set elsewhere (motion, drag).
 
 const PRESSABLE = 'button, a[href], [role="button"], [role="tab"], [role="checkbox"], [role="menuitem"], summary, label';
 const DOWN = "scale 120ms cubic-bezier(0.3, 0.7, 0.4, 1)";
@@ -43,8 +44,9 @@ export function startPressFeedback() {
       if (!el || el.closest("[data-no-press]") || (el as HTMLButtonElement).disabled) return;
       release();
       const width = el.offsetWidth;
-      // Rows and cards barely move; buttons and chips dip clearly.
-      const depth = width > 240 ? 0.985 : width > 120 ? 0.965 : 0.9;
+      if (width > 240) return;
+      // Buttons and chips dip clearly; wider ones less.
+      const depth = width > 120 ? 0.965 : 0.9;
       const base = el.style.transition;
       const computed = base || getComputedStyle(el).transition;
       const keep = computed && !computed.startsWith("all 0s") ? computed : "";
