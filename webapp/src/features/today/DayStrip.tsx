@@ -35,8 +35,13 @@ export function DayStrip({
   const phone = useMedia("(max-width: 767px)");
   const [start, setStart] = useState(() => startOfWeek(day));
   const shown = phone ? 7 : 14;
+  // Which way the last turn went: the new week slides in from that side.
+  const [turned, setTurned] = useState(0);
   // A day picked elsewhere (or off the strip) brings its week into view.
-  if (day < start || day >= addDays(start, shown)) setStart(startOfWeek(day));
+  if (day < start || day >= addDays(start, shown)) {
+    setTurned(day < start ? -1 : 1);
+    setStart(startOfWeek(day));
+  }
   // Weeks turned by holding a dragged task over an arrow; back to none once
   // the drag is over.
   const dragging = useUI((s) => s.dragging);
@@ -45,6 +50,7 @@ export function DayStrip({
   const startKey = addDays(start, peek * 7).getTime();
   const days = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(startKey), i)), [startKey]);
   const shift = (weeks: number) => {
+    setTurned(Math.sign(weeks));
     setStart(addDays(start, weeks * 7));
     onPick(addDays(day, weeks * 7));
   };
@@ -62,8 +68,12 @@ export function DayStrip({
 
   return (
     <div className="flex items-center gap-1">
-      <WeekArrow dir={-1} dragging={dragging} onClick={() => shift(-1)} onFlip={() => setPeek((p) => p - 1)} />
+      <WeekArrow dir={-1} dragging={dragging} onClick={() => shift(-1)} onFlip={() => { setTurned(-1); setPeek((p) => p - 1); }} />
       <motion.div
+        key={startKey}
+        initial={turned ? { opacity: 0.3, x: turned * 32 } : false}
+        animate={{ opacity: 1, x: 0 }}
+        transition={springs.panel}
         onPanEnd={(_, info) => {
           if (!phone || Math.abs(info.offset.x) < Math.abs(info.offset.y) * 1.2) return;
           if (info.offset.x < -40 || info.velocity.x < -400) shift(1);
@@ -82,7 +92,7 @@ export function DayStrip({
           />
         ))}
       </motion.div>
-      <WeekArrow dir={1} dragging={dragging} onClick={() => shift(1)} onFlip={() => setPeek((p) => p + 1)} />
+      <WeekArrow dir={1} dragging={dragging} onClick={() => shift(1)} onFlip={() => { setTurned(1); setPeek((p) => p + 1); }} />
     </div>
   );
 }

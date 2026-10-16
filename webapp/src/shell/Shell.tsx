@@ -504,10 +504,10 @@ export function Stepper({
               key="present"
               type="button"
               onClick={onPresent}
-              initial={{ width: 0, opacity: 0, filter: "blur(4px)" }}
-              animate={{ width: "auto", opacity: 1, filter: "blur(0px)" }}
-              exit={{ width: 0, opacity: 0, filter: "blur(4px)" }}
-              transition={{ width: springs.pill, opacity: { duration: 0.18 }, filter: { duration: 0.18 } }}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "auto", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ width: springs.pill, opacity: { duration: 0.18 } }}
               className="relative h-8 overflow-hidden rounded-full text-[14px] font-medium whitespace-nowrap text-ink"
             >
               <span className="block px-2">{present}</span>
