@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { animate, AnimatePresence, motion, MotionConfig, useMotionValue, useTransform } from "motion/react";
 import {
   DndContext,
@@ -349,13 +349,14 @@ function Workspace() {
             data-paper={paper || undefined}
             className="flex min-h-0 flex-1 flex-col"
           >
-            {/* Each screen arrives with a short settle (phones only); pages
-                opened from a list slide in from the side. */}
+            {/* Pages opened from a list slide in from the side (phones only);
+                the tabs switch at once, as a phone's tab bar does (a fade-in
+                blinked the empty page between them). */}
             <div
               key={route.view === "subject" || route.view === "assignment" || route.view === "note" ? `${route.view}:${route.id}` : route.view}
-              className={cn("flex min-h-0 flex-1 flex-col", route.view === "assignment" || route.view === "note" || route.view === "subject" ? "view-push" : "view-in")}
+              className={cn("flex min-h-0 flex-1 flex-col", (route.view === "assignment" || route.view === "note" || route.view === "subject") && "view-push")}
             >
-              <View route={route} />
+              <RouteView route={route} />
             </div>
           </div>
           <MobileTabBar route={route} navigate={navigate} />
@@ -371,6 +372,13 @@ function Workspace() {
     </DndContext>
   );
 }
+
+/**
+ * The current page, re-rendered only when the address changes: the shell
+ * around it re-renders on gestures (the drawer's pull), which mustn't redo
+ * the whole page mid-swipe.
+ */
+const RouteView = memo(View, (a, b) => routeHref(a.route) === routeHref(b.route));
 
 function View({ route }: { route: Route }) {
   switch (route.view) {
@@ -771,7 +779,7 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
         setOpen(true);
       }
       v.track(t.clientX);
-      x.set(Math.min(0, -DRAWER_W + dx * 0.9));
+      x.set(Math.min(0, -DRAWER_W + dx));
     };
     const up = (e: TouchEvent) => {
       const cur = s;
@@ -780,7 +788,7 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       const dx = (e.changedTouches[0]?.clientX ?? cur.x) - cur.x;
       const speed = dx / Math.max(1, performance.now() - cur.t);
       // (The spring carries on at the finger's speed.)
-      const velocity = v.speed() * 0.9;
+      const velocity = v.speed();
       v.reset();
       if (dx > OPEN_AT || (dx > 90 && speed > 0.9)) {
         haptic();

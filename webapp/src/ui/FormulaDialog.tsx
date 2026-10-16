@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { friendlyFromTex, friendlyTex } from "@/lib/friendlyTex";
 import { DISPLAY } from "@/lib/markdownPaste";
 import { Button, Switch } from "./controls";
-import { Modal } from "./overlay";
+import { Modal, useAutoFocus } from "./overlay";
 
 type Katex = typeof import("katex").default;
 
@@ -67,6 +67,7 @@ export function FormulaHost() {
   const [text, setText] = useState("");
   const [display, setDisplay] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
+  const inputFocus = useAutoFocus();
   const katex = useKatex();
 
   if (current && current !== shown) {
@@ -122,7 +123,7 @@ export function FormulaHost() {
           </div>
           <textarea
             ref={input}
-            autoFocus
+            {...inputFocus}
             rows={2}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -146,7 +147,7 @@ export function FormulaHost() {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => insert(s.insert)}
                 aria-label={s.label}
-                className="flex h-8 min-w-9 items-center justify-center rounded-[8px] px-2 text-[13px] text-ink-2 transition-[background-color,color,transform] duration-150 hover:bg-fill hover:text-ink active:scale-[0.94] active:bg-fill-strong"
+                className="flex h-8 min-w-9 items-center justify-center rounded-[8px] px-2 text-[13px] text-ink-2 transition-[background-color,color,transform] duration-150 hover:bg-fill hover:text-ink pointer-fine:active:scale-[0.94] pointer-fine:active:bg-fill-strong"
               >
                 <Rendered katex={katex} tex={s.label} className="pointer-events-none" />
               </button>

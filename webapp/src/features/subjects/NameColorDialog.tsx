@@ -6,7 +6,7 @@ import { create } from "zustand";
 import { argbToCss, hexToArgb } from "@/lib/dart";
 import { cn } from "@/ui/cn";
 import { Button } from "@/ui/controls";
-import { Modal } from "@/ui/overlay";
+import { Modal, useAutoFocus } from "@/ui/overlay";
 import { sessionDialog } from "@/lib/sessionDialog";
 
 export const PALETTE = [
@@ -65,6 +65,7 @@ export function NameColorHost() {
 function Form({ request }: { request: Request }) {
   const [name, setName] = useState(request.name);
   const [color, setColor] = useState(request.color);
+  const nameFocus = useAutoFocus();
   const finish = (value: { name: string; color: number } | null) => {
     request.resolve(value);
     useRequest.setState({ open: false });
@@ -81,7 +82,7 @@ function Form({ request }: { request: Request }) {
       <div className="mt-4 flex items-center gap-3">
         <span className="size-3 shrink-0 rounded-full" style={{ background: argbToCss(color) }} />
         <input
-          autoFocus
+          {...nameFocus}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={request.placeholder}
@@ -96,7 +97,7 @@ function Form({ request }: { request: Request }) {
             aria-label="Colour"
             onClick={() => setColor(c)}
             className={cn(
-              "flex size-6 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 active:scale-95",
+              "flex size-6 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 pointer-fine:active:scale-95",
               c === color && "ring-2 ring-ink ring-offset-2 ring-offset-raised",
             )}
             style={{ background: argbToCss(c) }}

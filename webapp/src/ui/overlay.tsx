@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { ContextMenu as RCM, Dialog, DropdownMenu as RDM, Popover as RPopover, Tooltip as RTooltip } from "radix-ui";
 import { Check, ChevronRight } from "lucide-react";
@@ -14,6 +14,17 @@ import { sessionDialog } from "@/lib/sessionDialog";
 
 // ---------------------------------------------------------------------------
 // Modal
+
+// On a phone a dialog is a bottom sheet, and a field in it mustn't take focus
+// as it mounts: the keyboard would rise while the sheet is still sliding up,
+// and the two fight. The sheet focuses it once it has arrived.
+
+/** Props for a dialog's field that starts focused: at once, or on a phone once the sheet is up. */
+export function useAutoFocus(on = true) {
+  const phone = useMedia(PHONE);
+  if (!on) return {};
+  return phone ? { "data-autofocus": "" } : { autoFocus: true };
+}
 
 export function Modal({
   open,
@@ -38,6 +49,7 @@ export function Modal({
 }) {
   const phone = useMedia(PHONE);
   const sheetDrag = useDragControls();
+  const sheet = useRef<HTMLDivElement>(null);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -57,10 +69,18 @@ export function Modal({
                 forceMount
                 asChild
                 aria-describedby={undefined}
-                onOpenAutoFocus={initialFocus}
+                onOpenAutoFocus={(e) => {
+                  initialFocus?.(e);
+                  // (On a phone the sheet itself holds focus while it slides.)
+                  if (phone && !e.defaultPrevented) {
+                    e.preventDefault();
+                    sheet.current?.focus();
+                  }
+                }}
                 onCloseAutoFocus={returnFocus ? undefined : (e) => e.preventDefault()}
               >
                 <motion.div
+                  ref={sheet}
                   className={cn(
                     "glass-overlay pointer-events-auto relative flex max-h-[min(86vh,760px)] w-full flex-col overflow-hidden rounded-modal bg-raised shadow-modal outline-none",
                     "max-sm:max-h-[92dvh] max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)]",
@@ -69,16 +89,32 @@ export function Modal({
                   style={{ maxWidth: width }}
                   {...(phone
                     ? {
-                        // A bottom sheet: slides up, and drags down to close.
+                        // A bottom sheet: slides up, and drags down to close,
+                        // by its handle or anywhere on it while its content is
+                        // scrolled to the top. Closing is a spring, so a flick
+                        // carries straight on rather than stalling.
                         initial: { y: "100%" },
                         animate: { y: 0 },
-                        exit: { y: "100%", transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } },
+                        exit: { y: "100%", transition: springs.panel },
                         transition: springs.panel,
+                        onAnimationComplete: (done: unknown) => {
+                          if ((done as { y?: unknown })?.y !== 0) return;
+                          sheet.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+                        },
                         drag: "y" as const,
                         dragListener: false,
                         dragControls: sheetDrag,
                         dragConstraints: { top: 0, bottom: 0 },
-                        dragElastic: { top: 0, bottom: 0.8 },
+                        dragElastic: { top: 0, bottom: 1 },
+                        onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+                          if (e.pointerType !== "touch") return;
+                          const target = e.target as Element;
+                          if (target.closest('input, textarea, select, [contenteditable="true"], .ql-editor, [role="slider"], [data-hswipe]')) return;
+                          for (let node: Element | null = target; node && node !== e.currentTarget; node = node.parentElement) {
+                            if (node.scrollTop > 0) return;
+                          }
+                          sheetDrag.start(e);
+                        },
                         onDragEnd: (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
                           if (info.offset.y > 110 || info.velocity.y > 600) {
                             haptic();
@@ -224,7 +260,8 @@ export type MenuItem =
 
 const itemClass = cn(
   // The highlight's corners follow the menu's, inset by its 4px padding.
-  "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[max(6px,calc(var(--radius-pop)_-_4px))] px-2 text-sm text-ink outline-none",
+  // (Finger-sized on phones.)
+  "relative flex h-[28px] cursor-default select-none items-center gap-2 rounded-[max(6px,calc(var(--radius-pop)_-_4px))] px-2 text-sm text-ink outline-none max-md:h-11 max-md:px-3 max-md:text-[15px]",
   "data-[highlighted]:bg-fill data-[state=open]:bg-fill data-[disabled]:opacity-40",
 );
 const menuSurface = "pop glass-overlay relative z-[60] min-w-[180px] max-w-[calc(100vw-24px)] rounded-pop bg-raised p-1 shadow-pop max-sm:min-w-[156px]";
@@ -406,6 +443,7 @@ export function AskHost() {
     setText(current.kind === "prompt" ? (current.initial ?? "") : "");
   }
   const open = current != null;
+  const promptFocus = useAutoFocus();
 
   const finish = (ok: boolean) => {
     const ask = useAsk.getState().current;
@@ -433,7 +471,7 @@ export function AskHost() {
           {ask.message && <div className="mt-1.5 text-sm text-ink-2">{ask.message}</div>}
           {ask.kind === "prompt" && (
             <input
-              autoFocus
+              {...promptFocus}
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={ask.placeholder}

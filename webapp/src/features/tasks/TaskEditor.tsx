@@ -15,7 +15,7 @@ import { ui, useUI, type EditorState } from "@/shell/ui";
 import { addTask, applyDominoShift, captureWorkspaceSession, newTask, undoDominoShift, updateTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { Button, Kbd, Segmented } from "@/ui/controls";
-import { confirmDialog, Modal } from "@/ui/overlay";
+import { confirmDialog, Modal, useAutoFocus } from "@/ui/overlay";
 import { RichText } from "@/ui/RichText";
 import { springs } from "@/ui/motion";
 import { toast } from "@/ui/toast";
@@ -81,6 +81,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
   const [category, setCategory] = useState(existing?.category ?? defaults.category ?? "General");
   const [repeat, setRepeatDraft] = useState<RepeatRule | null>(() => (existing ? (readRepeat(existing)?.rule ?? null) : null));
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const titleFocus = useAutoFocus();
 
   // Words in the title can set the other fields ("essay due fri 3pm 2h").
   // A field set by hand, or a suggestion dismissed, stops being read.
@@ -440,7 +441,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
         <div className="mb-2 text-xs font-medium text-ink-3">{existing ? "Edit task" : "New task"}</div>
         <textarea
           ref={titleRef}
-          autoFocus
+          {...titleFocus}
           // Editing starts at the end of the title, ready to add to it.
           onFocus={(e) => {
             const end = e.currentTarget.value.length;

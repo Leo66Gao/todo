@@ -322,7 +322,8 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
           <span className={cn("text-xs", task.isDone ? "text-ink-3" : isAssignment ? "text-accent" : "text-ink-3")}>
             {task.isDone ? "Completed" : isAssignment ? `Assignment due ${dueLabel(task.date).toLowerCase()}` : relativeDay(task.date)}
           </span>
-          <div className="ml-auto flex items-center">
+          {/* (Finger-sized buttons on phones.) */}
+          <div className="ml-auto flex items-center max-md:[&_button]:min-h-10 max-md:[&_button]:min-w-10">
             {isAssignment && (
               <Button variant="ghost" size="sm" onClick={() => navigate({ view: "assignment", id: task.id })}>
                 Open page
@@ -414,7 +415,7 @@ function ValueButton({ children, muted, ...rest }: React.ButtonHTMLAttributes<HT
       type="button"
       {...rest}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-ctl px-2 text-left text-sm transition-[background-color,transform] duration-150 hover:bg-fill active:scale-[0.98] data-[state=open]:bg-fill",
+        "flex h-8 w-full items-center gap-2 rounded-ctl px-2 text-left text-sm transition-[background-color,transform] duration-150 hover:bg-fill pointer-fine:active:scale-[0.98] data-[state=open]:bg-fill",
         muted ? "text-ink-3" : "text-ink",
       )}
     >
@@ -584,7 +585,7 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
           <button
             type="button"
             onClick={() => setSheet({ open: true, sub: null })}
-            className="flex h-11 items-center justify-center gap-2 rounded-[14px] border border-line text-sm font-semibold transition-colors hover:bg-fill active:scale-[0.99]"
+            className="flex h-11 items-center justify-center gap-2 rounded-[14px] border border-line text-sm font-semibold transition-colors hover:bg-fill pointer-fine:active:scale-[0.99]"
           >
             <Plus className="size-[18px]" />
             Add subtask

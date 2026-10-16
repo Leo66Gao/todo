@@ -74,8 +74,15 @@ export function DayStrip({
         initial={turned ? { opacity: 0.3, x: turned * 32 } : false}
         animate={{ opacity: 1, x: 0 }}
         transition={springs.panel}
-        onPanEnd={(_, info) => {
-          if (!phone || Math.abs(info.offset.x) < Math.abs(info.offset.y) * 1.2) return;
+        // Phones: the week follows the finger (held back at its ends) and
+        // turns past a short swipe or a flick. Marked as its own sideways
+        // swipe, so it doesn't pull the menu drawer out too.
+        data-hswipe
+        drag={phone ? "x" : false}
+        dragDirectionLock
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.45}
+        onDragEnd={(_, info) => {
           if (info.offset.x < -40 || info.velocity.x < -400) shift(1);
           else if (info.offset.x > 40 || info.velocity.x > 400) shift(-1);
         }}

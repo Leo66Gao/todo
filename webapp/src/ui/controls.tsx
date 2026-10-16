@@ -11,15 +11,16 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "accent";
 type Size = "sm" | "md";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-ink text-on-ink hover:bg-ink/88 active:bg-ink/80",
-  secondary: "bg-fill text-ink hover:bg-fill-strong active:bg-line-strong",
-  ghost: "text-ink-2 hover:bg-fill hover:text-ink active:bg-fill-strong",
-  danger: "bg-danger text-white hover:bg-danger/90 active:bg-danger/85",
-  accent: "bg-accent-soft text-accent hover:bg-accent/15 active:bg-accent/20",
+  primary: "bg-ink text-on-ink hover:bg-ink/88 pointer-fine:active:bg-ink/80",
+  secondary: "bg-fill text-ink hover:bg-fill-strong pointer-fine:active:bg-line-strong",
+  ghost: "text-ink-2 hover:bg-fill hover:text-ink pointer-fine:active:bg-fill-strong",
+  danger: "bg-danger text-white hover:bg-danger/90 pointer-fine:active:bg-danger/85",
+  accent: "bg-accent-soft text-accent hover:bg-accent/15 pointer-fine:active:bg-accent/20",
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-[26px] px-2.5 text-xs gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)]",
+  // (A little taller on phones, for a finger.)
+  sm: "h-[26px] px-2.5 text-xs gap-1.5 rounded-[calc(var(--radius-ctl)_-_1px)] max-md:h-9 max-md:px-3.5 max-md:text-[13px]",
   md: "h-[30px] px-3 text-sm gap-1.5 rounded-ctl",
 };
 
@@ -45,7 +46,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       className={cn(
         "inline-flex shrink-0 select-none items-center justify-center font-medium whitespace-nowrap",
-        "transition-[background-color,color,transform,opacity] duration-150 active:scale-[0.97]",
+        "transition-[background-color,color,transform,opacity] duration-150 pointer-fine:active:scale-[0.97]",
         "disabled:pointer-events-none disabled:opacity-40",
         variants[variant],
         sizes[size],
@@ -147,6 +148,8 @@ export function Segmented<T extends string>({
     <div
       ref={trackGlass}
       role="radiogroup"
+      // (Sliding along it picks an option; it mustn't pull the menu drawer.)
+      data-hswipe
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -280,7 +283,7 @@ export function Slider({
       <RSlider.Thumb
         className={cn(
           "block size-[14px] rounded-full border shadow-[0_1px_3px_rgb(0_0_0/0.2)] outline-none",
-          "transition-[transform,background-color] duration-150 hover:scale-110 active:scale-95",
+          "transition-[transform,background-color] duration-150 hover:scale-110 pointer-fine:active:scale-95",
           "focus-visible:ring-2 focus-visible:ring-accent-line",
           dormant ? "border-line-strong bg-raised" : "border-transparent bg-ink",
         )}

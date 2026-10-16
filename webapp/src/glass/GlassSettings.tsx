@@ -96,7 +96,7 @@ export function BackgroundPicker() {
               type="button"
               aria-label="Remove your image"
               onClick={() => void removeBackgroundImage()}
-              className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md transition-transform active:scale-90"
+              className="absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md transition-transform pointer-fine:active:scale-90"
             >
               <X className="size-3.5" />
             </button>

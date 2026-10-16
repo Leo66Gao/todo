@@ -148,7 +148,7 @@ export function NotesView() {
                   <button
                     type="button"
                     onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}
-                    className="mt-6 flex h-12 items-center gap-2 rounded-full bg-ink pr-5 pl-4 text-[15px] font-semibold text-on-ink transition-transform active:scale-[0.97] md:hidden"
+                    className="mt-6 flex h-12 items-center gap-2 rounded-full bg-ink pr-5 pl-4 text-[15px] font-semibold text-on-ink transition-transform pointer-fine:active:scale-[0.97] md:hidden"
                   >
                     <Plus className="size-[18px]" strokeWidth={2.2} />
                     New note

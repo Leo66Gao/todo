@@ -37,6 +37,9 @@ export function TaskCheck({
         onToggle();
       }}
       onDoubleClick={(e) => e.stopPropagation()}
+      // (The box's own squeeze is the feedback: the shared press dip on top
+      // compounded it.)
+      data-no-press
       className={cn("group/check relative flex shrink-0 items-center justify-center", className)}
       style={{ width: size + 8, height: size + 8 }}
     >

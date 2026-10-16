@@ -234,7 +234,7 @@ export function EventRow({ event, compact }: { event: GEvent; compact?: boolean 
       type="button"
       onClick={() => openEvent(event)}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-[9px] px-2.5 text-left transition-colors hover:bg-fill/70 active:bg-fill",
+        "group flex w-full items-center gap-3 rounded-[9px] px-2.5 text-left transition-colors hover:bg-fill/70 pointer-fine:active:bg-fill",
         compact ? "h-8" : "min-h-10 py-1.5",
       )}
     >

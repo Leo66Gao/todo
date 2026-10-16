@@ -199,7 +199,7 @@ export function ChatPanel({
           placeholder={images?.length ? "Ask about the photo…" : turns.length ? "Ask a follow-up…" : placeholder}
           className="field-sizing-content max-h-32 min-h-[30px] flex-1 resize-none bg-transparent py-1 text-[15px] leading-snug outline-none placeholder:text-ink-4"
         />
-        <IconButton label="Ask" type="submit" disabled={!canSend} className="rounded-full bg-accent text-white hover:bg-accent hover:text-white active:bg-accent">
+        <IconButton label="Ask" type="submit" disabled={!canSend} className="rounded-full bg-accent text-white hover:bg-accent hover:text-white pointer-fine:active:bg-accent">
           <ArrowUp className="size-4" />
         </IconButton>
       </form>

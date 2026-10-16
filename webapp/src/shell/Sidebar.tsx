@@ -57,9 +57,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     return { todayOpen, overdue, assignments, perSubject };
   }, [all]);
 
+  // The drawer starts closing first; the next page follows a frame later,
+  // so its first render doesn't hold up the drawer's first frames.
   const go = (r: Route) => {
-    navigate(r);
     onNavigate?.();
+    if (onNavigate) requestAnimationFrame(() => navigate(r));
+    else navigate(r);
   };
   const active = (view: Route["view"]) =>
     route.view === view ||

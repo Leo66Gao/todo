@@ -23,6 +23,7 @@ import { cn } from "@/ui/cn";
 import { Button, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Modal } from "@/ui/overlay";
+import { useUI } from "@/shell/ui";
 import { toast } from "@/ui/toast";
 
 const clock = (ms: number) => {
@@ -80,6 +81,8 @@ function Ring({ progress, size = 18 }: { progress: number; size?: number }) {
 export function FocusTimer() {
   const session = useFocus((s) => s.session);
   const expanded = useFocus((s) => s.expanded);
+  // (Hidden behind the open menu drawer rather than floating over it.)
+  const drawer = useUI((s) => s.sidebarOpen);
   const now = useTick(session);
   const task = useWorkspace((s) => (session?.taskId ? s.tasks.find((t) => t.id === session.taskId) : undefined));
   const left = session ? timeLeft(session, now) : 0;
@@ -103,7 +106,7 @@ export function FocusTimer() {
   return (
     <>
       <AnimatePresence>
-        {session && !expanded && (
+        {session && !expanded && !drawer && (
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

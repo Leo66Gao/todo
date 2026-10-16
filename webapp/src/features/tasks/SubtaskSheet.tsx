@@ -8,7 +8,7 @@ import { uuid, type Subtask, type Task } from "@/lib/model";
 import { startOfDay } from "@/lib/time";
 import { addSubtaskFull, deleteSubtask, updateSubtask } from "@/store/workspace";
 import { cn } from "@/ui/cn";
-import { Menu, Modal, Popover } from "@/ui/overlay";
+import { Menu, Modal, Popover, useAutoFocus } from "@/ui/overlay";
 import { DatePanel } from "@/ui/pickers";
 import { DifficultyField } from "./fields";
 import { PRIORITY_LABEL, priorityColor } from "./meta";
@@ -42,6 +42,7 @@ function SheetBody({ task, existing, close }: { task: Task; existing: Subtask | 
   const [difficulty, setDifficulty] = useState<number | null>(existing?.difficulty ?? null);
   const [priority, setPriority] = useState<Priority | null>(existing?.priority ?? null);
   const [dateOpen, setDateOpen] = useState(false);
+  const titleFocus = useAutoFocus();
 
   const save = () => {
     const name = title.trim();
@@ -69,7 +70,7 @@ function SheetBody({ task, existing, close }: { task: Task; existing: Subtask | 
     >
       <div className="text-lg font-semibold tracking-[-0.01em]">{existing ? "Edit subtask" : "New subtask"}</div>
       <input
-        autoFocus
+        {...titleFocus}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onFocus={(e) => {
@@ -153,7 +154,7 @@ function SheetBody({ task, existing, close }: { task: Task; existing: Subtask | 
       <button
         type="submit"
         disabled={!title.trim()}
-        className="mt-2 h-12 rounded-[16px] bg-ink text-[15px] font-semibold text-on-ink transition-[opacity,transform] active:scale-[0.99] disabled:opacity-40"
+        className="mt-2 h-12 rounded-[16px] bg-ink text-[15px] font-semibold text-on-ink transition-[opacity,transform] pointer-fine:active:scale-[0.99] disabled:opacity-40"
       >
         {existing ? "Save subtask" : "Add subtask"}
       </button>

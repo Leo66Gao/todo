@@ -89,7 +89,7 @@ function SubjectTile({
         ref={plate}
         type="button"
         onClick={() => navigate({ view: "subject", id: project.id })}
-        className="card group flex min-w-0 flex-col px-4 py-3.5 text-left transition-[background-color,transform] duration-150 hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] active:scale-[0.99]"
+        className="card group flex min-w-0 flex-col px-4 py-3.5 text-left transition-[background-color,transform] duration-150 hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] pointer-fine:active:scale-[0.99]"
       >
         <span className="flex min-w-0 items-center gap-2.5">
           <span className="size-2.5 shrink-0 rounded-full" style={{ background: argbToCss(project.colorValue) }} />

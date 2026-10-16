@@ -134,8 +134,11 @@ const TaskRowView = memo(function TaskRowView({
   // Swipe right completes; swipe left deletes (with Undo).
   const aiBusy = useAiPending((s) => s.ids.includes(task.id));
   const swipe = useSwipe(toggle, () => removeTask(task));
-  const revealLeft = useTransform(swipe.x, (v) => Math.max(0, v));
-  const revealRight = useTransform(swipe.x, (v) => Math.max(0, -v));
+  // The action under the row shows on the side it's swiped from. (Both sit
+  // under the whole row, uncovered as it moves: nothing is laid out again
+  // each frame.)
+  const revealLeft = useTransform(swipe.x, (v) => (v > 0 ? 1 : 0));
+  const revealRight = useTransform(swipe.x, (v) => (v < 0 ? 1 : 0));
 
   // Touch: holding the row opens the editor; holding the checkbox picks the
   // task up to reorder it (the drag sensor listens there only).
@@ -315,9 +318,9 @@ const TaskRowView = memo(function TaskRowView({
         {/* Revealed behind the row while it is swiped (touch screens). */}
         <motion.div
           aria-hidden
-          style={{ width: revealLeft }}
+          style={{ opacity: revealLeft }}
           className={cn(
-            "absolute inset-y-0 left-0 flex items-center overflow-hidden transition-colors duration-150",
+            "absolute inset-0 flex items-center overflow-hidden transition-colors duration-150",
             swipe.armed === "right" ? "bg-ink text-on-ink" : "bg-fill text-ink-3",
           )}
         >
@@ -325,9 +328,9 @@ const TaskRowView = memo(function TaskRowView({
         </motion.div>
         <motion.div
           aria-hidden
-          style={{ width: revealRight }}
+          style={{ opacity: revealRight }}
           className={cn(
-            "absolute inset-y-0 right-0 flex items-center justify-end overflow-hidden text-xs font-medium whitespace-nowrap transition-colors duration-150",
+            "absolute inset-0 flex items-center justify-end overflow-hidden text-xs font-medium whitespace-nowrap transition-colors duration-150",
             swipe.armed === "left" ? "bg-danger text-white" : "bg-fill text-ink-3",
           )}
         >
@@ -347,8 +350,8 @@ const TaskRowView = memo(function TaskRowView({
             swipe.handlers.onTouchMove(e);
             moveHold(e);
           }}
-          onTouchEnd={() => {
-            swipe.handlers.onTouchEnd();
+          onTouchEnd={(e: React.TouchEvent) => {
+            swipe.handlers.onTouchEnd(e);
             cancelHold();
           }}
           onTouchCancel={() => {

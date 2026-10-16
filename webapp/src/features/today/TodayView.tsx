@@ -14,7 +14,7 @@ import { Section, TaskList } from "@/features/tasks/TaskList";
 import { moveTask } from "@/features/tasks/actions";
 import { rescheduleTask } from "@/store/workspace";
 import { Button } from "@/ui/controls";
-import { springs } from "@/ui/motion";
+import { fade, springs } from "@/ui/motion";
 import { Tooltip } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { useMedia } from "@/ui/useMedia";
@@ -194,7 +194,9 @@ export function TodayView() {
               )}
             </AnimatePresence>
 
-            <div className="mt-5">
+            {/* A new day's list arrives whole, with a short fade: rows
+                animating in and out one by one read as an accordion. */}
+            <motion.div key={day.getTime()} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="mt-5">
               {events.length > 0 && (
                 <Section title="Calendar" count={events.length}>
                   <div className="space-y-px">
@@ -239,7 +241,7 @@ export function TodayView() {
                   </button>
                 </>
               )}
-            </div>
+            </motion.div>
           </div>
           <div className="hidden pt-4 pb-6 @min-[1060px]:flex">
             <ScheduleRail day={day} tasks={all} events={events} />

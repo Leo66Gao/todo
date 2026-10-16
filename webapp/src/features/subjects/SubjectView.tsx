@@ -381,7 +381,7 @@ function PinnedCard({ note, color }: { note: StudyNote; color: string }) {
         <button
           type="button"
           onClick={() => navigate({ view: "note", id: note.id })}
-          className="card relative flex h-[132px] w-full flex-col overflow-hidden px-4 pt-3.5 pb-3 text-left transition-[background,transform] hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] active:scale-[0.985]"
+          className="card relative flex h-[132px] w-full flex-col overflow-hidden px-4 pt-3.5 pb-3 text-left transition-[background,transform] hover:bg-[image:linear-gradient(var(--row-hover),var(--row-hover))] pointer-fine:active:scale-[0.985]"
         >
           <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] opacity-70" style={{ background: color }} />
           <span className="truncate pr-6 text-sm font-semibold tracking-[-0.005em]">{note.title || "Untitled note"}</span>

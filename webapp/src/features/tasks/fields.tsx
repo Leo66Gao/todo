@@ -30,7 +30,7 @@ export const FieldButton = forwardRef<
         ref={ref}
         type="button"
         className={cn(
-          "inline-flex h-8 w-full items-center gap-2 rounded-ctl text-sm transition-[background-color,transform] duration-150 active:scale-[0.98]",
+          "inline-flex h-8 w-full items-center gap-2 rounded-ctl text-sm transition-[background-color,transform] duration-150 pointer-fine:active:scale-[0.98]",
           plain
             ? "px-2 hover:bg-fill data-[state=open]:bg-fill"
             : "bg-fill px-2.5 hover:bg-fill-strong data-[state=open]:bg-fill-strong",
@@ -238,7 +238,7 @@ export function LabelField({
       type="button"
       onClick={() => onChange(name)}
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-[7px] border px-2.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97]",
+        "inline-flex h-7 items-center gap-1.5 rounded-[7px] border px-2.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 pointer-fine:active:scale-[0.97]",
         selected ? "border-ink bg-ink text-on-ink" : "border-line-strong text-ink-2 hover:border-ink-4 hover:text-ink",
       )}
     >

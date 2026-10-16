@@ -335,7 +335,7 @@ function MonthPicker({ month, onPick }: { month: Date; onPick: (d: Date) => void
                   setOpen(false);
                 }}
                 className={cn(
-                  "h-9 rounded-ctl text-sm transition-[background-color,transform] active:scale-[0.96]",
+                  "h-9 rounded-ctl text-sm transition-[background-color,transform] pointer-fine:active:scale-[0.96]",
                   current ? "bg-ink font-medium text-on-ink" : isNow ? "bg-fill font-medium text-accent" : "bg-fill/60 hover:bg-fill",
                 )}
               >
@@ -406,7 +406,7 @@ function MonthCell({
         onClick={onClick}
         aria-label={format(date, "EEEE d MMMM")}
         aria-pressed={selected}
-        className="relative flex h-[46px] flex-col items-center justify-center gap-0.5 transition-transform duration-150 active:scale-[0.92]"
+        className="relative flex h-[46px] flex-col items-center justify-center gap-0.5 transition-transform duration-150 pointer-fine:active:scale-[0.92]"
       >
         <span
           className={cn(

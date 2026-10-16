@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { useState, type ReactNode } from "react";
+import { motion } from "motion/react";
 import { CalendarDays, FileText, GraduationCap, Menu as MenuIcon, Plus, Sun } from "lucide-react";
 import { createNote } from "@/features/notes/noteActions";
 import { haptic } from "@/lib/native";
@@ -58,9 +58,16 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
   const drawer = useUI((s) => s.sidebarOpen);
   const hidden = useUI((s) => s.sidebarOpen || s.editor != null || s.inspectorId != null);
   const current = TABS.find((t) => t.view === route.view || t.also?.includes(route.view));
-  // The button keeps its place while hidden (it only fades), so the bar's
-  // width, and with it the glass, doesn't change as the menu slides in.
+  // The bubble moves the moment a tab is tapped, not once its page has
+  // rendered (navigation commits a beat later).
+  const [pending, setPending] = useState<Tab | null>(null);
+  if (pending && pending === current) setPending(null);
+  const shown = pending ?? current;
+  // The add button keeps its place where there is nothing to add, or while
+  // hidden (it only fades), so the bar never changes width: resizing the
+  // glass every frame dropped its refraction mid-animation.
   const canAdd = HAS_ADD.includes(route.view);
+  const off = hidden || !canAdd;
   return (
     <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-4 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
       <div className="pointer-events-auto relative grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
@@ -70,43 +77,39 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
             key={tab.view}
             label={tab.label}
             icon={tab.icon}
-            active={!drawer && current === tab}
+            active={!drawer && shown === tab}
             onClick={() => {
               if (current !== tab || drawer) haptic();
+              if (current !== tab) setPending(tab);
               ui.set({ sidebarOpen: false });
               navigate({ view: tab.view } as Route);
             }}
           />
         ))}
-        <TabButton label="More" icon={<MenuIcon />} active={drawer || !current} onClick={() => {
+        <TabButton label="More" icon={<MenuIcon />} active={drawer || !shown} onClick={() => {
             haptic();
             ui.set({ sidebarOpen: !drawer });
           }} />
       </div>
-      <AnimatePresence initial={false}>
-        {canAdd && (
-          <motion.button
-            type="button"
-            aria-label={route.view === "notes" ? "New note" : "New task"}
-            initial={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
-            animate={{ width: 58, marginLeft: 10, opacity: hidden ? 0 : 1, scale: hidden ? 0.7 : 1 }}
-            aria-hidden={hidden || undefined}
-            tabIndex={hidden ? -1 : undefined}
-            style={{ pointerEvents: hidden ? "none" : undefined }}
-            exit={{ width: 0, marginLeft: 0, opacity: 0, scale: 0.6 }}
-            whileTap={{ scale: 0.88, transition: springs.press }}
-            transition={springs.panel}
-            data-no-press
-            onClick={() => {
-              haptic("medium");
-              createForRoute(route, navigate);
-            }}
-            className="lens-round pointer-events-auto flex h-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink"
-          >
-            <Plus className="size-[25px] shrink-0" strokeWidth={2.1} />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      <motion.button
+        type="button"
+        aria-label={route.view === "notes" ? "New note" : "New task"}
+        initial={false}
+        animate={{ opacity: off ? 0 : 1, scale: off ? 0.7 : 1 }}
+        aria-hidden={off || undefined}
+        tabIndex={off ? -1 : undefined}
+        style={{ pointerEvents: off ? "none" : undefined }}
+        whileTap={{ scale: 0.88, transition: springs.press }}
+        transition={springs.panel}
+        data-no-press
+        onClick={() => {
+          haptic("medium");
+          createForRoute(route, navigate);
+        }}
+        className="lens-round pointer-events-auto ml-2.5 flex size-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full text-ink"
+      >
+        <Plus className="size-[25px] shrink-0" strokeWidth={2.1} />
+      </motion.button>
     </nav>
   );
 }
@@ -116,6 +119,9 @@ function TabButton({ label, icon, active, onClick }: { label: string; icon: Reac
     <button
       type="button"
       onClick={onClick}
+      // (The icon's own pop is the feedback; the shared press dip on top of
+      // it and the bubble's glide was too much for a tab.)
+      data-no-press
       aria-current={active ? "page" : undefined}
       aria-label={label}
       className={cn(
