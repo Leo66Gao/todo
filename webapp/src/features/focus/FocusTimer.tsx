@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Pause, Play, Plus, Square } from "lucide-react";
 import {
   advanceFocus,
+  retryNativeTimer,
   announceEnd,
   extendFocus,
   focusRound,
@@ -93,6 +94,11 @@ function logFocusTime(taskId: string, minutes: number) {
 
 export function FocusTimer() {
   useEffect(() => setFocusLogger(logFocusTime), []);
+  // The phone's timer missed a change: its notification and alerts may be off.
+  const nativeError = useFocus((s) => s.nativeError);
+  useEffect(() => {
+    if (nativeError) toast("The phone’s timer didn’t update, so its notification may be out of date.", { label: "Retry", run: () => void retryNativeTimer() });
+  }, [nativeError]);
   const session = useFocus((s) => s.session);
   const expanded = useFocus((s) => s.expanded);
   // (Hidden behind the open menu drawer rather than floating over it.)

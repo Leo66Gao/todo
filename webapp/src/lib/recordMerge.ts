@@ -83,6 +83,12 @@ export function mergeRecord(key: string, local: string, base: string | null, rem
     return JSON.stringify({ ...r, ...l, sources: mergeById(ls, bs, rs, (s) => s.id) });
   }
 
+  if (key === "settings:assignmentImports" || key === "settings:restoredIds") {
+    // By item, both devices' entries (what a feed said; where a restored item went).
+    if (!isObject(l) || !isObject(r)) return null;
+    return JSON.stringify({ ...r, ...l });
+  }
+
   if (key.startsWith("settings:versions:")) {
     const [lv, rv] = [versionList(l), versionList(r)];
     if (!lv || !rv) return null;

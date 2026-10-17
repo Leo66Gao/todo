@@ -43,7 +43,16 @@ export function BackupItems({ Item }: { Item: (props: { title: string; detail?: 
       if (!ok || !currentSession()) return;
       setBusy(true);
       const { records, updated, added } = mergeBackup(workspaceRecords(), backup.records);
-      await applyRestoredRecords(records);
+      const stored = await applyRestoredRecords(records);
+      if (!currentSession()) return;
+      if (!stored) {
+        // It's on screen, but not stored yet (saving retries on its own too).
+        toast("Restored, but it couldn’t be saved on this device yet. Keep the app open.", {
+          label: "Retry",
+          run: () => void flushWorkspaceSave().then(() => toast("Restore saved"), (e) => toast(e instanceof Error ? e.message : "Still couldn’t save.")),
+        });
+        return;
+      }
       toast(added || updated ? `Restored: ${added} brought back, ${updated} set back` : "Everything already matched the backup");
     } catch (error) {
       toast(error instanceof Error ? error.message : "Couldn’t restore the backup.");

@@ -7,6 +7,8 @@
 // ID, because sync keeps a permanent tombstone for a deleted ID and would
 // delete it again. References to a re-added item (a task's subject or parent,
 // a note's subject, folder, attachments, links and history) follow its new ID.
+// Which new ID each item got is kept (synced), so restoring the same backup
+// again sets those copies back instead of adding more.
 
 type Records = Record<string, string>;
 type Json = Record<string, unknown>;
@@ -25,6 +27,8 @@ const ENTITY_KINDS = new Set(["task", "project", "note", "folder"]);
 const ORDER = "settings:order";
 const SOURCES = "settings:sources";
 const VERSIONS = "settings:versions:";
+/** For each backed-up item restored under a new ID ("note:<old>"), that ID. */
+export const RESTORED = "settings:restoredIds";
 
 export function makeBackup(records: Records, now = new Date()): BackupFile {
   return { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: now.toISOString(), records };
@@ -71,14 +75,33 @@ export interface MergeResult {
 /** Merges a backup into the current records (see the notes at the top). */
 export function mergeBackup(current: Records, backup: Records, newId: () => string = () => crypto.randomUUID()): MergeResult {
   const ids = new Map<string, string>();
+  /** Old IDs whose restored copy is still there: set back, not added again. */
+  const again = new Set<string>();
+  const restored: Record<string, string> = { ...readMap(current[RESTORED]) };
   for (const key of Object.keys(backup)) {
     const [kind, ...rest] = key.split(":");
-    if (ENTITY_KINDS.has(kind) && !(key in current)) ids.set(rest.join(":"), newId());
+    if (!ENTITY_KINDS.has(kind) || key in current) continue;
+    const id = rest.join(":");
+    const prior = restored[key];
+    if (prior && `${kind}:${prior}` in current) {
+      ids.set(id, prior);
+      again.add(id);
+    } else {
+      // (Gone too, when it was restored before and deleted since: a new copy.)
+      const fresh = newId();
+      ids.set(id, fresh);
+      restored[key] = fresh;
+    }
   }
   const remap = (id: unknown) => (typeof id === "string" ? (ids.get(id) ?? id) : id);
   const linkMoves = [...ids].map(([from, to]) => [`/note?id=${encodeURIComponent(from)}`, `/note?id=${encodeURIComponent(to)}`]);
   const relink = (content: unknown) =>
     typeof content === "string" ? linkMoves.reduce((text, [from, to]) => text.split(`"${from}"`).join(`"${to}"`), content) : content;
+  const relinkVersions = (payload: string) => {
+    const value = linkMoves.length ? parse(payload) : null;
+    if (!value || !Array.isArray(value.versions)) return payload;
+    return JSON.stringify({ ...value, versions: value.versions.map((v) => (v && typeof v === "object" ? { ...(v as Json), content: relink((v as Json).content) } : v)) });
+  };
 
   const out: Records = { ...current };
   let updated = 0;
@@ -89,12 +112,18 @@ export function mergeBackup(current: Records, backup: Records, newId: () => stri
     if (ENTITY_KINDS.has(kind)) {
       const value = parse(payload);
       if (!value) continue;
-      const fresh = ids.has(id);
+      const fresh = ids.has(id) && !again.has(id);
+      const target = `${kind}:${ids.get(id) ?? id}`;
       const next: Json = { ...value, id: remap(value.id) };
       if (kind === "task") {
         next.projectId = remap(value.projectId);
         next.parentTaskId = remap(value.parentTaskId);
-        if (fresh) {
+        if (again.has(id)) {
+          // The restored copy keeps its own calendar event.
+          const copy = parse(current[target]);
+          next.googleEventId = copy?.googleEventId ?? null;
+          next.calendarEventRevision = copy?.calendarEventRevision ?? 0;
+        } else if (fresh) {
           // A re-added task never reuses a deleted calendar event.
           next.googleEventId = null;
           next.calendarEventRevision = (typeof value.calendarEventRevision === "number" ? value.calendarEventRevision : 0) + 1;
@@ -109,27 +138,36 @@ export function mergeBackup(current: Records, backup: Records, newId: () => stri
       } else if (kind === "folder") {
         next.subjectId = remap(value.subjectId);
       }
-      out[`${kind}:${fresh ? ids.get(id) : id}`] = JSON.stringify(next);
+      const encoded = JSON.stringify(next);
+      out[target] = encoded;
       if (fresh) added++;
-      else if (current[key] !== payload) updated++;
+      else if (current[target] !== (again.has(id) ? encoded : payload)) updated++;
       continue;
     }
-    if (key === ORDER) continue;
+    // (This device's record of restored IDs is newer than any backup's.)
+    if (key === ORDER || key === RESTORED) continue;
     if (key === SOURCES) {
       out[key] = mergeSources(current[key], payload);
       continue;
     }
     if (key.startsWith(VERSIONS)) {
-      out[`${VERSIONS}${remap(key.slice(VERSIONS.length))}`] = payload;
+      // Older versions' links to a re-added note follow it as well.
+      out[`${VERSIONS}${remap(key.slice(VERSIONS.length))}`] = relinkVersions(payload);
       continue;
     }
     // Settings, tags, Recently deleted and anything newer: the backed-up value.
     out[key] = payload;
   }
 
+  if (Object.keys(restored).length) out[RESTORED] = JSON.stringify(restored);
+
   // Current links to a re-added note follow it too.
   if (linkMoves.length) {
     for (const [key, payload] of Object.entries(out)) {
+      if (key.startsWith(VERSIONS)) {
+        out[key] = relinkVersions(payload);
+        continue;
+      }
       if (!key.startsWith("note:")) continue;
       const value = parse(payload);
       if (!value || typeof value.content !== "string") continue;
@@ -145,6 +183,12 @@ export function mergeBackup(current: Records, backup: Records, newId: () => stri
   for (const key of Object.keys(out)) if (key.startsWith("task:") && !order.includes(key.slice(5))) order.push(key.slice(5));
   out[ORDER] = JSON.stringify(order);
   return { records: out, updated, added };
+}
+
+function readMap(payload: string | undefined): Record<string, string> {
+  const value = payload ? parse(payload) : null;
+  if (!value) return {};
+  return Object.fromEntries(Object.entries(value).filter((e): e is [string, string] => typeof e[1] === "string"));
 }
 
 function readList(payload: string | undefined): string[] {

@@ -55,3 +55,36 @@ it("merges the source library instead of replacing newer sources", () => {
   const merged = JSON.parse(mergeBackup(current, backup, ids).records["settings:sources"]);
   expect(merged.sources).toEqual([{ id: "a", title: "Then" }, { id: "b", title: "Newer" }]);
 });
+
+it("restoring the same backup again sets the restored copies back instead of adding more", () => {
+  n = 100;
+  const backup = { "note:a": note("a", "[]", { title: "Essay" }), "task:t": task("t") };
+  const first = mergeBackup({}, backup, ids);
+  expect(first.added).toBe(2);
+  // Edited since; then the same file is restored again.
+  const edited = { ...first.records, "note:new-101": note("new-101", "[]", { title: "Changed" }) };
+  const second = mergeBackup(edited, backup, ids);
+  expect(second.added).toBe(0);
+  expect(Object.keys(second.records).filter((k) => k.startsWith("note:"))).toEqual(["note:new-101"]);
+  expect(JSON.parse(second.records["note:new-101"]).title).toBe("Essay");
+  // Its copy deleted too: a third restore brings a new one.
+  const { "note:new-101": _gone, ...withoutCopy } = second.records;
+  void _gone;
+  const third = mergeBackup(withoutCopy, backup, ids);
+  expect(third.added).toBe(1);
+  expect(Object.keys(third.records).filter((k) => k.startsWith("note:"))).toEqual(["note:new-103"]);
+});
+
+it("points older versions' links at a re-added note", () => {
+  n = 200;
+  const link = (id: string) => JSON.stringify([{ insert: "see", attributes: { link: `/note?id=${id}` } }]);
+  const backup = {
+    "note:target": note("target"),
+    "note:linker": note("linker", link("target")),
+    "settings:versions:linker": JSON.stringify({ versions: [{ at: 1, title: "linker", content: link("target") }] }),
+  };
+  const { records } = mergeBackup({ "note:linker": note("linker", link("target")) }, backup, ids);
+  const history = JSON.parse(records["settings:versions:linker"]).versions;
+  expect(history[0].content).toContain("/note?id=new-201");
+  expect(history[0].content).not.toContain("/note?id=target");
+});

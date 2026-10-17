@@ -10,11 +10,19 @@ import type { Project } from "@/lib/model";
 import { getLocal, setLocal } from "@/lib/prefs";
 import { startOfDay } from "@/lib/time";
 import { ensureMonths, modeOf, setMonthListener, useGoogleEvents, type GEvent } from "@/lib/googleEvents";
-import { addTask, newTask, updateTask, useWorkspace } from "@/store/workspace";
+import { addTask, newTask, readSide, updateTask, useWorkspace, writeSide } from "@/store/workspace";
 
-/** What was last imported for each task (to tell the school's edits from yours). */
+/**
+ * What the feed last said for each task (to tell the school's edits from
+ * yours). Synced, so a new device knows it too: it neither takes your edited
+ * title for the school's, nor brings back an assignment you deleted.
+ */
 type Imported = Record<string, { title: string; date: number }>;
+export const IMPORTED = "settings:assignmentImports";
+/** Where it was kept on each device before. */
 const importedKey = (uid: string) => `gcal.imported.${uid}`;
+/** Deadlines this long gone are forgotten (they're no longer imported anyway). */
+const KEEP_MS = 90 * 86_400_000;
 
 export function importedTaskId(event: Pick<GEvent, "calendarId" | "id">) {
   let h = 2166136261;
@@ -72,7 +80,7 @@ export function importAssignments(events: GEvent[]) {
   const calendars = useGoogleEvents.getState().calendars;
   const feeds = new Set(calendars.filter((c) => modeOf(c) === "assignments").map((c) => c.id));
   if (feeds.size === 0) return;
-  const imported = getLocal<Imported>(importedKey(user.uid), {});
+  const imported: Imported = { ...getLocal<Imported>(importedKey(user.uid), {}), ...readSide<Imported>(IMPORTED, {}) };
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const cutoff = startOfDay(new Date()).getTime() - 86_400_000;
   let changed = false;
@@ -104,11 +112,22 @@ export function importAssignments(events: GEvent[]) {
       imported[id] = { title, date: date.getTime() };
       changed = true;
     } else if (!last) {
-      imported[id] = { title: task.title, date: task.date.getTime() };
+      // The feed's own values: the task may already carry your edits.
+      imported[id] = { title, date: date.getTime() };
       changed = true;
     }
   }
-  if (changed) setLocal(importedKey(user.uid), imported);
+  for (const [id, entry] of Object.entries(imported)) {
+    if (entry.date < cutoff - KEEP_MS) {
+      delete imported[id];
+      changed = true;
+    }
+  }
+  if (getLocal<Imported | null>(importedKey(user.uid), null)) {
+    setLocal(importedKey(user.uid), null);
+    changed = true;
+  }
+  if (changed) writeSide(IMPORTED, imported);
 }
 
 /** Keeps the coming months of every assignment feed loaded (and so imported). */

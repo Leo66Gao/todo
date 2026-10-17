@@ -37,9 +37,11 @@ export const POMODORO_BREAK = 5;
 const STORE = "focus.session";
 export const FOCUS_NOTIFICATION_ID = 1_999_000_001;
 
-export const useFocus = create<{ session: FocusSession | null; expanded: boolean }>(() => ({
+export const useFocus = create<{ session: FocusSession | null; expanded: boolean; nativeError: string | null }>(() => ({
   session: typeof window === "undefined" ? null : getLocal<FocusSession | null>(STORE, null),
   expanded: false,
+  /** Why the phone's timer (notification and alerts) didn't take the last change, if it didn't. */
+  nativeError: null,
 }));
 
 /** Bumped by every change made in the app, so a read of the phone's timer that started before one is dropped. */
@@ -286,9 +288,19 @@ let nativeQueue: Promise<void> = Promise.resolve();
 /** Sends the session to the phone's timer, in order (a quick pause and resume can't arrive swapped). */
 function scheduleEnd(session: FocusSession | null) {
   if (!isNative()) return Promise.resolve();
-  nativeQueue = nativeQueue.then(() => sendToNative(session)).catch(() => {});
+  nativeQueue = nativeQueue
+    .then(() => sendToNative(session))
+    .then(
+      () => {
+        if (useFocus.getState().nativeError) useFocus.setState({ nativeError: null });
+      },
+      (e) => useFocus.setState({ nativeError: e instanceof Error ? e.message : String(e) }),
+    );
   return nativeQueue;
 }
+
+/** Sends the current session to the phone's timer again (after it failed). */
+export const retryNativeTimer = () => scheduleEnd(useFocus.getState().session);
 
 async function sendToNative(session: FocusSession | null) {
   // Before the native timer, round ends were scheduled local notifications.
@@ -300,7 +312,7 @@ async function sendToNative(session: FocusSession | null) {
     }).catch(() => {});
   }
   const live = session && (session.endsAt == null ? (session.left ?? 0) > 0 : totalLeft(session) > 0);
-  await FocusTimer.update({ state: live ? toNative(session) : null }).catch(() => {});
+  await FocusTimer.update({ state: live ? toNative(session) : null });
 }
 
 /** Takes in what was done from the notification since the app last looked. */

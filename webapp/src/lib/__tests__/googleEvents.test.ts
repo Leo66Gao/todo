@@ -255,3 +255,37 @@ it("imports an assignment once, keeps a deleted one deleted, and follows a moved
   importAssignments([event]);
   expect(ws.useWorkspace.getState().tasks).toHaveLength(0);
 });
+
+it("on a new device, keeps your edited assignment title and leaves deleted ones deleted", async () => {
+  vi.stubGlobal("window", { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } });
+  vi.stubGlobal("document", { addEventListener: () => {}, visibilityState: "visible" });
+  const ws = await import("@/store/workspace");
+  const events = await import("../googleEvents");
+  const { IMPORTED, importAssignments, importedTaskId: idOf } = await import("@/features/events/assignmentImport");
+  const soon = new Date();
+  soon.setDate(soon.getDate() + 5);
+  const day = `${soon.getFullYear()}-${String(soon.getMonth() + 1).padStart(2, "0")}-${String(soon.getDate()).padStart(2, "0")}`;
+  const lab = events.decodeEvent({ id: "lab", summary: "Lab report", start: { date: day } }, cal)!;
+  const quiz = events.decodeEvent({ id: "quiz", summary: "Quiz", start: { date: day } }, cal)!;
+  // Synced from device A: the lab renamed by you, the quiz deleted (and A's record of the feed).
+  const renamed = ws.newTask({ id: idOf(lab), title: "Lab report (draft due)", date: lab.start, type: "assignment" });
+  const seen = { [idOf(lab)]: { title: "Lab report", date: lab.start.getTime() }, [idOf(quiz)]: { title: "Quiz", date: quiz.start.getTime() } };
+  ws.useWorkspace.setState({
+    user: { uid: "u", email: null, displayName: null, photoURL: null },
+    isLoading: false,
+    tasks: [renamed],
+    projects: subjects,
+    side: { [IMPORTED]: JSON.stringify(seen) },
+    syncDetails: { ...ws.useWorkspace.getState().syncDetails, lastDownloadedAt: Date.now() },
+  });
+  events.useGoogleEvents.setState({ uid: "u", calendars: [cal], modes: { school: "assignments" } });
+  importAssignments([lab, quiz]);
+  importAssignments([lab, quiz]);
+  expect(ws.useWorkspace.getState().tasks.map((t) => t.title)).toEqual(["Lab report (draft due)"]);
+  // Without A's record (an older version): the feed's title is still what's kept, not yours.
+  ws.useWorkspace.setState({ side: {} });
+  importAssignments([lab]);
+  importAssignments([lab]);
+  expect(ws.useWorkspace.getState().tasks.map((t) => t.title)).toEqual(["Lab report (draft due)"]);
+  expect(JSON.parse(ws.useWorkspace.getState().side[IMPORTED])[idOf(lab)].title).toBe("Lab report");
+});
