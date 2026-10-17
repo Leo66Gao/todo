@@ -3,8 +3,8 @@
 // The focus timer: one session at a time, for a task or on its own. It
 // survives reloads. On the phone it also runs outside the app: an ongoing
 // notification counts down (with Pause and Stop), and each round's end
-// alerts and moves on with the app closed (FocusTimer.java). Nothing is
-// recorded afterwards.
+// alerts and moves on with the app closed (FocusTimer.java). When a task's
+// session ends, the minutes of focus come off the task's remaining time.
 
 import { registerPlugin } from "@capacitor/core";
 import { create } from "zustand";
@@ -50,7 +50,30 @@ const save = (session: FocusSession | null) => {
 
 export const timeLeft = (s: FocusSession, now = Date.now()) => Math.max(0, s.endsAt != null ? s.endsAt - now : (s.left ?? 0));
 
+/** Focus time spent so far in a session (breaks don't count). */
+export function focusedMs(s: FocusSession, now = Date.now()) {
+  const current = s.kind === "focus" ? Math.max(0, s.length - timeLeft(s, now)) : 0;
+  if (!s.plan) return current;
+  return s.plan.blocks.slice(0, s.plan.index).reduce((sum, b) => sum + (b.kind === "focus" ? b.ms : 0), 0) + current;
+}
+
+let logger: ((taskId: string, minutes: number) => void) | null = null;
+/** Where a task's minutes of focus go when its session ends. */
+export const setFocusLogger = (log: typeof logger) => {
+  logger = log;
+};
+
+/** Ends the current session, crediting its focus time to its task. */
+function finishCurrent() {
+  advanceFocus();
+  const s = useFocus.getState().session;
+  if (!s?.taskId) return;
+  const minutes = Math.floor(focusedMs(s) / 60_000);
+  if (minutes >= 1) logger?.(s.taskId, minutes);
+}
+
 export function startFocus(minutes: number, task?: { id: string; title: string } | null, kind: FocusSession["kind"] = "focus") {
+  finishCurrent();
   const length = Math.round(minutes * 60_000);
   save({ taskId: task?.id ?? null, title: task?.title ?? "", length, endsAt: Date.now() + length, left: null, kind });
   useFocus.setState({ expanded: false });
@@ -76,6 +99,7 @@ export function pomodoroBlocks(minutes: number): FocusBlock[] {
  * The timer opens so it's clear it has started.
  */
 export function startTaskFocus(task: { id: string; title: string }, minutes: number) {
+  finishCurrent();
   const blocks = pomodoroBlocks(minutes > 0 ? minutes : POMODORO_FOCUS);
   save({
     taskId: task.id,
@@ -153,6 +177,7 @@ export function extendFocus(minutes: number) {
 }
 
 export function stopFocus() {
+  finishCurrent();
   save(null);
   useFocus.setState({ expanded: false });
 }

@@ -38,3 +38,18 @@ it("hands the phone's timer every round, and takes back what it did", async () =
   expect(single.blocks).toEqual([{ kind: "focus", ms: 25 * 60_000 }]);
   expect(fromNative(single, null).plan).toBeNull();
 });
+
+it("counts focus time but not breaks", async () => {
+  const { focusedMs, pomodoroBlocks } = await import("../focus");
+  const blocks = pomodoroBlocks(100); // f40 b5 f40 b5 f20
+  const now = 1_000_000;
+  const min = 60_000;
+  // Ten minutes into the second focus round.
+  const second = { taskId: "t", title: "Essay", length: 40 * min, endsAt: now + 30 * min, left: null, kind: "focus" as const, plan: { blocks, index: 2 } };
+  expect(focusedMs(second, now)).toBe(50 * min);
+  // Two minutes into the first break.
+  const onBreak = { ...second, kind: "break" as const, length: 5 * min, endsAt: now + 3 * min, plan: { blocks, index: 1 } };
+  expect(focusedMs(onBreak, now)).toBe(40 * min);
+  // Paused with 5 of 25 minutes left, no plan.
+  expect(focusedMs({ taskId: null, title: "", length: 25 * min, endsAt: null, left: 5 * min, kind: "focus" }, now)).toBe(20 * min);
+});
