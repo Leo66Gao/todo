@@ -17,7 +17,7 @@ import {
 } from "firebase/auth";
 import { CloudSync, type SyncDetails } from "@/lib/cloudSync";
 import { readGuestCache, saveGuestCache } from "@/lib/deviceCache";
-import { acknowledgeDraft, discardRecordDrafts, readDrafts, resolveDraft, type EditorDraft } from "@/lib/editorDrafts";
+import { acknowledgeDraft, discardAllDrafts, discardRecordDrafts, readDrafts, resolveDraft, type EditorDraft } from "@/lib/editorDrafts";
 import { recoveryRecords } from "@/lib/recordRecovery";
 import { versionsKey, withVersion, type Version } from "@/lib/versions";
 import { firebase } from "@/lib/firebase";
@@ -1081,6 +1081,8 @@ export async function clearWorkspace() {
     settings: defaultSettings(),
     side: {},
   });
+  // Unsaved editor drafts too: at the next start they'd bring a note back.
+  try { discardAllDrafts(get().user?.uid ?? ""); } catch { /* The deletion itself can still be saved. */ }
   const stored = await saveData();
   if (!currentSession()) throw new Error("Account changed during workspace deletion.");
   // Signed in, the cloud is what counts (even if the device copy failed).

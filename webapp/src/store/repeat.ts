@@ -3,7 +3,7 @@
 // Making, changing and topping up repeating tasks (see lib/repeat.ts).
 
 import { uuid, type Task } from "@/lib/model";
-import { AHEAD_DAYS, TOP_UP_DAYS, dayString, occurrenceId, readRepeat, repeatDays, wantedDays, type Repeat, type RepeatRule } from "@/lib/repeat";
+import { AHEAD_DAYS, TOP_UP_DAYS, dayString, occurrenceId, readRepeat, repeatDays, templateOf, wantedDays, withTemplate, type Repeat, type RepeatRule } from "@/lib/repeat";
 import { addDays, startOfDay, today } from "@/lib/time";
 import { TRASH_PREFIX } from "./trash";
 import { addTask, deleteTask, updateTask, useWorkspace } from "./workspace";
@@ -65,7 +65,8 @@ export function setRepeat(taskId: string, chosen: RepeatRule | null): { added: n
     }
     return { added: 0, removed };
   }
-  const repeat: Repeat = { series: current?.series ?? task.id, rev: (current?.rev ?? 0) + 1, rule };
+  // New days are made from this task as it is now, not from whichever task ends up last.
+  const repeat: Repeat = { series: current?.series ?? task.id, rev: (current?.rev ?? 0) + 1, rule, template: templateOf(task) };
   const wanted = new Set(wantedDays(rule, now).map(dayString));
   wanted.add(dayString(task.date));
   let removed = 0;
@@ -138,8 +139,9 @@ export function changesShared(before: Task, after: Task): boolean {
   );
 }
 
-/** Copies the shared fields (and the time of day) of [task] to the series' upcoming tasks. */
+/** Copies the shared fields (and the time of day) of [task] to the series' upcoming tasks, and to the days still to be made. */
 export function applyToUpcoming(task: Task) {
+  const repeat = readRepeat(task);
   for (const t of upcomingOf(task)) {
     const next: Task = { ...t };
     for (const f of SHARED) Object.assign(next, { [f]: task[f] });
@@ -152,13 +154,19 @@ export function applyToUpcoming(task: Task) {
     next.extra = extra;
     updateTask(next);
   }
+  if (!repeat) return;
+  const template = templateOf(task);
+  for (const t of tasksOf(repeat.series)) {
+    const own = readRepeat(t);
+    if (own) updateTask(withRepeat(t, { ...own, template }));
+  }
 }
 
 /**
  * Keeps every rule's tasks a few weeks ahead: when a series' last task is
  * less than [TOP_UP_DAYS] away, the days up to [AHEAD_DAYS] ahead are added,
- * copied from that last task. Only the end is extended, so a day you deleted
- * doesn't come back.
+ * made from the series' template (older series: from that last task). Only
+ * the end is extended, so a day you deleted doesn't come back.
  */
 export function topUpRepeats(now = today()) {
   const series = new Map<string, Task[]>();
@@ -181,7 +189,9 @@ export function topUpRepeats(now = today()) {
     for (const day of days) {
       const id = occurrenceId(repeat, day);
       // A day deleted at the end of the series stays deleted.
-      if (!ids.has(id) && !(`${TRASH_PREFIX}task:${id}` in side)) addTask(occurrenceOf(last, day, repeat, id));
+      // From the series' template: a change made to the last task alone stays on it.
+      const source = repeat.template ? withTemplate(last, repeat.template) : last;
+      if (!ids.has(id) && !(`${TRASH_PREFIX}task:${id}` in side)) addTask(occurrenceOf(source, day, repeat, id));
     }
   }
 }

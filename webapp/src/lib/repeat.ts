@@ -35,6 +35,88 @@ export interface Repeat {
   /** Bumped on every change to the series, so new days get fresh IDs. */
   rev: number;
   rule: RepeatRule;
+  /**
+   * What new days are made from: the series as set up, or as last changed
+   * with "this and upcoming". (Without it, new days copied the last task,
+   * so a change made to that one task alone spread to every later one.)
+   * Older series have none and fall back to the last task.
+   */
+  template?: SeriesTemplate;
+}
+
+/** The fields a series' tasks share, and its time of day (minutes after midnight, or null for none). */
+export interface SeriesTemplate {
+  title: string;
+  notes: string;
+  type: Task["type"];
+  priority: Task["priority"];
+  difficulty: number;
+  difficultySelected?: boolean;
+  durationMinutes: number;
+  projectId: string | null;
+  category: string;
+  minute: number | null;
+}
+
+/** [task]'s shared fields, as a series template. */
+export function templateOf(task: Task): SeriesTemplate {
+  return {
+    title: task.title,
+    notes: task.notes,
+    type: task.type,
+    priority: task.priority,
+    difficulty: task.difficulty,
+    ...(task.extra?.difficultySelected === true ? { difficultySelected: true } : {}),
+    durationMinutes: task.durationMinutes,
+    projectId: task.projectId,
+    category: task.category,
+    minute: task.startTime ? task.startTime.getHours() * 60 + task.startTime.getMinutes() : null,
+  };
+}
+
+/** [task] with the template's shared fields and time of day. */
+export function withTemplate(task: Task, t: SeriesTemplate): Task {
+  const extra = { ...task.extra };
+  if (t.difficultySelected) extra.difficultySelected = true;
+  else delete extra.difficultySelected;
+  return {
+    ...task,
+    title: t.title,
+    notes: t.notes,
+    type: t.type,
+    priority: t.priority,
+    difficulty: t.difficulty,
+    durationMinutes: t.durationMinutes,
+    remainingMinutes: t.durationMinutes,
+    projectId: t.projectId,
+    category: t.category,
+    startTime: t.minute == null ? null : new Date(task.date.getFullYear(), task.date.getMonth(), task.date.getDate(), Math.floor(t.minute / 60), t.minute % 60),
+    extra: Object.keys(extra).length ? extra : undefined,
+  };
+}
+
+function readTemplate(raw: unknown): SeriesTemplate | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const t = raw as Record<string, unknown>;
+  const str = (v: unknown) => typeof v === "string";
+  const num = (v: unknown) => typeof v === "number" && Number.isFinite(v);
+  if (!str(t.title) || !str(t.notes) || !str(t.category) || !num(t.difficulty) || !num(t.durationMinutes)) return undefined;
+  if (t.type !== "todo" && t.type !== "assignment") return undefined;
+  if (!["none", "low", "medium", "high", "critical"].includes(t.priority as string)) return undefined;
+  if (t.projectId !== null && !str(t.projectId)) return undefined;
+  if (t.minute !== null && !(num(t.minute) && (t.minute as number) >= 0 && (t.minute as number) < 1440)) return undefined;
+  return {
+    title: t.title as string,
+    notes: t.notes as string,
+    type: t.type,
+    priority: t.priority as SeriesTemplate["priority"],
+    difficulty: t.difficulty as number,
+    ...(t.difficultySelected === true ? { difficultySelected: true } : {}),
+    durationMinutes: t.durationMinutes as number,
+    projectId: t.projectId as string | null,
+    category: t.category as string,
+    minute: t.minute as number | null,
+  };
 }
 
 /** How far ahead a rule's days are made, and when they're topped up. */
@@ -55,6 +137,11 @@ export function parseDay(s: unknown): Date | null {
 
 const daysBetween = (a: Date, b: Date) => Math.round((startOfDay(b).getTime() - startOfDay(a).getTime()) / 86_400_000);
 
+const withStoredTemplate = (raw: unknown) => {
+  const template = readTemplate(raw);
+  return template ? { template } : {};
+};
+
 /** The task's series, if it repeats (the stored value is checked: it's synced data). */
 export function readRepeat(task: Pick<Task, "extra">): Repeat | null {
   const raw = task.extra?.repeat as Record<string, unknown> | undefined;
@@ -63,7 +150,7 @@ export function readRepeat(task: Pick<Task, "extra">): Repeat | null {
   const rev = typeof raw.rev === "number" && Number.isFinite(raw.rev) ? raw.rev : 0;
   if (rule?.kind === "days" && Array.isArray(rule.days)) {
     const days = [...new Set(rule.days.filter((d): d is string => parseDay(d) != null))].sort().slice(0, MAX_PICKED);
-    return { series: raw.series, rev, rule: { kind: "days", days } };
+    return { series: raw.series, rev, rule: { kind: "days", days }, ...withStoredTemplate(raw.template) };
   }
   if (rule?.kind === "rule" && ["day", "week", "month", "year"].includes(rule.unit as string) && parseDay(rule.start)) {
     const every = typeof rule.every === "number" && rule.every >= 1 ? Math.min(99, Math.floor(rule.every)) : 1;
@@ -72,6 +159,7 @@ export function readRepeat(task: Pick<Task, "extra">): Repeat | null {
       series: raw.series,
       rev,
       rule: { kind: "rule", every, unit: rule.unit as RepeatUnit, ...(weekdays?.length ? { weekdays } : {}), start: rule.start as string, until: parseDay(rule.until) ? (rule.until as string) : null },
+      ...withStoredTemplate(raw.template),
     };
   }
   return null;

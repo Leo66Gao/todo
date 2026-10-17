@@ -3,17 +3,28 @@
 // order, the tags, the source library and each note's history. Each merge
 // is three-way when this device knows the value its edit started from (the
 // base): something removed on one side stays removed, something added on
-// either side is kept, and for anything both changed this device's edit wins.
+// either side is kept, an edit made on one side is kept, and for anything
+// both changed this device's edit wins.
 
 import { mergeVersions, type Version } from "./versions";
 
-/** `local` with the other side's additions and removals since `base` folded in. */
+/**
+ * `local` with the other side's additions, removals and edits since `base`
+ * folded in. An item both have takes the other side's version when only
+ * that side changed it (compared with the base); this side's when it did.
+ */
 export function mergeById<T>(local: T[], base: T[] | null, remote: T[], id: (item: T) => string): T[] {
-  const baseIds = new Set((base ?? []).map(id));
-  const remoteIds = new Set(remote.map(id));
+  const baseById = new Map((base ?? []).map((item) => [id(item), item]));
+  const baseIds = new Set(baseById.keys());
+  const remoteById = new Map(remote.map((item) => [id(item), item]));
+  const remoteIds = new Set(remoteById.keys());
   const localIds = new Set(local.map(id));
-  // Removed on the other device since the base.
-  const out = local.filter((item) => !(baseIds.has(id(item)) && !remoteIds.has(id(item))));
+  const same = (a: T | undefined, b: T | undefined) => a !== undefined && b !== undefined && JSON.stringify(a) === JSON.stringify(b);
+  const out = local
+    // Removed on the other device since the base.
+    .filter((item) => !(baseIds.has(id(item)) && !remoteIds.has(id(item))))
+    // Unchanged here but edited there: the other device's edit.
+    .map((item) => (same(item, baseById.get(id(item))) ? (remoteById.get(id(item)) ?? item) : item));
   remote.forEach((item, i) => {
     const key = id(item);
     // Already here, or removed on this device since the base.

@@ -37,6 +37,16 @@ describe("mergeRecord", () => {
     });
   });
 
+  it("keeps the other device's edit to a source this device didn't change", () => {
+    const base = { style: "mla", sources: [{ id: "A", title: "Typo" }] };
+    const local = { style: "mla", sources: [{ id: "A", title: "Typo" }, { id: "B", title: "New here" }] };
+    const remote = { style: "mla", sources: [{ id: "A", title: "Fixed" }] };
+    expect(JSON.parse(mergeRecord("settings:sources", j(local), j(base), j(remote))!).sources).toEqual([
+      { id: "A", title: "Fixed" },
+      { id: "B", title: "New here" },
+    ]);
+  });
+
   it("merges note history newest first, each version once", () => {
     const v = (at: number) => ({ at, title: "T", content: String(at) });
     const merged = JSON.parse(mergeRecord("settings:versions:n", j({ versions: [v(3), v(1)] }), null, j({ versions: [v(2), v(1)] }))!);

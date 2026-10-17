@@ -68,6 +68,11 @@ export function discardRecordDrafts(owner: string, kind: DraftKind, recordId: st
   for (const entry of readDrafts(owner)) if (entry.kind === kind && entry.recordId === recordId) acknowledgeDraft(entry);
 }
 
+/** Forgets every draft of [owner] (the workspace was deleted: nothing may come back from them). */
+export function discardAllDrafts(owner: string) {
+  for (const entry of readDrafts(owner)) window.localStorage.removeItem(keyOf(entry));
+}
+
 /** Merge only edited fields. A concurrent edit of one of those fields forks. */
 export function resolveDraft(entry: EditorDraft, current: Record<string, unknown> | null) {
   const conflicted = !current || Object.entries(entry.patch).some(([field, value]) => current[field] !== entry.base[field] && current[field] !== value);

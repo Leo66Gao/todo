@@ -105,3 +105,13 @@ it("preserves a concurrent task-note edit without replacing its Calendar event",
   expect(ws.useWorkspace.getState().tasks.find((t) => t.id === original.id)).toMatchObject({ notes: "Remote", googleEventId: "calendar-original" });
   expect(ws.useWorkspace.getState().tasks.find((t) => t.id === result.id)).toMatchObject({ notes: "My draft", googleEventId: null, durationMinutes: 90, isConflictCopy: true });
 });
+
+it("deleting the workspace forgets unsaved drafts, so nothing comes back at the next start", async () => {
+  const ws = await import("@/store/workspace");
+  const { decodeNote } = await import("../model");
+  storeDraft(changeDraft(null, "", "note", base, "editor", "content", "Unfinished", base.content));
+  ws.useWorkspace.setState({ user: null, isLoading: false, notes: [decodeNote(base)], tasks: [], side: {} });
+  await ws.clearWorkspace();
+  expect(readDrafts("")).toEqual([]);
+  expect(ws.useWorkspace.getState().notes).toEqual([]);
+});

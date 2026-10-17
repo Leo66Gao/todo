@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { dayString, describeRepeat, readRepeat, repeatDays, type RepeatRule } from "../repeat";
 import { applyToUpcoming, changesShared, endSeriesBefore, setRepeat, topUpRepeats, upcomingOf } from "@/store/repeat";
 import { newTask, useWorkspace } from "@/store/workspace";
+import { addDays } from "../time";
 
 vi.mock("@/ui/toast", () => ({ toast: vi.fn() }));
 
@@ -116,4 +117,25 @@ it("stays ended after deleting a day and the ones after it", () => {
   // Undo gives the series its open end back.
   undo();
   expect(readRepeat(useWorkspace.getState().tasks[0])?.rule).not.toHaveProperty("until", "2026-10-13");
+});
+
+it("keeps a change to the last task on that task alone when topping up", () => {
+  vi.useFakeTimers({ now: new Date(2026, 9, 10, 12), toFake: ["Date"] });
+  const task = newTask({ title: "Run", date: d("2026-10-10") });
+  useWorkspace.setState({ tasks: [task] });
+  setRepeat(task.id, { kind: "rule", every: 1, unit: "day", start: "2026-10-10" });
+  const byDate = () => [...useWorkspace.getState().tasks].sort((a, b) => a.date.getTime() - b.date.getTime());
+  // "Only this one" on the last day made so far.
+  const last = byDate().at(-1)!;
+  useWorkspace.setState((st) => ({ tasks: st.tasks.map((t) => (t.id === last.id ? { ...t, title: "Long run" } : t)) }));
+  topUpRepeats(addDays(last.date, -1));
+  const after = byDate().filter((t) => t.date > last.date);
+  expect(after.length).toBeGreaterThan(0);
+  expect(after.every((t) => t.title === "Run")).toBe(true);
+  // "This and upcoming" changes the days still to be made too.
+  const first = byDate()[0];
+  applyToUpcoming({ ...first, title: "Easy run" });
+  const end = byDate().at(-1)!;
+  topUpRepeats(addDays(end.date, -1));
+  expect(byDate().filter((t) => t.date > end.date).every((t) => t.title === "Easy run")).toBe(true);
 });
