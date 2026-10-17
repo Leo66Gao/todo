@@ -67,11 +67,7 @@ function lensMap(w: number, h: number, radius: number, bezel: number): string {
   return url;
 }
 
-/**
- * The filter itself: refraction. (One displacement, not one per colour: the
- * split colours were barely visible and tripled the cost of every frame the
- * page under the glass moved, which on phones made scrolling stutter.)
- */
+/** The filter itself: refraction, with the colours split a touch at the rim. */
 export function LensFilter({ id, w, h, radius, bezel, scale = 26 }: { id: string; w: number; h: number; radius: number; bezel: number; scale?: number }) {
   // (Only rendered after mount, inside the app shell, so the DOM is there.)
   const url = useMemo(() => (typeof document === "undefined" ? "" : lensMap(w, h, radius, bezel)), [w, h, radius, bezel]);
@@ -80,7 +76,14 @@ export function LensFilter({ id, w, h, radius, bezel, scale = 26 }: { id: string
     <svg aria-hidden width="0" height="0" style={{ position: "absolute" }}>
       <filter id={id} filterUnits="userSpaceOnUse" x="0" y="0" width={w} height={h} colorInterpolationFilters="sRGB">
         <feImage href={url} x="0" y="0" width={w} height={h} preserveAspectRatio="none" result="m" />
-        <feDisplacementMap in="SourceGraphic" in2="m" scale={scale} xChannelSelector="R" yChannelSelector="G" />
+        <feDisplacementMap in="SourceGraphic" in2="m" scale={scale * 1.1} xChannelSelector="R" yChannelSelector="G" result="dr" />
+        <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
+        <feDisplacementMap in="SourceGraphic" in2="m" scale={scale} xChannelSelector="R" yChannelSelector="G" result="dg" />
+        <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
+        <feDisplacementMap in="SourceGraphic" in2="m" scale={scale * 0.9} xChannelSelector="R" yChannelSelector="G" result="db" />
+        <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
+        <feComposite in="cr" in2="cg" operator="arithmetic" k2="1" k3="1" result="rg" />
+        <feComposite in="rg" in2="cb" operator="arithmetic" k2="1" k3="1" />
       </filter>
     </svg>
   );
@@ -185,7 +188,7 @@ export function GlassLens({
       ref={ref}
       aria-hidden
       className={cn("lens-surface pointer-events-none absolute inset-0 rounded-[inherit]", className)}
-      style={refract && size ? { backdropFilter: `blur(${frost}px) saturate(1.9) brightness(1.04)${settling || !ready ? "" : ` url(#${id})`}` } : undefined}
+      style={size || !refract ? { backdropFilter: `blur(${frost}px) saturate(1.9) brightness(1.04)${!refract || settling || !ready ? "" : ` url(#${id})`}` } : undefined}
     >
       {refract && size && <LensFilter id={id} w={size.w} h={size.h} radius={Math.min(radius, size.h / 2)} bezel={bezel} scale={48} />}
     </span>

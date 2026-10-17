@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { flushSync } from "react-dom";
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { animate, AnimatePresence, motion, MotionConfig, useMotionValue, useTransform } from "motion/react";
 import {
@@ -829,12 +830,16 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
           s = null;
           return;
         }
-        x.set(-DRAWER_W);
-        setPulling(true);
+        x.jump(-DRAWER_W);
+        // "Being pulled" must land before "open": rendered open but not
+        // pulled for even a frame, the drawer sprang all the way out under a
+        // slow finger, then snapped back to it.
+        flushSync(() => setPulling(true));
         setOpen(true);
       }
       v.track(t.clientX);
-      x.set(Math.min(0, -DRAWER_W + dx));
+      // (jump, not set: nothing else may move it while the finger does.)
+      x.jump(Math.min(0, -DRAWER_W + dx));
     };
     const up = (e: TouchEvent) => {
       const cur = s;
@@ -886,7 +891,7 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       }
       if (s.axis === "x") {
         closeSpeed.current.track(t.clientX);
-        x.set(Math.min(0, dx));
+        x.jump(Math.min(0, dx));
       }
     },
     onTouchEnd(e: React.TouchEvent) {

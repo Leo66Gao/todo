@@ -67,7 +67,12 @@ export function NotesView() {
                 if (file) void importNote(file, navigate, subject?.id ?? null);
               }}
             />
-            <div ref={tools} className="flex items-center md:rounded-ctl md:px-0.5">
+            {/* (On phones each tool is its own round glass button, like the
+                other headers' buttons; grouped, the header's styling missed them.) */}
+            <div
+              ref={tools}
+              className="flex items-center md:rounded-ctl md:px-0.5 max-md:gap-2 max-md:[&_button]:size-11 max-md:[&_button]:rounded-full max-md:[&_button]:lens-chip max-md:[&_button]:text-ink"
+            >
               <Tooltip label="Sources">
                 <IconButton label="Sources" onClick={() => openSources()}>
                   <BookMarked className="size-4" />
