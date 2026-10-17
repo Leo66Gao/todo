@@ -60,7 +60,6 @@ export function dueLabel(date: Date, isDone = false) {
   if (days === -1) return "1 day overdue";
   if (days === 0) return "Today";
   if (days === 1) return "Tomorrow";
-  if (days < 7) return `In ${days} days`;
   return `In ${days} days`;
 }
 

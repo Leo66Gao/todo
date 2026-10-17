@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deltaFromContent, isEmptyContent, plainText, safeLink, withAutoLinks } from "@/lib/delta";
-import { parseTimeFromTitle, parseTimeToken } from "@/lib/timeParse";
+import { parseTimeToken } from "@/lib/timeParse";
 
 describe("time entry", () => {
   it.each([
@@ -17,16 +17,6 @@ describe("time entry", () => {
 
   it.each(["25", "13pm", "9.75", "noon"])("rejects %s", (input) => {
     expect(parseTimeToken(input)).toBeNull();
-  });
-
-  it("splits a trailing time off a title", () => {
-    expect(parseTimeFromTitle("Gym 18.30")).toEqual({ title: "Gym", time: { hour: 18, minute: 30 } });
-    expect(parseTimeFromTitle("Physics past paper 2 17")).toEqual({
-      title: "Physics past paper 2",
-      time: { hour: 17, minute: 0 },
-    });
-    expect(parseTimeFromTitle("18.30")).toEqual({ title: "18.30", time: null });
-    expect(parseTimeFromTitle("Read chapter 40")).toEqual({ title: "Read chapter 40", time: null });
   });
 });
 

@@ -1,5 +1,5 @@
 // Time entry, matching the Flutter app: "16", "18.30", "18:30", "6pm",
-// "9.15am", "10:45pm". A trailing time in a task title sets its start time.
+// "9.15am", "10:45pm".
 
 export interface ClockTime {
   hour: number;
@@ -28,21 +28,6 @@ export function parseTimeToken(text: string): ClockTime | null {
     if (meridiem === "am" && hour === 12) hour = 0;
   }
   return { hour, minute };
-}
-
-/** Splits a trailing time off a title: "Gym 18.30" → ("Gym", 18:30). */
-export function parseTimeFromTitle(title: string): { title: string; time: ClockTime | null } {
-  const trimmed = title.trim();
-  const parts = trimmed.split(/\s+/);
-  if (parts.length < 2) return { title: trimmed, time: null };
-  const last = parts[parts.length - 1];
-  // Same rule as Flutter: the last word must be a time on its own.
-  const match = /^(\d{1,2})([:.](\d{2}))?\s*(am|pm)?$/i.exec(last);
-  if (!match) return { title: trimmed, time: null };
-  const time = parseTimeToken(last);
-  if (!time) return { title: trimmed, time: null };
-  const rest = parts.slice(0, -1).join(" ");
-  return rest ? { title: rest, time } : { title: trimmed, time: null };
 }
 
 export const clockOf = (d: Date): ClockTime => ({ hour: d.getHours(), minute: d.getMinutes() });

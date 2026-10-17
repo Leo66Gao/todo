@@ -75,10 +75,9 @@ export const radiiLive = () => performance.now() < radiiLiveUntil;
 
 const OVERLAY = '[data-overlay], [role="dialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 /** A solid panel (the notes page): what sits on it keeps the regular look. */
-const PAPER = "[data-paper]";
 
 export function registerGlass(el: HTMLElement, spec: GlassSpec): () => void {
-  if (el.closest(OVERLAY) || el.closest(PAPER) || (spec.level === 2 && !spec.inScroll && el.closest(".scroll-area"))) return () => {};
+  if (el.closest(OVERLAY) || (spec.level === 2 && !spec.inScroll && el.closest(".scroll-area"))) return () => {};
   el.dataset.glass = String(spec.level);
   el.dataset.glassKind = spec.kind;
   glassEntries.set(el, { el, spec, clip: null, radiusPx: null, born: performance.now() });
