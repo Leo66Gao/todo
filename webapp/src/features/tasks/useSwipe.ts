@@ -5,12 +5,16 @@ import { animate, useMotionValue } from "motion/react";
 import { haptic } from "@/lib/native";
 import { springs } from "@/ui/motion";
 
-// (Set so a sideways brush of the thumb while scrolling doesn't complete or
-// delete a task: it takes a deliberate, mostly sideways swipe.)
-const THRESHOLD = 110;
+// Completing or deleting by swipe takes a deliberate swipe: nearly half the
+// row's width, started clearly sideways, and held past that point when the
+// finger lifts. (Flicks don't count: a brush of the thumb while scrolling
+// acted on tasks too easily.)
+/** How far the row must be pulled to arm the action: this share of its width, at least MIN_REACH px. */
+const REACH = 0.45;
+const MIN_REACH = 150;
 const LOCK = 14;
 /** How much more sideways than up-and-down a touch must start to be a swipe. */
-const SIDEWAYS = 2;
+const SIDEWAYS = 2.5;
 /** A touch held still this long is a long press (a drag or the editor), never a swipe (ms). */
 const HOLD = 240;
 
@@ -20,13 +24,13 @@ const HOLD = 240;
  * `touch-action: pan-y`). A long press belongs to dragging: a touch that
  * rests before it moves never swipes, and `cancel` stops one when a drag
  * starts, so moving a task to another day can't also complete or delete it.
- * A quick flick counts as well as a long swipe. A delete carries the row on
+ * Only a swipe held past its point acts. A delete carries the row on
  * off the side at the finger's speed before it goes; anything else springs
  * back the same way.
  */
 export function useSwipe(onRight: () => void, onLeft: () => void) {
   const x = useMotionValue(0);
-  const start = useRef<{ x: number; y: number; at: number; axis: "x" | "y" | "none" | null } | null>(null);
+  const start = useRef<{ x: number; y: number; at: number; axis: "x" | "y" | "none" | null; reach: number } | null>(null);
   /** The finger's last few positions, for its speed when it lets go. */
   const trail = useRef<{ x: number; t: number }[]>([]);
   const swiped = useRef(false);
@@ -52,7 +56,8 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
     onTouchStart(e: React.TouchEvent) {
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
-      start.current = { x: t.clientX, y: t.clientY, at: e.timeStamp, axis: null };
+      const width = (e.currentTarget as HTMLElement).offsetWidth;
+      start.current = { x: t.clientX, y: t.clientY, at: e.timeStamp, axis: null, reach: Math.max(MIN_REACH, width * REACH) };
       trail.current = [];
       swiped.current = false;
     },
@@ -71,10 +76,10 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
       const now = performance.now();
       trail.current = [...trail.current.filter((p) => now - p.t < 100), { x: t.clientX, t: now }];
       // Rubber-band past the threshold so the row never flies off.
-      const over = Math.max(0, Math.abs(dx) - THRESHOLD);
-      const shown = Math.sign(dx) * (Math.min(Math.abs(dx), THRESHOLD) + over * 0.35);
+      const over = Math.max(0, Math.abs(dx) - s.reach);
+      const shown = Math.sign(dx) * (Math.min(Math.abs(dx), s.reach) + over * 0.35);
       x.set(shown);
-      const next = dx >= THRESHOLD ? "right" : dx <= -THRESHOLD ? "left" : null;
+      const next = dx >= s.reach ? "right" : dx <= -s.reach ? "left" : null;
       // A tick as the action arms, so it's felt before letting go.
       if (next && next !== armed) haptic();
       setArmed(next);
@@ -82,10 +87,8 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
     onTouchEnd(e: React.TouchEvent) {
       const swiping = start.current?.axis === "x";
       const v = speed();
-      // A fast, clear flick counts too (more than halfway, and quick).
-      const shown = x.get();
-      const flick = Math.abs(shown) > 64 && Math.abs(v) > 1100 ? (v > 0 ? "right" : "left") : null;
-      const fire = swiping ? (armed ?? flick) : null;
+      // Only when still pulled past the point on letting go (pulling back cancels).
+      const fire = swiping ? armed : null;
       if (fire === "left") {
         // Off the side at the finger's speed, then gone.
         start.current = null;
