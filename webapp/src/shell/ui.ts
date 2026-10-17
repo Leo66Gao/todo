@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import type { Task } from "@/lib/model";
 import { getLocal, setLocal } from "@/lib/prefs";
-import { today } from "@/lib/time";
+import { addDays, sameDay, today } from "@/lib/time";
 import { useWorkspace } from "@/store/workspace";
 
 export type EditorState =
@@ -14,6 +14,8 @@ export type EditorState =
 let nonce = 0;
 
 interface UIState {
+  /** Today's date: moves on at midnight, or when the app comes back after one. */
+  today: Date;
   /** Day shown on the Today view. */
   day: Date;
   /** Any day inside the week shown on the Week view. */
@@ -41,6 +43,7 @@ interface UIState {
 }
 
 export const useUI = create<UIState>(() => ({
+  today: today(),
   day: today(),
   weekOf: today(),
   calendarDay: today(),
@@ -110,3 +113,38 @@ useUI.subscribe((state, prev) => {
     useUI.setState({ selectedId: null });
   }
 });
+
+/** On a new day: the new today, and the views that were showing the old one moved onto it. */
+export function rollOver(s: Pick<UIState, "today" | "day" | "weekOf" | "calendarDay">, now: Date) {
+  if (sameDay(now, s.today)) return null;
+  const follow = (d: Date) => (sameDay(d, s.today) ? now : d);
+  return { today: now, day: follow(s.day), weekOf: follow(s.weekOf), calendarDay: follow(s.calendarDay) };
+}
+
+let ticking = false;
+
+/**
+ * Keeps `today` current. The app can stay open for days (a tab, or the
+ * Android app in the background), so at midnight, and whenever it comes back
+ * into view, it checks the date; a view that was showing today moves on to
+ * the new today rather than staying on what is now yesterday.
+ */
+export function startDayTicker() {
+  if (ticking || typeof window === "undefined") return;
+  ticking = true;
+  let timer = 0;
+  const check = () => {
+    const now = today();
+    const next = rollOver(useUI.getState(), now);
+    if (next) useUI.setState(next);
+    window.clearTimeout(timer);
+    // Just after the next midnight; at most an hour, as timers drift while a device sleeps.
+    const untilMidnight = addDays(now, 1).getTime() - Date.now() + 1000;
+    timer = window.setTimeout(check, Math.min(untilMidnight, 3_600_000));
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) check();
+  });
+  window.addEventListener("focus", check);
+  check();
+}

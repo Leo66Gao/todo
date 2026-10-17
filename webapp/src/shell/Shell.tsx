@@ -68,7 +68,7 @@ import { startOffline } from "@/lib/offline";
 import { startPressFeedback } from "@/ui/press";
 import { InstallHint } from "./InstallHint";
 import { Sidebar } from "./Sidebar";
-import { ui, useUI } from "./ui";
+import { startDayTicker, ui, useUI } from "./ui";
 import { expireTrash } from "@/store/trash";
 
 export function Shell() {
@@ -106,12 +106,17 @@ export function Shell() {
     return () => media.removeEventListener("change", apply);
   }, [themeMode, mounted]);
 
+  useEffect(() => startDayTicker(), []);
+  const todayNow = useUI((s) => s.today);
   useEffect(() => {
     if (!mounted || isLoading) return;
     hideSplash();
-    // Recently deleted keeps things for 30 days.
-    expireTrash();
   }, [mounted, isLoading]);
+  useEffect(() => {
+    if (!mounted || isLoading) return;
+    // Recently deleted keeps things for 30 days: checked at launch and each new day.
+    expireTrash();
+  }, [mounted, isLoading, todayNow]);
 
   if (!mounted || isLoading) {
     return (

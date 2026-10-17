@@ -30,8 +30,9 @@ export function TodayView() {
   const all = useAllTasks();
   const { timed, untimed, done } = useMemo(() => tasksForDay(all, day), [all, day]);
   const events = useEvents(day, addDays(day, 1));
-  const isToday = sameDay(day, today());
-  const overdue = useMemo(() => (isToday ? overdueTasks(all) : []), [all, isToday]);
+  const now = useUI((s) => s.today);
+  const isToday = sameDay(day, now);
+  const overdue = useMemo(() => (isToday ? overdueTasks(all, now) : []), [all, isToday, now]);
   const [reviewing, setReviewing] = useState(false);
 
   const open = timed.length + untimed.length;
