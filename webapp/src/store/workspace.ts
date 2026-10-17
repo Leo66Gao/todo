@@ -600,6 +600,22 @@ export async function importLocalData() {
 export const milestoneId = (parentId: string, subtaskId: string) =>
   `milestone:${parentId}:${subtaskId}`;
 
+/** A step's planned minutes (and minutes still to go), kept in its extra; 0 when none. */
+const stepMinutes = (sub: Subtask, key: "minutes" | "remainingMinutes") => {
+  const value = sub.extra?.[key];
+  return typeof value === "number" && value > 0 && value <= 24 * 60 ? Math.round(value) : 0;
+};
+
+/** [sub]'s extra with its planned and remaining minutes set (and dropped when 0). */
+function withStepMinutes(sub: Subtask, minutes: number, remaining: number): Subtask["extra"] {
+  const extra = { ...sub.extra };
+  if (minutes > 0) extra.minutes = minutes;
+  else delete extra.minutes;
+  if (remaining > 0) extra.remainingMinutes = remaining;
+  else delete extra.remainingMinutes;
+  return Object.keys(extra).length ? extra : undefined;
+}
+
 export function milestonesOf(tasks: Task[]): Task[] {
   const out: Task[] = [];
   for (const parent of tasks) {
@@ -614,12 +630,13 @@ export function milestonesOf(tasks: Task[]): Task[] {
         type: "todo",
         priority: sub.priority ?? parent.priority,
         difficulty: sub.difficulty ?? parent.difficulty,
-        durationMinutes: 0,
+        // A step's estimate (from planning it back from the deadline) is its time.
+        durationMinutes: stepMinutes(sub, "minutes"),
         projectId: parent.projectId,
         parentTaskId: parent.id,
         category: parent.category,
         startTime: null,
-        remainingMinutes: 0,
+        remainingMinutes: stepMinutes(sub, "remainingMinutes"),
         subtasks: [],
         googleEventId: null,
         calendarEventRevision: 0,
@@ -692,7 +709,9 @@ export function updateTask(task: Task) {
     const [parent, sub] = milestone;
     mapSubtasks(parent.id, (subs) =>
       subs.map((s) =>
-        s.id === sub.id ? { ...s, title: task.title, date: task.date, isDone: task.isDone } : s,
+        s.id === sub.id
+          ? { ...s, title: task.title, date: task.date, isDone: task.isDone, extra: withStepMinutes(s, task.durationMinutes, task.remainingMinutes) }
+          : s,
       ),
     );
     return;

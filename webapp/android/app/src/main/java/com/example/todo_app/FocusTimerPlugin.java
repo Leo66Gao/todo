@@ -56,6 +56,12 @@ public class FocusTimerPlugin extends Plugin {
         } catch (JSONException e) {
             result.put("state", JSONObject.NULL);
         }
+        JSONObject stopped = FocusTimer.stopped(getContext());
+        try {
+            result.put("stopped", stopped == null ? JSONObject.NULL : JSObject.fromJSONObject(stopped));
+        } catch (JSONException e) {
+            result.put("stopped", JSONObject.NULL);
+        }
         result.put("opened", openedFromNotification);
         openedFromNotification = false;
         call.resolve(result);

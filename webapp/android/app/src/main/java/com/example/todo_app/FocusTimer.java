@@ -39,6 +39,7 @@ final class FocusTimer {
     private static final String PREFS = "focus_timer";
     private static final String KEY_STATE = "state";
     private static final String KEY_REV = "rev";
+    private static final String KEY_STOPPED = "stopped";
     private static final String CHANNEL_ONGOING = "focus_timer";
     private static final String CHANNEL_ALERT = "focus_alerts";
     private static final int ONGOING_ID = 1_998_000_001;
@@ -52,6 +53,17 @@ final class FocusTimer {
 
     static JSONObject load(Context context) {
         String raw = prefs(context).getString(KEY_STATE, null);
+        if (raw == null) return null;
+        try {
+            return new JSONObject(raw);
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    /** The session as it was when Stop was pressed in the notification, so the app can credit its focus time. */
+    static JSONObject stopped(Context context) {
+        String raw = prefs(context).getString(KEY_STOPPED, null);
         if (raw == null) return null;
         try {
             return new JSONObject(raw);
@@ -155,6 +167,9 @@ final class FocusTimer {
                     refresh(context, state);
                     break;
                 case ACTION_STOP:
+                    state.put("stoppedAt", now);
+                    state.put("stoppedRev", rev(context) + 1);
+                    prefs(context).edit().putString(KEY_STOPPED, state.toString()).apply();
                     save(context, null, true);
                     refresh(context, null);
                     break;

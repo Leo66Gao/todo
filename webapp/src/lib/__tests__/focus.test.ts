@@ -53,3 +53,23 @@ it("counts focus time but not breaks", async () => {
   // Paused with 5 of 25 minutes left, no plan.
   expect(focusedMs({ taskId: null, title: "", length: 25 * min, endsAt: null, left: 5 * min, kind: "focus" }, now)).toBe(20 * min);
 });
+
+it("credits a round's extra five minutes once it moves on to the break", async () => {
+  const { extendFocus, setFocusLogger, startTaskFocus, stopFocus } = await import("../focus");
+  const min = 60_000;
+  let now = 1_000_000;
+  const realNow = Date.now;
+  Date.now = () => now;
+  try {
+    const logged: [string, number][] = [];
+    setFocusLogger((id, minutes) => logged.push([id, minutes]));
+    startTaskFocus({ id: "t", title: "Essay" }, 90);
+    extendFocus(5);
+    now += 47 * min; // Two minutes into the break.
+    stopFocus();
+    expect(logged).toEqual([["t", 45]]);
+    setFocusLogger(null);
+  } finally {
+    Date.now = realNow;
+  }
+});

@@ -58,18 +58,30 @@ export function focusedMs(s: FocusSession, now = Date.now()) {
 }
 
 let logger: ((taskId: string, minutes: number) => void) | null = null;
+/** Credits made before the logger was set (a stop from the notification, found at startup). */
+let unlogged: [string, number][] = [];
 /** Where a task's minutes of focus go when its session ends. */
 export const setFocusLogger = (log: typeof logger) => {
   logger = log;
+  if (!log) return;
+  const waiting = unlogged;
+  unlogged = [];
+  for (const [taskId, minutes] of waiting) log(taskId, minutes);
 };
+
+/** Credits a session's focus time, as of [at], to its task. */
+function credit(s: FocusSession | null, at = Date.now()) {
+  if (!s?.taskId) return;
+  const minutes = Math.floor(focusedMs(advanced(s, at), at) / 60_000);
+  if (minutes < 1) return;
+  if (logger) logger(s.taskId, minutes);
+  else unlogged.push([s.taskId, minutes]);
+}
 
 /** Ends the current session, crediting its focus time to its task. */
 function finishCurrent() {
   advanceFocus();
-  const s = useFocus.getState().session;
-  if (!s?.taskId) return;
-  const minutes = Math.floor(focusedMs(s) / 60_000);
-  if (minutes >= 1) logger?.(s.taskId, minutes);
+  credit(useFocus.getState().session);
 }
 
 export function startFocus(minutes: number, task?: { id: string; title: string } | null, kind: FocusSession["kind"] = "focus") {
@@ -120,18 +132,25 @@ export function startTaskFocus(task: { id: string; title: string }, minutes: num
  * whether it moved.
  */
 export function advanceFocus(now = Date.now()): boolean {
-  let s: FocusSession | null = useFocus.getState().session;
-  if (!s?.plan || s.endsAt == null || s.endsAt > now) return false;
+  const s = useFocus.getState().session;
+  if (!s) return false;
+  const next = advanced(s, now);
+  if (next === s) return false;
+  save(next);
+  return true;
+}
+
+/** [s] moved on past the rounds that are over by [now] (the same session when none are). */
+function advanced(s: FocusSession, now: number): FocusSession {
+  if (!s.plan) return s;
   const { blocks } = s.plan;
-  let moved = false;
-  while (s.plan && s.endsAt != null && s.endsAt <= now && s.plan.index < blocks.length - 1) {
-    const index: number = s.plan.index + 1;
+  let out = s;
+  while (out.plan && out.endsAt != null && out.endsAt <= now && out.plan.index < blocks.length - 1) {
+    const index: number = out.plan.index + 1;
     const block: FocusBlock = blocks[index];
-    s = { ...s, kind: block.kind, length: block.ms, endsAt: s.endsAt + block.ms, left: null, plan: { blocks, index } };
-    moved = true;
+    out = { ...out, kind: block.kind, length: block.ms, endsAt: out.endsAt + block.ms, left: null, plan: { blocks, index } };
   }
-  if (moved) save(s);
-  return moved;
+  return out;
 }
 
 /** Time left in the whole planned session, breaks included (or just this round). */
@@ -168,9 +187,12 @@ export function extendFocus(minutes: number) {
   const running = s.endsAt != null;
   // Extending a finished session starts it again from now.
   const base = running ? Math.max(Date.now(), s.endsAt!) : null;
+  const length = s.length + add;
   save({
     ...s,
-    length: s.length + add,
+    length,
+    // The round itself grows, so moving on to the break credits all of it.
+    plan: s.plan ? { ...s.plan, blocks: s.plan.blocks.map((b, i) => (i === s.plan!.index ? { ...b, ms: length } : b)) } : s.plan,
     endsAt: running ? base! + add : null,
     left: running ? null : (s.left ?? 0) + add,
   });
@@ -211,9 +233,15 @@ interface NativeFocusState {
   paused: boolean;
 }
 
+/** The session as it was when Stop was pressed in the notification. */
+interface StoppedNativeState extends NativeFocusState {
+  stoppedAt: number;
+  stoppedRev: number;
+}
+
 interface FocusTimerPlugin {
   update(options: { state: NativeFocusState | null }): Promise<void>;
-  get(): Promise<{ rev: number; state: NativeFocusState | null; opened: boolean }>;
+  get(): Promise<{ rev: number; state: NativeFocusState | null; opened: boolean; stopped?: StoppedNativeState | null }>;
   addListener(event: "changed" | "open", listener: () => void): Promise<{ remove: () => void }>;
 }
 const FocusTimer = registerPlugin<FocusTimerPlugin>("FocusTimer");
@@ -278,6 +306,9 @@ async function syncFromNative() {
   const adopt = (known != null && known !== result.rev) || (!current && result.state != null);
   if (!adopt) return;
   const session = result.state ? fromNative(result.state, current) : null;
+  // Stopped from the notification: the time studied still comes off the task.
+  const stopped = result.stopped;
+  if (!session && current && stopped?.stoppedRev === result.rev) credit(fromNative(stopped, current), stopped.stoppedAt);
   setLocal(STORE, session);
   useFocus.setState({ session, ...(session ? {} : { expanded: false }) });
 }

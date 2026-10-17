@@ -69,6 +69,10 @@ it("reads time ranges as a start and a length", () => {
   expect(parse("essay 6-8pm")).toMatchObject({ title: "essay", time: { hour: 18, minute: 0 }, minutes: 120 });
   expect(parse("lab 9.15–10.45")).toMatchObject({ title: "lab", time: { hour: 9, minute: 15 }, minutes: 90 });
   expect(parse("revise from 4 to 5:30pm")).toMatchObject({ title: "revise", time: { hour: 16, minute: 0 }, minutes: 90 });
+  // Across noon, and past midnight.
+  expect(parse("study 11-1pm")).toMatchObject({ title: "study", time: { hour: 11, minute: 0 }, minutes: 120 });
+  expect(parse("shift 9-5pm")).toMatchObject({ title: "shift", time: { hour: 9, minute: 0 }, minutes: 480 });
+  expect(parse("revise 11pm-1am")).toMatchObject({ title: "revise", time: { hour: 23, minute: 0 }, minutes: 120 });
   // A set length wins over the range's.
   expect(parse("run 7-9 1h").minutes).toBe(60);
   // Ranges of other things stay in the title.

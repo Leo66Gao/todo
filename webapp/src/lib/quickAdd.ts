@@ -157,15 +157,22 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     let startText = m[1].replace(/\s+/g, "");
     // "6-8pm": the start takes the end's half of the day.
     const half = /(am|pm)$/i.exec(endText);
-    if (half && !/(am|pm)$/i.test(startText)) startText += half[1];
-    const start = parseTimeToken(startText);
+    const inherited = !!half && !/(am|pm)$/i.test(startText);
+    if (inherited) startText += half[1];
+    let start = parseTimeToken(startText);
     const end = parseTimeToken(endText);
     if (!start || !end) return;
+    // ...unless that puts it after the end: "11-1pm" crosses noon, 11:00–13:00.
+    if (inherited && start.hour * 60 + start.minute >= end.hour * 60 + end.minute) {
+      start = parseTimeToken(startText.replace(/(am|pm)$/i, (h) => (h.toLowerCase() === "pm" ? "am" : "pm")));
+      if (!start) return;
+    }
     // After "pages" or "exercises" it's a range of those, unless it can only
     // be hours ("lab 14.00-16.00"); and an unmarked start before 6 is rarely meant.
     if (!marked && ((counted(s, true) && (plain || start.hour < 7)) || (!plain && start.hour < 6))) return;
     let length = end.hour * 60 + end.minute - (start.hour * 60 + start.minute);
-    // "6pm-8" reads as 18–20.
+    // "11pm-1am" runs past midnight; "6pm-8" reads as 18–20.
+    if (length <= 0 && half && !inherited) length += 24 * 60;
     if (length <= 0 && end.hour < 12 && start.hour >= 12) length += 12 * 60;
     if (length <= 0 || length > 16 * 60) return;
     result.time = start;

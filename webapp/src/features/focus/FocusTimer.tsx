@@ -19,7 +19,7 @@ import {
   useFocus,
   type FocusSession,
 } from "@/lib/focus";
-import { patchTask, useWorkspace, toggleTask } from "@/store/workspace";
+import { milestonesOf, patchTask, useWorkspace, toggleTask } from "@/store/workspace";
 import { workMinutes } from "@/features/tasks/meta";
 import { formatDuration } from "@/lib/time";
 import { cn } from "@/ui/cn";
@@ -83,7 +83,8 @@ function Ring({ progress, size = 18 }: { progress: number; size?: number }) {
 
 /** A task's minutes of focus come off its remaining time (at least a minute stays, until it's ticked off). */
 function logFocusTime(taskId: string, minutes: number) {
-  const task = useWorkspace.getState().tasks.find((t) => t.id === taskId);
+  const tasks = useWorkspace.getState().tasks;
+  const task = tasks.find((t) => t.id === taskId) ?? milestonesOf(tasks).find((t) => t.id === taskId);
   if (!task || task.isDone) return;
   const left = Math.max(1, workMinutes(task) - minutes);
   patchTask(task.id, { remainingMinutes: left });
