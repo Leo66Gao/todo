@@ -5,6 +5,7 @@ import "quill/dist/quill.core.css";
 import "./globals.css";
 import "@/glass/glass.css";
 import { Shell } from "@/shell/Shell";
+import { ErrorBoundary } from "@/shell/ErrorBoundary";
 
 // Geist for the interface: a crisp neo-grotesque that stays precise at small
 // sizes. Page titles keep Figtree, the app's original geometric face. Geist
@@ -48,9 +49,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: splashBoot }} />
       </head>
       <body>
-        <Suspense>
-          <Shell />
-        </Suspense>
+        <ErrorBoundary whole>
+          <Suspense>
+            <Shell />
+          </Suspense>
+        </ErrorBoundary>
         {children}
       </body>
     </html>

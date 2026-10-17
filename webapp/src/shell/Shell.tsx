@@ -69,6 +69,7 @@ import { startPressFeedback } from "@/ui/press";
 import { InstallHint } from "./InstallHint";
 import { Sidebar } from "./Sidebar";
 import { startDayTicker, ui, useUI } from "./ui";
+import { ErrorBoundary, startChunkRecovery } from "./ErrorBoundary";
 import { expireTrash } from "@/store/trash";
 
 export function Shell() {
@@ -106,7 +107,10 @@ export function Shell() {
     return () => media.removeEventListener("change", apply);
   }, [themeMode, mounted]);
 
-  useEffect(() => startDayTicker(), []);
+  useEffect(() => {
+    startDayTicker();
+    startChunkRecovery();
+  }, []);
   const todayNow = useUI((s) => s.today);
   useEffect(() => {
     if (!mounted || isLoading) return;
@@ -361,7 +365,9 @@ function Workspace() {
               key={route.view === "subject" || route.view === "assignment" || route.view === "note" ? `${route.view}:${route.id}` : route.view}
               className={cn("flex min-h-0 flex-1 flex-col", (route.view === "assignment" || route.view === "note" || route.view === "subject") && "view-push")}
             >
-              <RouteView route={route} />
+              <ErrorBoundary resetKey={routeHref(route)}>
+                <RouteView route={route} />
+              </ErrorBoundary>
             </div>
           </div>
           <MobileTabBar route={route} navigate={navigate} />

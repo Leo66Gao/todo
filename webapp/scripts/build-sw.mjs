@@ -47,18 +47,35 @@ const APP = "app-" + VERSION;
 const MEDIA = "media-v1";
 const PRECACHE = ${JSON.stringify([...precache].sort())};
 
+// When each version's files were saved, so the newest can be told apart.
+const SAVED_AT = "/__sw-saved-at";
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(APP).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()),
+    caches
+      .open(APP)
+      .then((cache) => cache.addAll(PRECACHE).then(() => cache.put(SAVED_AT, new Response(String(Date.now())))))
+      .then(() => self.skipWaiting()),
   );
 });
 
+// The previous version's files are kept too: a tab still running it loads
+// its pages' scripts on demand, and they must still be there.
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== APP && k !== MEDIA).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
+    (async () => {
+      const apps = await Promise.all(
+        (await caches.keys())
+          .filter((k) => k !== MEDIA)
+          .map(async (k) => {
+            const hit = await (await caches.open(k)).match(SAVED_AT);
+            return { k, at: hit ? Number(await hit.text()) : 0 };
+          }),
+      );
+      const keep = new Set([APP, ...apps.filter((a) => a.k !== APP).sort((a, b) => b.at - a.at).slice(0, 1).map((a) => a.k)]);
+      await Promise.all(apps.filter((a) => !keep.has(a.k)).map((a) => caches.delete(a.k)));
+      await self.clients.claim();
+    })(),
   );
 });
 
@@ -86,7 +103,8 @@ async function page(request) {
 
 async function cached(request, cacheName, store) {
   const cache = await caches.open(cacheName);
-  const hit = await cache.match(request, { ignoreSearch: true });
+  // (Any saved version: an older tab asks for its own build's files.)
+  const hit = (await cache.match(request, { ignoreSearch: true })) ?? (await caches.match(request, { ignoreSearch: true }));
   if (hit) return hit;
   const response = await fetch(request);
   if (store && response.ok) void cache.put(request, response.clone());
