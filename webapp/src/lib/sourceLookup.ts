@@ -23,8 +23,12 @@ export function identify(input: string): Identified | null {
   return null;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
 const pad = (n: number) => String(n).padStart(2, "0");
+// (The local date: in UTC it was still yesterday until 03:00 in Finland.)
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 /** A date as "2024", "2024-05" or "2024-05-03". */
 export function isoDate(value: unknown): string | undefined {

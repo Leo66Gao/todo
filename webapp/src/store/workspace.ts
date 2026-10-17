@@ -997,6 +997,8 @@ function reconcileCalendarChanges(before: Map<string, Task>) {
   for (const old of before.values()) if (!current.has(old.id)) removeTaskFromCalendar(old);
   for (const task of current.values()) {
     const old = before.get(task.id);
+    // (Unchanged tasks keep their object across a sync snapshot.)
+    if (old === task) continue;
     if (task.isDone) {
       if (old?.isDone !== true && (task.googleEventId != null || (old && hasCalendarExport(old)))) {
         let latest = task;
@@ -1009,7 +1011,7 @@ function reconcileCalendarChanges(before: Map<string, Task>) {
       }
     } else if (
       !task.isConflictCopy &&
-      (!old || JSON.stringify(encodeTask(old)) !== JSON.stringify(encodeTask(task)))
+      (!old || cachedJson(old, encodeTask) !== cachedJson(task, encodeTask))
     ) {
       syncTaskToCalendar(task);
     }

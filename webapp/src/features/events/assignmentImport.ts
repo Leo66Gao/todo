@@ -56,10 +56,19 @@ export function matchSubject(text: string, projects: Project[]): string | null {
   return best?.id ?? null;
 }
 
+let waiting: GEvent[] | null = null;
+
 /** Brings assignments in line with one month of a feed's events. */
 export function importAssignments(events: GEvent[]) {
-  const { user, tasks, projects, isLoading } = useWorkspace.getState();
+  const { user, tasks, projects, isLoading, syncDetails } = useWorkspace.getState();
   if (!user || isLoading) return;
+  // Not before the first download from the cloud: against a stale copy of
+  // the workspace, an import would compete with the newer one and leave
+  // conflict copies. It runs once the download is in.
+  if (!syncDetails.lastDownloadedAt) {
+    waiting = events;
+    return;
+  }
   const calendars = useGoogleEvents.getState().calendars;
   const feeds = new Set(calendars.filter((c) => modeOf(c) === "assignments").map((c) => c.id));
   if (feeds.size === 0) return;
@@ -118,6 +127,11 @@ export function startAssignmentImport() {
   setMonthListener((_key, events) => importAssignments(events));
   useWorkspace.subscribe((s, prev) => {
     if (s.calendarConnected !== prev.calendarConnected || s.isLoading !== prev.isLoading) keepAhead();
+    if (waiting && s.syncDetails.lastDownloadedAt && !prev.syncDetails.lastDownloadedAt) {
+      const events = waiting;
+      waiting = null;
+      importAssignments(events);
+    }
   });
   useGoogleEvents.subscribe((s, prev) => {
     if (s.modes !== prev.modes || s.calendars !== prev.calendars) keepAhead();

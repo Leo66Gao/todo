@@ -226,6 +226,10 @@ it("imports an assignment once, keeps a deleted one deleted, and follows a moved
   const events = await import("../googleEvents");
   const { importAssignments, importedTaskId: idOf } = await import("@/features/events/assignmentImport");
   ws.useWorkspace.setState({ user: { uid: "u", email: null, displayName: null, photoURL: null }, isLoading: false, tasks: [], projects: subjects });
+  // Before the first cloud download nothing is imported.
+  importAssignments([events.decodeEvent({ id: "early", summary: "Physics HL: Early", start: { date: "2099-01-01" } }, cal)!]);
+  expect(ws.useWorkspace.getState().tasks).toHaveLength(0);
+  ws.useWorkspace.setState((s) => ({ syncDetails: { ...s.syncDetails, lastDownloadedAt: Date.now() } }));
   events.useGoogleEvents.setState({ uid: "u", calendars: [cal], modes: { school: "assignments" } });
 
   const soon = new Date();

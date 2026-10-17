@@ -556,6 +556,11 @@ function isTyping(target: EventTarget | null) {
   return el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT";
 }
 
+/** A focused control that Space and Enter already work (a button, a checkbox, a link). */
+function ownsActivation(target: EventTarget | null) {
+  return !!(target as Element | null)?.closest?.('button, a[href], summary, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="radio"], [role="menuitem"]');
+}
+
 function useKeyboard(route: Route, navigate: (r: Route) => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -669,14 +674,14 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
           return;
         }
         case " ": {
-          if (!selected) return;
+          if (!selected || ownsActivation(e.target)) return;
           e.preventDefault();
           toggleTask(selected);
           return;
         }
         case "Enter": {
           const task = findSelected();
-          if (!task) return;
+          if (!task || ownsActivation(e.target)) return;
           e.preventDefault();
           if (mod || state.inspectorId === task.id) ui.editTask(task.id);
           else openTask(task, navigate);
