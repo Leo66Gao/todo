@@ -895,6 +895,17 @@ async function enableCalendarAfterConnect(uid: string) {
 }
 
 /** Connects Google Calendar only after the user presses Connect. */
+/**
+ * On the web, Google's Calendar access lasts an hour and only a click can
+ * renew it. True once, when it has just run out (the caller offers to
+ * reconnect).
+ */
+export function calendarJustExpired(): boolean {
+  if (isNative() || !get().calendarConnected) return false;
+  refreshCalendarFlag();
+  return !get().calendarConnected;
+}
+
 export async function connectCalendar() {
   const fb = firebase();
   const user = firebaseUser;
@@ -923,6 +934,9 @@ export async function connectCalendar() {
   }
   const provider = new GoogleAuthProvider();
   for (const scope of CALENDAR_SCOPES) provider.addScope(scope);
+  // The signed-in account, preselected: reconnecting is then a quick window
+  // that closes itself once access was given before.
+  if (user.email) provider.setCustomParameters({ login_hint: user.email });
   try {
     // Called directly from the Connect button, so Safari opens the account
     // chooser in a small window without navigating this page away.

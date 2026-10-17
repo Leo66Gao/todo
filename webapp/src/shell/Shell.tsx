@@ -29,7 +29,7 @@ import { EventSheet } from "@/features/events/EventSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
 import { TodayView } from "@/features/today/TodayView";
 import type { SlotDropData } from "@/features/today/ScheduleRail";
-import { milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
+import { calendarJustExpired, connectCalendar, milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { useMedia } from "@/ui/useMedia";
 import { Button, IconButton, Spinner } from "@/ui/controls";
@@ -142,6 +142,12 @@ export function Shell() {
     startDayTicker();
     startChunkRecovery();
     preloadPages();
+    // Web: Google's Calendar access runs out hourly; one click renews it.
+    // (Checked only while the app is in view, so the offer isn't missed.)
+    const calendarCheck = setInterval(() => {
+      if (document.visibilityState === "visible" && calendarJustExpired()) toast("Google Calendar needs reconnecting: on the web Google asks again every hour.", { label: "Reconnect", run: () => void connectCalendar() });
+    }, 60_000);
+    return () => clearInterval(calendarCheck);
   }, []);
   const todayNow = useUI((s) => s.today);
   useEffect(() => {
