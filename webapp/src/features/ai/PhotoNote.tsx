@@ -5,36 +5,19 @@
 // as it's written and only made when you choose to keep it.
 
 import { useEffect, useRef, useState } from "react";
-import { create } from "zustand";
 import { RotateCcw, Sparkles } from "lucide-react";
-import { AiError, chatStream, useAiKey } from "@/lib/ai";
+import { AiError, chatStream } from "@/lib/ai";
 import { contentFromDelta } from "@/lib/delta";
 import { markdownToDelta } from "@/lib/markdownPaste";
 import { uuid, type StudyNote } from "@/lib/model";
 import { cleanText, photoNoteMessages } from "@/lib/notePrompts";
-import { choosePhotos, photoDataUrl } from "@/lib/photoData";
-import { useNavigate, type Route } from "@/shell/nav";
+import { photoDataUrl } from "@/lib/photoData";
+import { useNavigate } from "@/shell/nav";
 import { addNote, useWorkspace } from "@/store/workspace";
 import { Button, Spinner } from "@/ui/controls";
 import { Modal } from "@/ui/overlay";
-import { toast } from "@/ui/toast";
 import { Markdown, useKatex } from "./AiViews";
-
-const usePhotoNote = create<{ files: File[] | null; subjectId: string | null; folderId: string | null }>(() => ({
-  files: null,
-  subjectId: null,
-  folderId: null,
-}));
-
-/** Picks photos and writes them up as a new note (in a subject or folder when given). */
-export async function noteFromPhotos(navigate: (route: Route) => void, opts: { subjectId?: string | null; folderId?: string | null } = {}) {
-  if (!useAiKey.getState().key) {
-    toast("Add your DeepSeek API key in Settings to make notes from photos.", { label: "Settings", run: () => navigate({ view: "settings" }) });
-    return;
-  }
-  const files = await choosePhotos();
-  if (files.length) usePhotoNote.setState({ files, subjectId: opts.subjectId ?? null, folderId: opts.folderId ?? null });
-}
+import { usePhotoNote } from "./openers";
 
 /** "# Title" on the first line becomes the note's title. */
 export function splitTitle(markdown: string): { title: string; body: string } {

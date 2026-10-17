@@ -15,7 +15,7 @@ import { Menu, Tooltip } from "@/ui/overlay";
 import { openSources } from "@/features/sources/library";
 import { createNote, importNote, noteGroup, pinnedFirst } from "./noteActions";
 import { NoteRow } from "./NoteRow";
-import { noteFromPhotos } from "@/features/ai/PhotoNote";
+import { noteFromPhotos } from "@/features/ai/openers";
 
 export function NotesView() {
   const navigate = useNavigate();

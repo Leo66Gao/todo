@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { animate, AnimatePresence, motion, MotionConfig, useMotionValue, useTransform } from "motion/react";
 import {
@@ -25,35 +26,19 @@ import { TaskDragPreview, type TaskDragData } from "@/features/tasks/TaskRow";
 import { TaskEditorHost } from "@/features/tasks/TaskEditor";
 import { InspectorPanel, InspectorSheet } from "@/features/tasks/Inspector";
 import { EventSheet } from "@/features/events/EventSheet";
-import { CommandPalette } from "@/features/command/CommandPalette";
-import { AskNotesDialog, SubjectStudyDialog } from "@/features/ai/StudyAi";
-import { PhotoNoteDialog } from "@/features/ai/PhotoNote";
-import { ShortcutsSheet } from "@/features/command/ShortcutsSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
 import { TodayView } from "@/features/today/TodayView";
 import type { SlotDropData } from "@/features/today/ScheduleRail";
-import { WeekView } from "@/features/week/WeekView";
-import { CalendarView } from "@/features/calendar/CalendarView";
-import { AssignmentsView } from "@/features/assignments/AssignmentsView";
-import { AssignmentView } from "@/features/assignments/AssignmentView";
-import { SubjectsView } from "@/features/subjects/SubjectsView";
-import { SubjectView } from "@/features/subjects/SubjectView";
-import { NotesView } from "@/features/notes/NotesView";
-import { NoteView } from "@/features/notes/NoteView";
-import { SettingsView } from "@/features/settings/SettingsView";
 import { milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { useMedia } from "@/ui/useMedia";
 import { Button, IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { AskHost, Tooltip, TooltipProvider } from "@/ui/overlay";
-import { FormulaHost } from "@/ui/FormulaDialog";
-import { SourcesHost } from "@/features/sources/SourcesSheet";
 import { FocusTimer } from "@/features/focus/FocusTimer";
 import { startTaskFocus } from "@/lib/focus";
 import { workMinutes } from "@/features/tasks/meta";
 import { toast, ToastHost } from "@/ui/toast";
-import { GlassLayer } from "@/glass/GlassLayer";
 import { GlassLens, LensDefs } from "@/ui/lens";
 import { restoreGlassPrefs, useGlassOn } from "@/glass/prefs";
 import { GLASS_GAP, useGlass } from "@/glass/registry";
@@ -71,6 +56,52 @@ import { Sidebar } from "./Sidebar";
 import { startDayTicker, ui, useUI } from "./ui";
 import { ErrorBoundary, startChunkRecovery } from "./ErrorBoundary";
 import { expireTrash } from "@/store/trash";
+
+// Pages other than Today, and dialogs that open on demand, load in their own
+// scripts: the first screen draws sooner, and they're fetched in the
+// background right after it (so opening one later doesn't wait).
+const WeekView = dynamic(() => import("@/features/week/WeekView").then((m) => m.WeekView), { ssr: false });
+const CalendarView = dynamic(() => import("@/features/calendar/CalendarView").then((m) => m.CalendarView), { ssr: false });
+const AssignmentsView = dynamic(() => import("@/features/assignments/AssignmentsView").then((m) => m.AssignmentsView), { ssr: false });
+const AssignmentView = dynamic(() => import("@/features/assignments/AssignmentView").then((m) => m.AssignmentView), { ssr: false });
+const SubjectsView = dynamic(() => import("@/features/subjects/SubjectsView").then((m) => m.SubjectsView), { ssr: false });
+const SubjectView = dynamic(() => import("@/features/subjects/SubjectView").then((m) => m.SubjectView), { ssr: false });
+const NotesView = dynamic(() => import("@/features/notes/NotesView").then((m) => m.NotesView), { ssr: false });
+const NoteView = dynamic(() => import("@/features/notes/NoteView").then((m) => m.NoteView), { ssr: false });
+const SettingsView = dynamic(() => import("@/features/settings/SettingsView").then((m) => m.SettingsView), { ssr: false });
+const GlassLayer = dynamic(() => import("@/glass/GlassLayer").then((m) => m.GlassLayer), { ssr: false });
+const FormulaHost = dynamic(() => import("@/ui/FormulaDialog").then((m) => m.FormulaHost), { ssr: false });
+const SourcesHost = dynamic(() => import("@/features/sources/SourcesSheet").then((m) => m.SourcesHost), { ssr: false });
+const ShortcutsSheet = dynamic(() => import("@/features/command/ShortcutsSheet").then((m) => m.ShortcutsSheet), { ssr: false });
+const PhotoNoteDialog = dynamic(() => import("@/features/ai/PhotoNote").then((m) => m.PhotoNoteDialog), { ssr: false });
+const CommandPalette = dynamic(() => import("@/features/command/CommandPalette").then((m) => m.CommandPalette), { ssr: false });
+const AskNotesDialog = dynamic(() => import("@/features/ai/StudyAi").then((m) => m.AskNotesDialog), { ssr: false });
+const SubjectStudyDialog = dynamic(() => import("@/features/ai/StudyAi").then((m) => m.SubjectStudyDialog), { ssr: false });
+function preloadPages() {
+  const load = () => {
+    for (const page of [
+      () => import("@/features/week/WeekView"),
+      () => import("@/features/calendar/CalendarView"),
+      () => import("@/features/assignments/AssignmentsView"),
+      () => import("@/features/assignments/AssignmentView"),
+      () => import("@/features/subjects/SubjectsView"),
+      () => import("@/features/subjects/SubjectView"),
+      () => import("@/features/notes/NotesView"),
+      () => import("@/features/notes/NoteView"),
+      () => import("@/features/settings/SettingsView"),
+      () => import("@/glass/GlassLayer"),
+      () => import("@/features/command/CommandPalette"),
+      () => import("@/features/ai/StudyAi"),
+      () => import("@/ui/FormulaDialog"),
+      () => import("@/features/sources/SourcesSheet"),
+      () => import("@/features/command/ShortcutsSheet"),
+      () => import("@/features/ai/PhotoNote"),
+    ])
+      void page().catch(() => {});
+  };
+  if ("requestIdleCallback" in window) window.requestIdleCallback(load, { timeout: 3000 });
+  else setTimeout(load, 1500);
+}
 
 export function Shell() {
   const isLoading = useWorkspace((s) => s.isLoading);
@@ -110,6 +141,7 @@ export function Shell() {
   useEffect(() => {
     startDayTicker();
     startChunkRecovery();
+    preloadPages();
   }, []);
   const todayNow = useUI((s) => s.today);
   useEffect(() => {

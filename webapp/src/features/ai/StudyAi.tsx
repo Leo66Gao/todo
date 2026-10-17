@@ -7,7 +7,6 @@
 //   from all of the subject's notes.
 
 import { useEffect, useRef, useState } from "react";
-import { create } from "zustand";
 import { format } from "date-fns";
 import { FileText, RotateCcw, Sparkles } from "lucide-react";
 import { AiError, chatJson, chatStream, useAiKey } from "@/lib/ai";
@@ -22,6 +21,7 @@ import { Button, Spinner } from "@/ui/controls";
 import { Modal } from "@/ui/overlay";
 import { toast } from "@/ui/toast";
 import { examDay } from "@/features/subjects/exams";
+import { useAskNotes, useSubjectStudy, type StudyMode } from "./openers";
 import { ChatPanel, Markdown, PHOTO_QUESTION, QuizView, readQuestions, useKatex, usePhotoAttachments, type QuizQuestion, type Turn } from "./AiViews";
 
 function needKey(navigate: ReturnType<typeof useNavigate>) {
@@ -35,8 +35,6 @@ const failure = (e: unknown) => (e instanceof AiError ? e.message : "Something w
 // ---------------------------------------------------------------------------
 // Ask your notes
 
-export const useAskNotes = create<{ open: boolean; question: string }>(() => ({ open: false, question: "" }));
-export const askNotes = (question = "") => useAskNotes.setState({ open: true, question: question.trim() });
 
 interface SourcedTurn extends Turn {
   /** The answer as it came, with its sources line (what the model sees next time). */
@@ -192,9 +190,6 @@ function AskNotes() {
 // ---------------------------------------------------------------------------
 // Exam revision from a subject's notes
 
-type Mode = "sheet" | "quiz";
-export const useSubjectStudy = create<{ projectId: string | null; mode: Mode }>(() => ({ projectId: null, mode: "sheet" }));
-export const studySubject = (projectId: string, mode: Mode) => useSubjectStudy.setState({ projectId, mode });
 
 /** The subject's notes as one piece of material (most recently edited first, within budget). */
 export function subjectMaterial(subject: string, notes: StudyNote[], budget = 40_000): NoteContext {
@@ -240,7 +235,7 @@ function SubjectStudy({ projectId }: { projectId: string }) {
   const subject = project?.title ?? "Subject";
   const [material] = useState(() => subjectMaterial(subject, notes.filter((n) => n.subjectId === projectId)));
 
-  const run = async (which: Mode) => {
+  const run = async (which: StudyMode) => {
     if (needKey(navigate)) return;
     abort.current?.abort();
     const controller = new AbortController();

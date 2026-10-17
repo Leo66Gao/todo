@@ -25,8 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { argbToCss } from "@/lib/dart";
-import { studySubject } from "@/features/ai/StudyAi";
-import { noteFromPhotos } from "@/features/ai/PhotoNote";
+import { noteFromPhotos, studySubject } from "@/features/ai/openers";
 import { plainText } from "@/lib/delta";
 import type { Material, Project, StudyNote } from "@/lib/model";
 import { uuid } from "@/lib/model";
