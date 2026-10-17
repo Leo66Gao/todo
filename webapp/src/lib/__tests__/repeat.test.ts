@@ -139,3 +139,57 @@ it("keeps a change to the last task on that task alone when topping up", () => {
   topUpRepeats(addDays(end.date, -1));
   expect(byDate().filter((t) => t.date > end.date).every((t) => t.title === "Easy run")).toBe(true);
 });
+
+it("stays ended when an offline device made more days under the old rule", () => {
+  vi.useFakeTimers({ now: new Date(2026, 9, 10, 12), toFake: ["Date"] });
+  const task = newTask({ title: "Vocab", date: d("2026-10-10") });
+  useWorkspace.setState({ tasks: [task] });
+  setRepeat(task.id, { kind: "rule", every: 1, unit: "day", start: "2026-10-10" });
+  const synced = useWorkspace.getState().tasks;
+  // Device B, offline: tops the series up past the 31st.
+  topUpRepeats(d("2026-10-26"));
+  const madeOffline = useWorkspace.getState().tasks.filter((t) => !synced.some((s) => s.id === t.id));
+  expect(madeOffline.length).toBeGreaterThan(0);
+  // Device A: "delete this and upcoming" on the 14th.
+  useWorkspace.setState({ tasks: synced });
+  const from = synced.find((t) => dayString(t.date) === "2026-10-14")!;
+  const gone = [from, ...upcomingOf(from)].map((t) => t.id);
+  endSeriesBefore(from);
+  useWorkspace.setState((st) => ({ tasks: st.tasks.filter((t) => !gone.includes(t.id)) }));
+  // B's days arrive.
+  useWorkspace.setState((st) => ({ tasks: [...st.tasks, ...madeOffline] }));
+  topUpRepeats(d("2026-10-26"));
+  topUpRepeats(d("2026-12-20"));
+  expect(useWorkspace.getState().tasks.map((t) => dayString(t.date)).sort().at(-1)).toBe("2026-10-13");
+});
+
+it("keeps a step renamed on one day off the days made later", () => {
+  vi.useFakeTimers({ now: new Date(2026, 9, 10, 12), toFake: ["Date"] });
+  const step = { id: "s", title: "Warm up", isDone: false, date: d("2026-10-10"), priority: null, difficulty: null };
+  const task = newTask({ title: "Run", date: d("2026-10-10"), subtasks: [step] });
+  useWorkspace.setState({ tasks: [task] });
+  setRepeat(task.id, { kind: "rule", every: 1, unit: "day", start: "2026-10-10" });
+  const byDate = () => [...useWorkspace.getState().tasks].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const last = byDate().at(-1)!;
+  useWorkspace.setState((st) => ({ tasks: st.tasks.map((t) => (t.id === last.id ? { ...t, subtasks: [{ ...t.subtasks[0], title: "Hill sprints" }] } : t)) }));
+  topUpRepeats(addDays(last.date, -1));
+  const later = byDate().filter((t) => t.date > last.date);
+  expect(later.length).toBeGreaterThan(0);
+  for (const t of later) {
+    expect(t.subtasks.map((s) => s.title)).toEqual(["Warm up"]);
+    expect(dayString(t.subtasks[0].date!)).toBe(dayString(t.date));
+  }
+});
+
+it("leaves no gap when the last day is moved far ahead", () => {
+  vi.useFakeTimers({ now: new Date(2026, 9, 10, 12), toFake: ["Date"] });
+  const task = newTask({ title: "Run", date: d("2026-10-10") });
+  useWorkspace.setState({ tasks: [task] });
+  setRepeat(task.id, { kind: "rule", every: 1, unit: "day", start: "2026-10-10" });
+  const last = [...useWorkspace.getState().tasks].sort((a, b) => a.date.getTime() - b.date.getTime()).at(-1)!;
+  expect(dayString(last.date)).toBe("2026-10-31");
+  useWorkspace.setState((st) => ({ tasks: st.tasks.map((t) => (t.id === last.id ? { ...t, date: d("2026-11-30") } : t)) }));
+  topUpRepeats(d("2026-11-01"));
+  const days = new Set(useWorkspace.getState().tasks.map((t) => dayString(t.date)));
+  for (let day = d("2026-11-01"); day <= d("2026-11-22"); day = addDays(day, 1)) expect(days.has(dayString(day))).toBe(true);
+});

@@ -115,3 +115,20 @@ it("deleting the workspace forgets unsaved drafts, so nothing comes back at the 
   expect(readDrafts("")).toEqual([]);
   expect(ws.useWorkspace.getState().notes).toEqual([]);
 });
+
+it("drops an open editor's draft for a note or task deleted while it was open", async () => {
+  const ws = await import("@/store/workspace");
+  const { decodeNote, encodeTask } = await import("../model");
+  const task = ws.newTask({ title: "Essay", date: new Date(2026, 8, 30), notes: "Original" });
+  ws.useWorkspace.setState({ user: null, isLoading: false, notes: [decodeNote(base)], tasks: [task], side: {} });
+  // Typing in both; then the note is deleted, and the whole workspace.
+  const noteDraft = changeDraft(null, "", "note", base, "editor", "content", "Typing", base.content);
+  const taskDraft = changeDraft(null, "", "task", encodeTask(task), "inspector", "notes", "Typing", task.notes);
+  ws.deleteNote(base.id);
+  await ws.clearWorkspace();
+  // The editors save on closing: nothing comes back.
+  expect(ws.saveEditorDraft(noteDraft)).toMatchObject({ saved: true, conflicted: false });
+  expect(ws.saveEditorDraft(taskDraft)).toMatchObject({ saved: true, conflicted: false });
+  expect(ws.useWorkspace.getState().notes).toEqual([]);
+  expect(ws.useWorkspace.getState().tasks).toEqual([]);
+});

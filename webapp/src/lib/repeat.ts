@@ -9,7 +9,7 @@
 // devices adding the same day write the same record instead of two.
 
 import { format } from "date-fns";
-import type { Task } from "./model";
+import type { Subtask, Task } from "./model";
 import { addDays, startOfDay, startOfWeek, today } from "./time";
 
 export type RepeatUnit = "day" | "week" | "month" | "year";
@@ -56,6 +56,17 @@ export interface SeriesTemplate {
   projectId: string | null;
   category: string;
   minute: number | null;
+  /** The steps each new day starts with, dated relative to the day (older templates: the last task's). */
+  subtasks?: TemplateStep[];
+}
+
+/** A step in a series' template: its date is [offset] days from the task's (or none). */
+export interface TemplateStep {
+  title: string;
+  offset: number | null;
+  priority: Subtask["priority"];
+  difficulty: number | null;
+  extra?: Record<string, unknown>;
 }
 
 /** [task]'s shared fields, as a series template. */
@@ -71,6 +82,18 @@ export function templateOf(task: Task): SeriesTemplate {
     projectId: task.projectId,
     category: task.category,
     minute: task.startTime ? task.startTime.getHours() * 60 + task.startTime.getMinutes() : null,
+    subtasks: task.subtasks.map((sub) => {
+      // (Time already spent on a step belongs to that day's step.)
+      const { remainingMinutes: _left, ...extra } = sub.extra ?? {};
+      void _left;
+      return {
+        title: sub.title,
+        offset: sub.date ? daysBetween(task.date, sub.date) : null,
+        priority: sub.priority,
+        difficulty: sub.difficulty,
+        ...(Object.keys(extra).length ? { extra } : {}),
+      };
+    }),
   };
 }
 
@@ -91,6 +114,17 @@ export function withTemplate(task: Task, t: SeriesTemplate): Task {
     projectId: t.projectId,
     category: t.category,
     startTime: t.minute == null ? null : new Date(task.date.getFullYear(), task.date.getMonth(), task.date.getDate(), Math.floor(t.minute / 60), t.minute % 60),
+    subtasks: t.subtasks
+      ? t.subtasks.map((step, i) => ({
+          id: `${task.id}-s${i}`,
+          title: step.title,
+          isDone: false,
+          date: step.offset == null ? null : addDays(startOfDay(task.date), step.offset),
+          priority: step.priority,
+          difficulty: step.difficulty,
+          ...(step.extra ? { extra: step.extra } : {}),
+        }))
+      : task.subtasks,
     extra: Object.keys(extra).length ? extra : undefined,
   };
 }
@@ -116,7 +150,21 @@ function readTemplate(raw: unknown): SeriesTemplate | undefined {
     projectId: t.projectId as string | null,
     category: t.category as string,
     minute: t.minute as number | null,
+    ...(Array.isArray(t.subtasks) && t.subtasks.every(isStep) ? { subtasks: t.subtasks as TemplateStep[] } : {}),
   };
+}
+
+function isStep(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const s = raw as Record<string, unknown>;
+  const int = (v: unknown) => typeof v === "number" && Number.isInteger(v);
+  return (
+    typeof s.title === "string" &&
+    (s.offset === null || (int(s.offset) && Math.abs(s.offset as number) <= 3660)) &&
+    (s.priority === null || ["none", "low", "medium", "high", "critical"].includes(s.priority as string)) &&
+    (s.difficulty === null || (typeof s.difficulty === "number" && Number.isFinite(s.difficulty))) &&
+    (s.extra === undefined || (!!s.extra && typeof s.extra === "object" && !Array.isArray(s.extra)))
+  );
 }
 
 /** How far ahead a rule's days are made, and when they're topped up. */

@@ -402,6 +402,12 @@ async function initialize() {
           if (value == null) delete merged[key];
           else merged[key] = value;
         }
+        // Deleted from another device (since this one last stored them).
+        for (const key of Object.keys(baseline)) {
+          if (key in merged) continue;
+          if (key.startsWith("note:")) markDeleted("note", [key.slice(5)]);
+          else if (key.startsWith("task:")) markDeleted("task", [key.slice(5)]);
+        }
         applyRecords(merged);
         for (const key of Object.keys(local)) {
           if (key in records) baseline[key] = records[key];
@@ -759,6 +765,7 @@ export function deleteTask(id: string) {
   const task = get().tasks.find((t) => t.id === id);
   if (!task) return;
   try { discardRecordDrafts(get().user?.uid ?? "", "task", id); } catch { /* Preserve storage errors in the save path. */ }
+  markDeleted("task", [id]);
   if (calendarOn()) removeTaskFromCalendar(task);
   set({ tasks: get().tasks.filter((t) => t.id !== id) });
   void saveData();
@@ -956,6 +963,18 @@ export function updateNote(note: StudyNote) {
   void saveData();
 }
 
+/**
+ * Notes and tasks deleted while this app was open (here, from another device,
+ * or with the whole workspace), by owner. An open editor's unsaved draft for
+ * one is dropped when it saves, rather than bringing the record back as a copy.
+ */
+const deletedRecords = new Set<string>();
+const deletedKey = (owner: string, kind: string, id: string) => `${owner}|${kind}:${id}`;
+const markDeleted = (kind: "note" | "task", ids: Iterable<string>) => {
+  const owner = get().user?.uid ?? "";
+  for (const id of ids) deletedRecords.add(deletedKey(owner, kind, id));
+};
+
 /** Commits an editor draft without replacing a concurrently edited field. */
 export function saveEditorDraft(entry: EditorDraft): { saved: boolean; conflicted: boolean; id: string } {
   const currentSession = captureWorkspaceSession();
@@ -963,6 +982,11 @@ export function saveEditorDraft(entry: EditorDraft): { saved: boolean; conflicte
   const note = entry.kind === "note" ? get().notes.find((n) => n.id === entry.recordId) : undefined;
   const task = entry.kind === "task" ? get().tasks.find((t) => t.id === entry.recordId) : undefined;
   const current = note ? encodeNote(note) : task ? encodeTask(task) : null;
+  if (!current && deletedRecords.has(deletedKey(entry.owner, entry.kind, entry.recordId))) {
+    // Deleted on purpose while it was open: the draft goes with it.
+    try { discardRecordDrafts(entry.owner, entry.kind, entry.recordId); } catch { /* Nothing left to save. */ }
+    return { saved: true, conflicted: false, id: entry.recordId };
+  }
   const { value, conflicted } = resolveDraft(entry, current);
   if (!recordFits(value)) return { saved: false, conflicted, id: entry.recordId };
   let id = entry.recordId;
@@ -1041,6 +1065,7 @@ export function writeSide(key: string, value: unknown | null) {
 
 export function deleteNote(id: string) {
   try { discardRecordDrafts(get().user?.uid ?? "", "note", id); } catch { /* The deletion can still be saved. */ }
+  markDeleted("note", [id]);
   // Its version history goes with it.
   const side = { ...get().side };
   delete side[`settings:versions:${id}`];
@@ -1091,6 +1116,8 @@ export class UploadPendingError extends Error {}
 export async function clearWorkspace() {
   const currentSession = captureWorkspaceSession();
   if (calendarOn()) for (const t of get().tasks) removeTaskFromCalendar(t);
+  markDeleted("note", get().notes.map((n) => n.id));
+  markDeleted("task", get().tasks.map((t) => t.id));
   set({
     tasks: [],
     projects: [],

@@ -112,6 +112,9 @@ export function endSeriesBefore(task: Task): () => void {
   if (!repeat) return () => {};
   const last = dayString(addDays(task.date, -1));
   const before = tasksOf(repeat.series).filter((t) => t.id !== task.id);
+  // A new revision, so days another device made under the open-ended rule
+  // (offline, before it heard of the end) can't carry the series on again.
+  const rev = Math.max(repeat.rev, ...before.map((t) => readRepeat(t)?.rev ?? 0)) + 1;
   for (const t of before) {
     const own = readRepeat(t);
     if (!own) continue;
@@ -119,7 +122,7 @@ export function endSeriesBefore(task: Task): () => void {
       own.rule.kind === "rule"
         ? { ...own.rule, until: own.rule.until && own.rule.until < last ? own.rule.until : last }
         : { kind: "days", days: own.rule.days.filter((d) => d <= last) };
-    updateTask(withRepeat(t, { ...own, rule }));
+    updateTask(withRepeat(t, { ...own, rev, rule }));
   }
   return () => {
     for (const t of before) {
@@ -155,7 +158,8 @@ export function applyToUpcoming(task: Task) {
     updateTask(next);
   }
   if (!repeat) return;
-  const template = templateOf(task);
+  // Steps aren't shared fields: "this and upcoming" leaves the series' own.
+  const template = { ...templateOf(task), ...(repeat.template?.subtasks ? { subtasks: repeat.template.subtasks } : {}) };
   for (const t of tasksOf(repeat.series)) {
     const own = readRepeat(t);
     if (own) updateTask(withRepeat(t, { ...own, template }));
@@ -177,12 +181,16 @@ export function topUpRepeats(now = today()) {
   for (const members of series.values()) {
     // The newest revision of the series decides (an older device may still hold old ones).
     const rev = Math.max(...members.map((t) => readRepeat(t)!.rev));
-    const current = members.filter((t) => readRepeat(t)!.rev === rev).sort((a, b) => a.date.getTime() - b.date.getTime());
+    const current = members.filter((t) => readRepeat(t)!.rev === rev).sort((a, b) => dayOf(a).getTime() - dayOf(b).getTime());
     const last = current[current.length - 1];
     if (!last) continue;
     const repeat = readRepeat(last)!;
-    if (last.date >= addDays(now, TOP_UP_DAYS)) continue;
-    const from = last.date >= now ? addDays(last.date, 1) : now;
+    dropStale(members, repeat, now);
+    // Where the series has got to: the day the last task was made for, even
+    // if it was moved since (moving it a month on mustn't leave a gap).
+    const reached = dayOf(last);
+    if (reached >= addDays(now, TOP_UP_DAYS)) continue;
+    const from = reached >= now ? addDays(reached, 1) : now;
     const days = repeatDays(repeat.rule, from, addDays(now, AHEAD_DAYS));
     const { tasks, side } = useWorkspace.getState();
     const ids = new Set(tasks.map((t) => t.id));
@@ -193,6 +201,30 @@ export function topUpRepeats(now = today()) {
       const source = repeat.template ? withTemplate(last, repeat.template) : last;
       if (!ids.has(id) && !(`${TRASH_PREFIX}task:${id}` in side)) addTask(occurrenceOf(source, day, repeat, id));
     }
+  }
+}
+
+/** The day a series task was made for: its occurrence ID's date, or its own date. */
+function dayOf(task: Task): Date {
+  const m = /-r\d+-(\d{4})(\d{2})(\d{2})$/.exec(task.id);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : startOfDay(task.date);
+}
+
+/**
+ * Removes open days an older revision made (another device, offline) that the
+ * series' newest revision doesn't have: past its end, off its days, or
+ * doubling one of its own.
+ */
+function dropStale(members: Task[], repeat: Repeat, now: Date) {
+  const own = new Set(members.filter((t) => readRepeat(t)!.rev === repeat.rev).map((t) => dayString(dayOf(t))));
+  for (const t of members) {
+    const r = readRepeat(t)!;
+    // Only generated copies, open and still ahead; never a task someone made or moved.
+    if (r.rev >= repeat.rev || t.isDone || t.id !== occurrenceId(r, t.date) || t.date < now) continue;
+    const day = dayString(t.date);
+    // (Before the newest rule starts, the older one still holds.)
+    if (repeat.rule.kind === "rule" && day < repeat.rule.start) continue;
+    if (own.has(day) || repeatDays(repeat.rule, t.date, t.date).length === 0) deleteTask(t.id);
   }
 }
 
