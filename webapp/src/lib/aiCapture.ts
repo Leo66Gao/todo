@@ -47,7 +47,7 @@ function context() {
     "Fields:",
     "- title: short and specific, in the student's language, without the date, time, length or priority words (\"Physics lab report\", not \"do physics lab report by friday 2h\").",
     '- type: "assignment" when something is handed in or due (the date is the due date); "todo" for work done on its date (revision, reading, practice).',
-    "- date: yyyy-MM-dd. A weekday means the next one (today if it's today and still ahead); \"next week\" means that Monday. null if no day is given.",
+    "- date: yyyy-MM-dd. A weekday means the next one (a week ahead if it's today's weekday); \"this <weekday>\" on that day means today; \"next <weekday>\" means the one in the week after; \"next week\" means that Monday. null if no day is given.",
     "- time: HH:mm (24h) only if a time is given, else null.",
     "- minutes: the work time if said or clearly implied (\"2h\", \"quick\" ≈ 15), else null.",
     `- priority: one of ${PRIORITIES.join(", ")}; only if said or clearly urgent ("asap", "urgent", "tomorrow's test"), else null.`,

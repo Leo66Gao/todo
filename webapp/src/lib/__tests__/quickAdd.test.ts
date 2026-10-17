@@ -84,3 +84,28 @@ it("reads priority in words", () => {
   expect(parse("critical thinking essay").priority).toBeUndefined();
   expect(parse("low prio: tidy desk").priority).toBe("low");
 });
+
+it("reads section and exercise numbers as numbers, not times", () => {
+  for (const text of ["Read section 2.30", "Do exercises 1.10 to 1.20", "Maths 3.1-3.4"]) {
+    const r = parse(text);
+    expect(r.title).toBe(text);
+    expect(r.time).toBeUndefined();
+    expect(r.minutes).toBeUndefined();
+  }
+  expect(parse("Read pages 12-14").time).toBeUndefined();
+});
+
+it("still reads times that can only be hours", () => {
+  expect(parse("Physics lab 14.00-16.00")).toMatchObject({ time: { hour: 14, minute: 0 }, minutes: 120 });
+  expect(parse("Gym 18.30").time).toEqual({ hour: 18, minute: 30 });
+  expect(parse("Run at 5.30").time).toEqual({ hour: 5, minute: 30 });
+  expect(parse("Run 5.30am").time).toEqual({ hour: 5, minute: 30 });
+  expect(parse("physics review fri 18-20").minutes).toBe(120);
+});
+
+it("reads 'this' and a bare weekday on that day like the AI does", () => {
+  // `now` is a Saturday.
+  expect(day(parse("brunch this sat").date)).toBe("2026-9-26");
+  expect(day(parse("brunch sat").date)).toBe("2026-10-3");
+  expect(day(parse("brunch next sat").date)).toBe("2026-10-3");
+});

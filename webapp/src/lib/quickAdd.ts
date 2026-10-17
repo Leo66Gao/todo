@@ -7,7 +7,7 @@ import { addDays, startOfDay } from "./time";
 import { parseTimeToken, type ClockTime } from "./timeParse";
 
 /** Words a trailing number counts rather than tells the time of. */
-const COUNTED = /^(?:ch|chap|chapter|chapters|p|pg|pp|page|pages|unit|units|section|sec|q|qs|question|questions|lesson|ex|exercise|exercises|topic|part|problem|problems|set|week|lecture|lab|test|quiz|no|nr|module|level|grade|year|paper|essay|draft|kapitel|seite|luku|sivu|tehtävä|tehtävät)$/;
+const COUNTED = /^(?:ch|chap|chapter|chapters|p|pg|pp|page|pages|unit|units|section|sections|sec|q|qs|question|questions|lesson|lessons|ex|exs|exercise|exercises|topic|topics|part|problem|problems|set|week|weeks|day|days|lecture|lab|test|quiz|no|nos|nr|number|numbers|slide|slides|module|level|grade|year|paper|essay|draft|kapitel|seite|luku|sivu|tehtävä|tehtävät)$/;
 
 export type TokenKind = "date" | "time" | "duration" | "subject" | "priority";
 
@@ -82,7 +82,8 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
   };
   /** Every match of a whole-word pattern not already used. */
   const scan = (pattern: RegExp, run: (m: RegExpExecArray, start: number, end: number) => boolean | void) => {
-    const re = new RegExp(`(?<![\\p{L}\\p{N}#!])(?:${pattern.source})(?![\\p{L}\\p{N}])`, "giu");
+    // (Not part of a number like "3.1" or "1.10": "Maths 3.1-3.4" holds no time.)
+    const re = new RegExp(`(?<![\\p{L}\\p{N}#!])(?<!\\d[.,:])(?:${pattern.source})(?![\\p{L}\\p{N}])(?![.,:]\\d)`, "giu");
     for (let m = re.exec(text); m; m = re.exec(text)) {
       const start = m.index;
       const end = start + m[0].length;
@@ -90,6 +91,9 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     }
   };
   const now = ctx.now;
+  /** The word before `start` counts things ("section 2.30", "exercises 1.10 to 1.20"). */
+  const counted = (start: number) =>
+    COUNTED.test((/(\S+)\s*$/.exec(text.slice(0, start))?.[1] ?? "").toLowerCase().replace(/[.:#]+$/, ""));
 
   // Dates -------------------------------------------------------------------
   const setDate = (date: Date | null, start: number, end: number) => {
@@ -118,7 +122,10 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     const day = weekday(word);
     // "SAT" (the test) isn't Saturday.
     if (day < 0 || (word.length === 3 && word === word.toUpperCase())) return;
-    if (setDate(nextWeekday(now, day, m[1]?.toLowerCase() === "next"), s, e)) result.due ||= isDue(m);
+    // "fri" on a Friday is next week's; "this fri" is today.
+    const which = m[1]?.toLowerCase();
+    const date = which === "this" && day === now.getDay() ? startOfDay(now) : nextWeekday(now, day, which === "next");
+    if (setDate(date, s, e)) result.due ||= isDue(m);
   });
   scan(withDue("(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?([a-z]{3,9}\\.?)"), (m, s, e) => {
     if (setDate(dayMonth(now, Number(m[1]), month(m[2])), s, e)) result.due ||= isDue(m);
@@ -137,9 +144,9 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
   const T = "\\d{1,2}(?:[:.]\\d{2})?\\s*(?:am|pm)?";
   scan(new RegExp(`(?:from\\s+|at\\s+)?(${T})\\s*(?:-|–|—|to|until|till)\\s*(${T})`), (m, s, e) => {
     if (result.time || ignored.has("time")) return;
-    const before = text.slice(0, s).toLowerCase();
-    const plain = !/[:.]|am|pm/i.test(m[1] + m[2]) && !/^from\b/i.test(m[0]);
-    if (plain && /\b(pages?|pp?|p\.|chapters?|ch|chap|questions?|qs?|q\.|ex|exercises?|problems?|exs?|units?|slides?|sections?|lessons?|weeks?|days?|nos?|numbers?)\.?\s*$/.test(before)) return;
+    // Marked as a time: "from", "at", or am/pm.
+    const marked = /am|pm/i.test(m[1] + m[2]) || /^(?:from|at)\b/i.test(m[0]);
+    const plain = !marked && !/[:.]/.test(m[1] + m[2]);
     const endText = m[2].replace(/\s+/g, "");
     let startText = m[1].replace(/\s+/g, "");
     // "6-8pm": the start takes the end's half of the day.
@@ -148,6 +155,9 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     const start = parseTimeToken(startText);
     const end = parseTimeToken(endText);
     if (!start || !end) return;
+    // After "pages" or "exercises" it's a range of those, unless it can only
+    // be hours ("lab 14.00-16.00"); and an unmarked start before 6 is rarely meant.
+    if (!marked && ((counted(s) && (plain || start.hour < 7)) || (!plain && start.hour < 6))) return;
     let length = end.hour * 60 + end.minute - (start.hour * 60 + start.minute);
     // "6pm-8" reads as 18–20.
     if (length <= 0 && end.hour < 12 && start.hour >= 12) length += 12 * 60;
@@ -174,6 +184,8 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     if (result.time || ignored.has("time")) return;
     const time = parseTimeToken((m[1] ?? m[2] ?? m[3]).replace(/\s+/g, ""));
     if (!time) return;
+    // A bare "2.30" after "section", or before 6 in the morning, is a number, not a time.
+    if (m[3] && ((counted(s) && time.hour < 7) || time.hour < 6)) return;
     result.time = time;
     take("time", s, e);
   });
