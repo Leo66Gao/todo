@@ -42,7 +42,11 @@ export const useFocus = create<{ session: FocusSession | null; expanded: boolean
   expanded: false,
 }));
 
+/** Bumped by every change made in the app, so a read of the phone's timer that started before one is dropped. */
+let generation = 0;
+
 const save = (session: FocusSession | null) => {
+  generation++;
   setLocal(STORE, session);
   useFocus.setState({ session });
   void scheduleEnd(session);
@@ -211,8 +215,11 @@ export const setFocusExpanded = (expanded: boolean) => useFocus.setState({ expan
 
 async function requestAlerts() {
   if (isNative()) {
-    const { LocalNotifications } = await import("@capacitor/local-notifications");
-    if ((await LocalNotifications.checkPermissions()).display !== "granted") await LocalNotifications.requestPermissions();
+    // (Without permission the timer still runs; only the alerts are missing.)
+    try {
+      const { LocalNotifications } = await import("@capacitor/local-notifications");
+      if ((await LocalNotifications.checkPermissions()).display !== "granted") await LocalNotifications.requestPermissions();
+    } catch { /* Asked again at the next session. */ }
   } else if (typeof Notification !== "undefined" && Notification.permission === "default") {
     void Notification.requestPermission();
   }
@@ -225,6 +232,8 @@ export const isFocusNotification = (id: number) => id >= FOCUS_NOTIFICATION_ID &
 // On the phone: the notification and the round ends live natively
 
 interface NativeFocusState {
+  /** Whose session it is (carried through untouched by the phone's timer). */
+  taskId?: string | null;
   title: string;
   blocks: FocusBlock[];
   index: number;
@@ -250,7 +259,7 @@ const FocusTimer = registerPlugin<FocusTimerPlugin>("FocusTimer");
 export function toNative(s: FocusSession): NativeFocusState {
   const blocks = s.plan ? s.plan.blocks.map((b, i) => (i === s.plan!.index ? { ...b, ms: s.length } : b)) : [{ kind: s.kind, ms: s.length }];
   const paused = s.endsAt == null;
-  return { title: s.title, blocks, index: s.plan?.index ?? 0, endsAt: s.endsAt ?? 0, left: paused ? (s.left ?? 0) : 0, paused };
+  return { taskId: s.taskId, title: s.title, blocks, index: s.plan?.index ?? 0, endsAt: s.endsAt ?? 0, left: paused ? (s.left ?? 0) : 0, paused };
 }
 
 /** What the phone's timer did (a button in the notification, rounds that ended) as the app's session. */
@@ -258,7 +267,8 @@ export function fromNative(n: NativeFocusState, current: FocusSession | null): F
   const index = Math.min(n.index, n.blocks.length - 1);
   const block = n.blocks[index];
   return {
-    taskId: current?.taskId ?? null,
+    // (Older builds' state has no task: then it's still the app's own session.)
+    taskId: n.taskId !== undefined ? n.taskId : (current?.taskId ?? null),
     title: n.title,
     length: block.ms,
     endsAt: n.paused ? null : n.endsAt,
@@ -295,8 +305,15 @@ async function sendToNative(session: FocusSession | null) {
 
 /** Takes in what was done from the notification since the app last looked. */
 async function syncFromNative() {
+  const asked = generation;
   const result = await FocusTimer.get().catch(() => null);
   if (!result) return;
+  // Started or changed here while asking: what the timer said is out of date,
+  // and the app's change (on its way to the timer) replaces it.
+  if (asked !== generation) {
+    setLocal(REV, result.rev);
+    return;
+  }
   if (result.opened && useFocus.getState().session) useFocus.setState({ expanded: true });
   const known = getLocal<number | null>(REV, null);
   setLocal(REV, result.rev);
@@ -306,9 +323,10 @@ async function syncFromNative() {
   const adopt = (known != null && known !== result.rev) || (!current && result.state != null);
   if (!adopt) return;
   const session = result.state ? fromNative(result.state, current) : null;
-  // Stopped from the notification: the time studied still comes off the task.
+  // Stopped or finished on the phone while the app slept: the time studied still comes off the task.
   const stopped = result.stopped;
-  if (!session && current && stopped?.stoppedRev === result.rev) credit(fromNative(stopped, current), stopped.stoppedAt);
+  const same = !!current && !!stopped && (stopped.taskId === undefined || stopped.taskId === current.taskId);
+  if (!session && same && stopped.stoppedRev === result.rev) credit(fromNative(stopped, current), stopped.stoppedAt);
   setLocal(STORE, session);
   useFocus.setState({ session, ...(session ? {} : { expanded: false }) });
 }

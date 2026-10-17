@@ -72,6 +72,14 @@ final class FocusTimer {
         }
     }
 
+    /** Keeps [state] as it was when it ended at [at] (stopped or finished), for the app to credit at revision [rev]. */
+    private static void keepFinal(Context context, JSONObject state, long at, int rev) throws JSONException {
+        JSONObject last = new JSONObject(state.toString());
+        last.put("stoppedAt", at);
+        last.put("stoppedRev", rev);
+        prefs(context).edit().putString(KEY_STOPPED, last.toString()).apply();
+    }
+
     /** Changes made from the notification since the app last looked (the app compares it). */
     static int rev(Context context) {
         return prefs(context).getInt(KEY_REV, 0);
@@ -167,9 +175,7 @@ final class FocusTimer {
                     refresh(context, state);
                     break;
                 case ACTION_STOP:
-                    state.put("stoppedAt", now);
-                    state.put("stoppedRev", rev(context) + 1);
-                    prefs(context).edit().putString(KEY_STOPPED, state.toString()).apply();
+                    keepFinal(context, state, now, rev(context) + 1);
                     save(context, null, true);
                     refresh(context, null);
                     break;
@@ -208,6 +214,9 @@ final class FocusTimer {
         if (endsAt <= now + 1500) {
             // The whole session is done.
             alert(context, "Time’s up", title.isEmpty() ? "Your focus session has ended." : title);
+            // Kept too: if a button here changed the session while the app
+            // slept, the app takes in the empty state and credits from this.
+            keepFinal(context, state, now, rev(context));
             save(context, null, false);
             refresh(context, null);
             return;

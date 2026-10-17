@@ -4,6 +4,8 @@ import { expect, it, vi } from "vitest";
 const native = vi.hoisted(() => ({
   result: { rev: 0, state: null as unknown, opened: false, stopped: null as unknown },
   listeners: {} as Record<string, () => void>,
+  /** While set, a read of the timer waits for it. */
+  gate: null as Promise<void> | null,
 }));
 
 vi.mock("../native", () => ({ isNative: () => true }));
@@ -11,7 +13,10 @@ vi.mock("@capacitor/local-notifications", () => ({ LocalNotifications: { cancel:
 vi.mock("@capacitor/core", () => ({
   registerPlugin: () => ({
     update: async () => {},
-    get: async () => native.result,
+    get: async () => {
+      if (native.gate) await native.gate;
+      return native.result;
+    },
     addListener: async (event: string, listener: () => void) => {
       native.listeners[event] = listener;
       return { remove: () => {} };
@@ -43,4 +48,39 @@ it("credits the time studied when the session is stopped from the notification",
   native.listeners.changed();
   await new Promise((r) => setTimeout(r, 10));
   expect(logged).toEqual([["t", 30]]);
+});
+
+it("credits a session that finished on the phone after a notification button changed it", async () => {
+  const { setFocusLogger, startTaskFocus, toNative, useFocus } = await import("../focus");
+  const logged: [string, number][] = [];
+  setFocusLogger((id, minutes) => logged.push([id, minutes]));
+  startTaskFocus({ id: "u", title: "Reading" }, 40);
+  const session = useFocus.getState().session!;
+  // Paused and resumed from the notification while the app slept (revision 2), then it ran out.
+  native.result = { rev: 2, state: null, opened: false, stopped: { ...toNative(session), stoppedAt: session.endsAt! + 60_000, stoppedRev: 2 } };
+  native.listeners.changed();
+  await vi.waitFor(() => expect(useFocus.getState().session).toBeNull());
+  expect(logged).toEqual([["u", 40]]);
+});
+
+it("ignores a read of the timer that started before a new session", async () => {
+  const { pauseFocus, setFocusLogger, startTaskFocus, stopFocus, toNative, useFocus } = await import("../focus");
+  const logged: [string, number][] = [];
+  setFocusLogger((id, minutes) => logged.push([id, minutes]));
+  startTaskFocus({ id: "a", title: "Essay" }, 60);
+  pauseFocus();
+  const a = useFocus.getState().session!;
+  let release = () => {};
+  native.gate = new Promise((r) => (release = r));
+  native.listeners.changed();
+  // Task B starts while the read is on its way; then A's state (half an hour in) arrives.
+  startTaskFocus({ id: "b", title: "Lab" }, 40);
+  native.result = { rev: 3, state: { ...toNative(a), left: 10 * 60_000 }, opened: false, stopped: null };
+  release();
+  native.gate = null;
+  await new Promise((r) => setTimeout(r, 10));
+  expect(useFocus.getState().session).toMatchObject({ taskId: "b", title: "Lab" });
+  logged.length = 0;
+  stopFocus();
+  expect(logged).toEqual([]);
 });
