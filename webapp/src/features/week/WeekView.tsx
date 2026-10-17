@@ -246,6 +246,7 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
             size={15}
             checked={task.isDone}
             onToggle={() => toggleTask(task.id)}
+            label={task.title}
           />
           <div className="min-w-0 flex-1">
             <p className={cn("line-clamp-2 text-xs leading-[17px] font-medium", task.isDone ? "text-ink-3 line-through decoration-ink-4" : "text-ink")}>

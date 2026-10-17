@@ -596,7 +596,9 @@ function isTyping(target: EventTarget | null) {
 
 /** A focused control that Space and Enter already work (a button, a checkbox, a link). */
 function ownsActivation(target: EventTarget | null) {
-  return !!(target as Element | null)?.closest?.('button, a[href], summary, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="radio"], [role="menuitem"]');
+  const control = (target as Element | null)?.closest?.('button, a[href], summary, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="radio"], [role="menuitem"]');
+  // (A focused task row is the selection itself: the keys act on it.)
+  return !!control && !control.hasAttribute("data-task-id");
 }
 
 function useKeyboard(route: Route, navigate: (r: Route) => void) {
@@ -708,7 +710,10 @@ function useKeyboard(route: Route, navigate: (r: Route) => void) {
           const next = order[Math.max(0, Math.min(order.length - 1, index < 0 ? (dir > 0 ? 0 : order.length - 1) : index + dir))];
           ui.select(next);
           if (state.inspectorId && !next.startsWith("milestone:")) ui.inspect(next);
-          document.querySelector(`[data-task-id="${CSS.escape(next)}"]`)?.scrollIntoView({ block: "nearest" });
+          // Focus follows the selection, so screen readers announce the task.
+          const row = document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(next)}"]`);
+          row?.scrollIntoView({ block: "nearest" });
+          row?.focus({ preventScroll: true });
           return;
         }
         case " ": {

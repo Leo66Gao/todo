@@ -318,6 +318,7 @@ export function TaskDetail({ taskId, variant, summary }: { taskId: string; varia
           <TaskCheck
             checked={task.isDone}
             onToggle={() => toggleTask(task.id)}
+            label={task.title}
           />
           <span className={cn("text-xs", task.isDone ? "text-ink-3" : isAssignment ? "text-accent" : "text-ink-3")}>
             {task.isDone ? "Completed" : isAssignment ? `Assignment due ${dueLabel(task.date).toLowerCase()}` : relativeDay(task.date)}
@@ -643,7 +644,7 @@ function SubtaskTile({ task, sub, onEdit }: { task: Task; sub: Subtask; onEdit: 
         milestone ? "bg-fill/60" : "bg-card",
       )}
     >
-      <TaskCheck size={20} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} />
+      <TaskCheck size={20} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} label={sub.title} />
       <button
         type="button"
         onClick={onEdit}
@@ -733,7 +734,7 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
     : [];
   return (
     <div className="group flex min-h-8 items-center gap-1 rounded-ctl pr-1 transition-colors hover:bg-fill/60">
-      <TaskCheck size={15} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} />
+      <TaskCheck size={15} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} label={sub.title} />
       {editing ? (
         <input
           autoFocus

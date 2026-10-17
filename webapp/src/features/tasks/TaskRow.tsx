@@ -360,7 +360,9 @@ const TaskRowView = memo(function TaskRowView({
           }}
           style={{ x: swipe.x }}
           role="button"
-          tabIndex={-1}
+          // The selected row is the one reached with Tab; j/k and the arrows move it.
+          tabIndex={selected ? 0 : -1}
+          aria-current={selected || inspected || undefined}
           data-task-id={task.id}
           onClick={onClick}
           className={cn(
@@ -375,7 +377,7 @@ const TaskRowView = memo(function TaskRowView({
           )}
         >
           <span data-drag-handle className="-my-1 flex shrink-0" onTouchStart={dragTouchStart}>
-            <TaskCheck checked={done} onToggle={checkToggle} size={phone ? 22 : 18} />
+            <TaskCheck checked={done} onToggle={checkToggle} size={phone ? 22 : 18} label={task.title} />
           </span>
           <div className="min-w-0 flex-1">
             {/* Long titles wrap onto a second line rather than being cut short. */}
@@ -426,6 +428,7 @@ const TaskRowView = memo(function TaskRowView({
                     size={14}
                     checked={sub.isDone || task.isDone}
                     onToggle={() => toggleSubtask(task.id, sub.id)}
+                    label={sub.title}
                   />
                   <span className={cn("truncate text-xs", sub.isDone ? "text-ink-3 line-through" : "text-ink-2")}>
                     {sub.title}

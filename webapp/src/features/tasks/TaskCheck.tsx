@@ -14,11 +14,17 @@ export function TaskCheck({
   onToggle,
   size = 18,
   className,
+  label,
+  ariaLabel,
 }: {
   checked: boolean;
   onToggle: () => void;
   size?: number;
   className?: string;
+  /** What's being ticked off (its title), for screen readers. */
+  label?: string;
+  /** The whole name instead, for a box that isn't "done" (picking items to include). */
+  ariaLabel?: string;
 }) {
   // Only animate changes the user makes, not the first paint of a list.
   const [animateIn, setAnimateIn] = useState(false);
@@ -28,7 +34,8 @@ export function TaskCheck({
       type="button"
       role="checkbox"
       aria-checked={checked}
-      aria-label={checked ? "Mark as not done" : "Mark as done"}
+      // (A checkbox is named for its item; "checked" is read out with it.)
+      aria-label={ariaLabel ?? (label ? `Done: ${label}` : "Done")}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();

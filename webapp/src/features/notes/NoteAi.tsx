@@ -687,6 +687,7 @@ function ResultView({
                 size={20}
                 checked={t.include}
                 onToggle={() => onChange({ ...result, tasks: result.tasks.map((x, j) => (j === i ? { ...x, include: !x.include } : x)) })}
+                ariaLabel={`Include “${t.title}”`}
               />
               <div className="min-w-0 flex-1">
                 <div className={cn("text-[15px] leading-snug", !t.include && "text-ink-3")}>{t.title}</div>
