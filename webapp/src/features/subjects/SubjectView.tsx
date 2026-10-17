@@ -54,6 +54,7 @@ import {
   materialMatches,
   moveMaterial,
   normalizeUrl,
+  openMaterialLink,
   removeMaterial,
   saveMaterial,
   setDescription,
@@ -595,7 +596,7 @@ function MaterialsPanel({ project }: { project: Project }) {
   };
 
   const menu = (m: Material, index: number): MenuItem[] => [
-    ...(m.url ? [{ label: "Open link", onSelect: () => openLink(m.url!) }, { label: "Copy link", onSelect: () => void copy(m.url!) }] : []),
+    ...(m.url ? [{ label: "Open link", onSelect: () => openMaterialLink(m.url!) }, { label: "Copy link", onSelect: () => void copy(m.url!) }] : []),
     ...(m.path
       ? [
           ...(macOpener
@@ -678,7 +679,7 @@ function MaterialsPanel({ project }: { project: Project }) {
                   <div className="group flex items-center rounded-[10px] transition-colors hover:bg-fill/70">
                     <button
                       type="button"
-                      onClick={() => (m.url ? openLink(m.url) : m.path ? openFile(m) : setEditing(m))}
+                      onClick={() => (m.url ? openMaterialLink(m.url) : m.path ? openFile(m) : setEditing(m))}
                       className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
                       title={m.url ?? m.path}
                     >
@@ -815,9 +816,12 @@ function FileViewer() {
         <>
           <div className="flex h-12 shrink-0 items-center gap-3 border-b border-line px-4">
             <span className="min-w-0 flex-1 truncate text-sm font-medium">{f.name}</span>
-            <Button size="sm" onClick={() => window.open(f.url, "_blank")}>
-              Open in a new tab
-            </Button>
+            {/* (Not an SVG: opened on its own, its scripts would run as the app.) */}
+            {f.type !== "image/svg+xml" && (
+              <Button size="sm" onClick={() => window.open(f.url, "_blank", "noopener")}>
+                Open in a new tab
+              </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={closeFileViewer}>
               Close
             </Button>
@@ -833,17 +837,14 @@ function FileViewer() {
                 <audio src={f.url} controls />
               </div>
             ) : (
-              <iframe src={f.url} title={f.name} className="size-full border-0 bg-white" />
+              // Text is shown with no scripts at all; PDF viewers need theirs.
+              <iframe src={f.url} title={f.name} sandbox={f.type === "application/pdf" ? undefined : ""} className="size-full border-0 bg-white" />
             )}
           </div>
         </>
       )}
     </Modal>
   );
-}
-
-function openLink(url: string) {
-  window.open(url, "_blank", "noopener");
 }
 
 async function copy(text: string) {

@@ -31,6 +31,7 @@ import {
 } from "@/lib/calendar";
 import { plainText } from "@/lib/delta";
 import { firebase } from "@/lib/firebase";
+import { setAiKey } from "@/lib/ai";
 import {
   decodeFolder,
   decodeNote,
@@ -578,6 +579,8 @@ export async function signOut() {
     // Note edits wait a few seconds before uploading; send them first.
     await cloud?.flush().catch(() => {});
     calendar.clearSession();
+    // The AI key is this person's own; the next account on the device mustn't inherit it.
+    setAiKey("");
     await nativeSignOut();
     await firebaseSignOut(fb.auth);
     await authQueue;

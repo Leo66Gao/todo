@@ -30,7 +30,7 @@ import { openTask } from "@/features/tasks/actions";
 import { useAllTasks } from "@/features/tasks/meta";
 import { createNote } from "@/features/notes/noteActions";
 import { createSubject } from "@/features/subjects/subjectActions";
-import { materialMatches } from "@/features/subjects/materials";
+import { materialMatches, openMaterialLink } from "@/features/subjects/materials";
 import { canLinkFiles, copyPath, openFile } from "@/features/subjects/localFiles";
 import { useWorkspace } from "@/store/workspace";
 import { askNotes } from "@/features/ai/StudyAi";
@@ -169,7 +169,7 @@ function Palette() {
           run: () => {
             if (m.url) {
               close();
-              window.open(m.url, "_blank", "noopener");
+              openMaterialLink(m.url);
             } else if (m.path) {
               close();
               if (canLinkFiles()) openFile(m);

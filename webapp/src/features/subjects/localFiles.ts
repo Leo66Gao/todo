@@ -182,12 +182,17 @@ export function openFile(material: Material) {
     try {
       if ((await permitted) !== "granted") return;
       const file = await h.getFile();
-      const url = URL.createObjectURL(file);
       if (VIEWABLE.test(file.type)) {
+        // A blob URL belongs to the app's own origin, so a web page (or any
+        // text that a browser might run as one) is shown as plain text: its
+        // scripts would otherwise run with the app's sign-in and keys.
+        const text = file.type.startsWith("text/");
+        const shown = text ? new Blob([file], { type: "text/plain;charset=utf-8" }) : file;
         closeFileViewer();
-        useFileViewer.setState({ file: { name: file.name, type: file.type, url } });
+        useFileViewer.setState({ file: { name: file.name, type: text ? "text/plain" : file.type, url: URL.createObjectURL(shown) } });
         return;
       }
+      const url = URL.createObjectURL(file);
       // Word, slides and the like: the browser saves a copy to open.
       const a = document.createElement("a");
       a.href = url;

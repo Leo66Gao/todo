@@ -61,6 +61,17 @@ export function normalizeUrl(text: string): string {
   return `https://${value}`;
 }
 
+/**
+ * Opens a material's link in a new tab. Links that would run in the app's
+ * own page (javascript:, data:, blob:) aren't opened; ordinary web links and
+ * app links (zoommtg:, onenote:, …) are.
+ */
+export function openMaterialLink(url: string) {
+  const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(url)?.[1]?.toLowerCase();
+  if (!scheme || ["javascript", "data", "vbscript", "blob", "file"].includes(scheme)) return;
+  window.open(url, "_blank", "noopener");
+}
+
 /** True for text that reads as a file on a computer: "/Users/…", "~/…", "C:\\…" or a file: link. */
 export function looksLikePath(text: string): boolean {
   const value = text.trim();
