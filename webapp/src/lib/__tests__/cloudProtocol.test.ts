@@ -76,6 +76,19 @@ it("preserves a real remote conflict and a deletion remains deleted", async () =
   await sync.disconnect();
 });
 
+it("merges the task order both devices changed instead of saving a conflict note", async () => {
+  const sync = await connect();
+  server.documents.set("settings:order", { payload: JSON.stringify(["a", "b"]), deleted: false, updatedAt: new Date(1_000) });
+  server.listeners[0].next(snapshot("settings:order", JSON.stringify(["a", "b"]), 1_000));
+  await sync.writeChanges({ "settings:order": JSON.stringify(["a", "b", "phone"]) });
+  server.documents.set("settings:order", { payload: JSON.stringify(["a", "b", "laptop"]), deleted: false, updatedAt: new Date(2_000) });
+  await sync.uploadNow();
+  expect(JSON.parse(server.documents.get("settings:order")!.payload)).toEqual(["a", "b", "laptop", "phone"]);
+  expect([...server.documents.keys()].some((k) => k.startsWith("note:"))).toBe(false);
+  expect(sync.hasPending).toBe(false);
+  await sync.disconnect();
+});
+
 it("accepts a newer remote edit arriving during upload without a second query", async () => {
   const sync = await connect();
   server.documents.set("note:n", { payload: note("original"), deleted: false, updatedAt: new Date(1_000) });

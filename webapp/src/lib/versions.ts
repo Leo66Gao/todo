@@ -36,3 +36,19 @@ export function withVersion(
   if (bytes({ versions: next }) > 650 * 1024) return null;
   return next;
 }
+
+/** Two histories of the same note (from two devices) as one: every version once, newest first, within the same limits. */
+export function mergeVersions(a: Version[], b: Version[]): Version[] {
+  const seen = new Set<string>();
+  const all = [...a, ...b]
+    .filter((v) => {
+      const key = `${v.at}\u0000${v.title}\u0000${v.content}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((x, y) => y.at - x.at)
+    .slice(0, MAX_VERSIONS);
+  while (all.length > 1 && bytes({ versions: all }) > MAX_BYTES) all.pop();
+  return all;
+}

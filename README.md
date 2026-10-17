@@ -75,8 +75,10 @@ glass background and effects) is saved on each device, not synced.
 
 If two devices edit the same saved item while apart, sync keeps the newer
 cloud item and saves the other version as a visible “conflict copy” for review.
-Conflicting workspace preferences are preserved in a note. Deletions still
-take precedence over stale edits.
+The task order, tags, source library and note history are merged instead:
+additions and removals from both devices are kept, and this device's edit wins
+where both changed the same item. Conflicting workspace preferences are
+preserved in a note. Deletions still take precedence over stale edits.
 
 The web app stores records and pending changes atomically in IndexedDB,
 migrating the older localStorage cache after the new copy is durable. Competing

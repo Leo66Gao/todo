@@ -27,6 +27,7 @@ import {
 import { WorkspaceCache } from "./deviceCache";
 import { syncFailure } from "./syncPolicy";
 import { payloadFits, recoveryRecords } from "./recordRecovery";
+import { mergeRecord } from "./recordMerge";
 
 type Records = Record<string, string>;
 type Pending = Record<string, string | null>;
@@ -478,6 +479,8 @@ export class CloudSync {
           const conflicts: Record<string, string> = {};
           const copies: Record<string, [string, string][]> = {};
           const remoteAt: Record<string, number> = {};
+          // Shared settings both devices changed, merged instead of copied.
+          const merged: Record<string, string> = {};
           let writes = 0;
           for (const [key, value] of entries) {
             const remote = snapshots[key];
@@ -490,6 +493,11 @@ export class CloudSync {
             const remotePayload = (remote.data()?.payload as string | undefined) ?? null;
             if (remotePayload === value) continue;
             if (key in bases && remotePayload === bases[key]) continue;
+            const mergedValue = remotePayload == null ? null : mergeRecord(key, value, bases[key] ?? null, remotePayload);
+            if (mergedValue != null && payloadFits(mergedValue)) {
+              merged[key] = mergedValue;
+              continue;
+            }
             conflicts[key] = remotePayload ?? "";
           }
           const candidates: Record<string, [string, string][]> = {};
@@ -507,14 +515,14 @@ export class CloudSync {
                 if (!existing.exists()) { tx.set(doc(col, copyKey), this.document(copyKey, payload)); writes++; }
                 return [copyKey, (existing.data()?.payload as string | undefined) ?? payload];
               });
-            } else if (snapshots[key].data()?.payload !== value || !snapshots[key].exists()) {
-              tx.set(doc(col, key), this.document(key, value));
+            } else if (snapshots[key].data()?.payload !== (merged[key] ?? value) || !snapshots[key].exists()) {
+              tx.set(doc(col, key), this.document(key, merged[key] ?? value));
               writes++;
             }
             // Otherwise this exact write already landed before an earlier
             // attempt lost its acknowledgement.
           }
-          return { tombstones, conflicts, copies, remoteAt, writes };
+          return { tombstones, conflicts, copies, merged, remoteAt, writes };
         });
         if (generation !== this.generation) return;
         this.recordsUploaded += outcome.writes;
@@ -542,6 +550,16 @@ export class CloudSync {
               this.records[key] = outcome.conflicts[key];
               clear();
               recordsChanged = true;
+            }
+          } else if (key in outcome.merged) {
+            if (sameOperation) {
+              this.records[key] = outcome.merged[key];
+              clear();
+              recordsChanged = true;
+            } else {
+              // A newer local edit started from the value before the merge;
+              // keeping that as its base merges it again next time.
+              this.bases[key] = value!;
             }
           } else if (sameOperation) {
             clear();
