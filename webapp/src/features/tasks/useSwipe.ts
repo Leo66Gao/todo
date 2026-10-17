@@ -5,8 +5,12 @@ import { animate, useMotionValue } from "motion/react";
 import { haptic } from "@/lib/native";
 import { springs } from "@/ui/motion";
 
-const THRESHOLD = 72;
-const LOCK = 10;
+// (Set so a sideways brush of the thumb while scrolling doesn't complete or
+// delete a task: it takes a deliberate, mostly sideways swipe.)
+const THRESHOLD = 110;
+const LOCK = 14;
+/** How much more sideways than up-and-down a touch must start to be a swipe. */
+const SIDEWAYS = 2;
 /** A touch held still this long is a long press (a drag or the editor), never a swipe (ms). */
 const HOLD = 240;
 
@@ -60,7 +64,7 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
       const dy = t.clientY - s.y;
       if (!s.axis) {
         if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
-        s.axis = e.timeStamp - s.at > HOLD ? "none" : Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+        s.axis = e.timeStamp - s.at > HOLD ? "none" : Math.abs(dx) > Math.abs(dy) * SIDEWAYS ? "x" : "y";
       }
       if (s.axis !== "x") return;
       swiped.current = true;
@@ -78,9 +82,9 @@ export function useSwipe(onRight: () => void, onLeft: () => void) {
     onTouchEnd(e: React.TouchEvent) {
       const swiping = start.current?.axis === "x";
       const v = speed();
-      // A flick past a short way counts too.
+      // A fast, clear flick counts too (more than halfway, and quick).
       const shown = x.get();
-      const flick = Math.abs(shown) > 36 && Math.abs(v) > 700 ? (v > 0 ? "right" : "left") : null;
+      const flick = Math.abs(shown) > 64 && Math.abs(v) > 1100 ? (v > 0 ? "right" : "left") : null;
       const fire = swiping ? (armed ?? flick) : null;
       if (fire === "left") {
         // Off the side at the finger's speed, then gone.

@@ -109,3 +109,10 @@ it("reads 'this' and a bare weekday on that day like the AI does", () => {
   expect(day(parse("brunch sat").date)).toBe("2026-10-3");
   expect(day(parse("brunch next sat").date)).toBe("2026-10-3");
 });
+
+it("reads a trailing hour after a topic, even one ending in a counting-like word", () => {
+  for (const text of ["complex numbers 10", "physics 10", "Physics 10", "maths 9"]) {
+    expect(parse(text).time?.hour, text).toBe(Number(text.split(" ").pop()));
+  }
+  expect(parse("Do numbers 1-5").time).toBeUndefined();
+});

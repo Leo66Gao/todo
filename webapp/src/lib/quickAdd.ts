@@ -7,7 +7,7 @@ import { addDays, startOfDay } from "./time";
 import { parseTimeToken, type ClockTime } from "./timeParse";
 
 /** Words a trailing number counts rather than tells the time of. */
-const COUNTED = /^(?:ch|chap|chapter|chapters|p|pg|pp|page|pages|unit|units|section|sections|sec|q|qs|question|questions|lesson|lessons|ex|exs|exercise|exercises|topic|topics|part|problem|problems|set|week|weeks|day|days|lecture|lab|test|quiz|no|nos|nr|number|numbers|slide|slides|module|level|grade|year|paper|essay|draft|kapitel|seite|luku|sivu|tehtävä|tehtävät)$/;
+const COUNTED = /^(?:ch|chap|chapter|chapters|p|pg|pp|page|pages|unit|units|section|sections|sec|q|qs|question|questions|lesson|lessons|ex|exs|exercise|exercises|topic|topics|part|problem|problems|set|week|weeks|lecture|lab|test|quiz|no|nos|nr|slide|slides|module|level|grade|year|paper|essay|draft|kapitel|seite|luku|sivu|tehtävä|tehtävät)$/;
 
 export type TokenKind = "date" | "time" | "duration" | "subject" | "priority";
 
@@ -91,9 +91,15 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     }
   };
   const now = ctx.now;
-  /** The word before `start` counts things ("section 2.30", "exercises 1.10 to 1.20"). */
-  const counted = (start: number) =>
-    COUNTED.test((/(\S+)\s*$/.exec(text.slice(0, start))?.[1] ?? "").toLowerCase().replace(/[.:#]+$/, ""));
+  /**
+   * The word before `start` counts things ("section 2.30", "exercises 1.10
+   * to 1.20"). A range also counts after "numbers" or "days" ("numbers
+   * 1-5"); a single number there is a time ("complex numbers 10").
+   */
+  const counted = (start: number, range = false) => {
+    const word = (/(\S+)\s*$/.exec(text.slice(0, start))?.[1] ?? "").toLowerCase().replace(/[.:#]+$/, "");
+    return COUNTED.test(word) || (range && /^(?:numbers?|days?)$/.test(word));
+  };
 
   // Dates -------------------------------------------------------------------
   const setDate = (date: Date | null, start: number, end: number) => {
@@ -157,7 +163,7 @@ export function parseQuickAdd(text: string, ctx: QuickAddContext): QuickAdd {
     if (!start || !end) return;
     // After "pages" or "exercises" it's a range of those, unless it can only
     // be hours ("lab 14.00-16.00"); and an unmarked start before 6 is rarely meant.
-    if (!marked && ((counted(s) && (plain || start.hour < 7)) || (!plain && start.hour < 6))) return;
+    if (!marked && ((counted(s, true) && (plain || start.hour < 7)) || (!plain && start.hour < 6))) return;
     let length = end.hour * 60 + end.minute - (start.hour * 60 + start.minute);
     // "6pm-8" reads as 18–20.
     if (length <= 0 && end.hour < 12 && start.hour >= 12) length += 12 * 60;
