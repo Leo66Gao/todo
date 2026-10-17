@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { dayString, describeRepeat, readRepeat, repeatDays, type RepeatRule } from "../repeat";
-import { applyToUpcoming, changesShared, setRepeat, topUpRepeats, upcomingOf } from "@/store/repeat";
+import { applyToUpcoming, changesShared, endSeriesBefore, setRepeat, topUpRepeats, upcomingOf } from "@/store/repeat";
 import { newTask, useWorkspace } from "@/store/workspace";
 
 vi.mock("@/ui/toast", () => ({ toast: vi.fn() }));
@@ -98,4 +98,22 @@ it("tops a rule up as days pass, without bringing back a deleted day", () => {
   const count = after.length;
   topUpRepeats(d("2026-10-25"));
   expect(useWorkspace.getState().tasks.length).toBe(count);
+});
+
+it("stays ended after deleting a day and the ones after it", () => {
+  vi.useFakeTimers({ now: new Date(2026, 9, 10, 12), toFake: ["Date"] });
+  const task = newTask({ title: "Vocab", date: d("2026-10-10") });
+  useWorkspace.setState({ tasks: [task] });
+  setRepeat(task.id, { kind: "rule", every: 1, unit: "day", start: "2026-10-10" });
+  // "Delete this and upcoming" on the 14th: those tasks go, and the series ends on the 13th.
+  const from = useWorkspace.getState().tasks.find((t) => dayString(t.date) === "2026-10-14")!;
+  const gone = [from, ...upcomingOf(from)].map((t) => t.id);
+  const undo = endSeriesBefore(from);
+  useWorkspace.setState((st) => ({ tasks: st.tasks.filter((t) => !gone.includes(t.id)) }));
+  topUpRepeats(d("2026-10-12"));
+  topUpRepeats(d("2026-11-20"));
+  expect(useWorkspace.getState().tasks.map((t) => dayString(t.date)).at(-1)).toBe("2026-10-13");
+  // Undo gives the series its open end back.
+  undo();
+  expect(readRepeat(useWorkspace.getState().tasks[0])?.rule).not.toHaveProperty("until", "2026-10-13");
 });

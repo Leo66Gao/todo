@@ -5,10 +5,10 @@ import type { Priority } from "@/lib/dart";
 import { argbToCss } from "@/lib/dart";
 import { uuid, type Task } from "@/lib/model";
 import { startTaskFocus } from "@/lib/focus";
-import { addDays, formatDuration, relativeDay, startOfWeek, today } from "@/lib/time";
+import { addDays, formatDuration, relativeDay, startOfDay, startOfWeek, today } from "@/lib/time";
 import type { Route } from "@/shell/nav";
 import { ui } from "@/shell/ui";
-import { upcomingOf } from "@/store/repeat";
+import { endSeriesBefore, upcomingOf } from "@/store/repeat";
 import { restoreFromTrash, trashTask } from "@/store/trash";
 import {
   addSubtaskFull,
@@ -85,6 +85,7 @@ export function duplicateTask(task: Task, day?: Date) {
   const currentSession = captureWorkspaceSession();
   const index = useWorkspace.getState().tasks.findIndex((t) => t.id === task.id);
   const date = day ?? task.date;
+  const shift = Math.round((startOfDay(date).getTime() - startOfDay(task.date).getTime()) / 86_400_000);
   const id = uuid();
   const extra = { ...task.extra };
   delete extra.repeat;
@@ -98,7 +99,8 @@ export function duplicateTask(task: Task, day?: Date) {
     googleEventId: null,
     calendarEventRevision: 0,
     isConflictCopy: false,
-    subtasks: task.subtasks.map((s) => ({ ...s, id: uuid(), isDone: false })),
+    // Dated subtasks (milestones) keep their distance from the new day.
+    subtasks: task.subtasks.map((s) => ({ ...s, id: uuid(), isDone: false, date: s.date ? addDays(s.date, shift) : null })),
     extra: Object.keys(extra).length ? extra : undefined,
   };
   addTask(copy, index + 1);
@@ -114,10 +116,15 @@ export function removeUpcoming(task: Task) {
   const all = [task, ...upcomingOf(task)].map((t) => useWorkspace.getState().tasks.find((x) => x.id === t.id)).filter((t): t is Task => !!t);
   if (ui.get().inspectorId && all.some((t) => t.id === ui.get().inspectorId)) ui.closeInspector();
   for (const t of all) trashTask(t);
+  // The series ends the day before: the tasks left keep it from being topped
+  // up again past the deleted days.
+  const resume = endSeriesBefore(task);
   toast(`Deleted ${all.length} ${all.length === 1 ? "task" : "tasks"}`, {
     label: "Undo",
     run: () => {
-      if (currentSession()) for (const t of all) restoreFromTrash("task", t.id);
+      if (!currentSession()) return;
+      for (const t of all) restoreFromTrash("task", t.id);
+      resume();
     },
   });
 }

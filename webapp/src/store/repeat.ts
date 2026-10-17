@@ -101,6 +101,33 @@ export function upcomingOf(task: Task): Task[] {
   return tasksOf(repeat.series).filter((t) => t.id !== task.id && !t.isDone && t.date > task.date);
 }
 
+/**
+ * Ends [task]'s series the day before it, on every task of the series still
+ * there, so it isn't topped up past that day again (after "delete this and
+ * upcoming"). Returns a function that undoes it.
+ */
+export function endSeriesBefore(task: Task): () => void {
+  const repeat = readRepeat(task);
+  if (!repeat) return () => {};
+  const last = dayString(addDays(task.date, -1));
+  const before = tasksOf(repeat.series).filter((t) => t.id !== task.id);
+  for (const t of before) {
+    const own = readRepeat(t);
+    if (!own) continue;
+    const rule: RepeatRule =
+      own.rule.kind === "rule"
+        ? { ...own.rule, until: own.rule.until && own.rule.until < last ? own.rule.until : last }
+        : { kind: "days", days: own.rule.days.filter((d) => d <= last) };
+    updateTask(withRepeat(t, { ...own, rule }));
+  }
+  return () => {
+    for (const t of before) {
+      const now = useWorkspace.getState().tasks.find((x) => x.id === t.id);
+      if (now) updateTask(withRepeat(now, readRepeat(t)));
+    }
+  };
+}
+
 /** Whether saving [after] over [before] changes something the series shares. */
 export function changesShared(before: Task, after: Task): boolean {
   const clock = (d: Date | null) => (d ? d.getHours() * 60 + d.getMinutes() : null);
