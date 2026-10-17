@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { flushSync } from "react-dom";
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { animate, AnimatePresence, motion, MotionConfig, useMotionValue, useTransform } from "motion/react";
 import {
@@ -29,6 +28,15 @@ import { InspectorPanel, InspectorSheet } from "@/features/tasks/Inspector";
 import { EventSheet } from "@/features/events/EventSheet";
 import { NameColorHost } from "@/features/subjects/NameColorDialog";
 import { TodayView } from "@/features/today/TodayView";
+import { WeekView } from "@/features/week/WeekView";
+import { CalendarView } from "@/features/calendar/CalendarView";
+import { AssignmentsView } from "@/features/assignments/AssignmentsView";
+import { AssignmentView } from "@/features/assignments/AssignmentView";
+import { SubjectsView } from "@/features/subjects/SubjectsView";
+import { SubjectView } from "@/features/subjects/SubjectView";
+import { NotesView } from "@/features/notes/NotesView";
+import { NoteView } from "@/features/notes/NoteView";
+import { SettingsView } from "@/features/settings/SettingsView";
 import type { SlotDropData } from "@/features/today/ScheduleRail";
 import { calendarJustExpired, connectCalendar, milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
@@ -58,18 +66,9 @@ import { startDayTicker, ui, useUI } from "./ui";
 import { ErrorBoundary, startChunkRecovery } from "./ErrorBoundary";
 import { expireTrash } from "@/store/trash";
 
-// Pages other than Today, and dialogs that open on demand, load in their own
-// scripts: the first screen draws sooner, and they're fetched in the
-// background right after it (so opening one later doesn't wait).
-const WeekView = dynamic(() => import("@/features/week/WeekView").then((m) => m.WeekView), { ssr: false });
-const CalendarView = dynamic(() => import("@/features/calendar/CalendarView").then((m) => m.CalendarView), { ssr: false });
-const AssignmentsView = dynamic(() => import("@/features/assignments/AssignmentsView").then((m) => m.AssignmentsView), { ssr: false });
-const AssignmentView = dynamic(() => import("@/features/assignments/AssignmentView").then((m) => m.AssignmentView), { ssr: false });
-const SubjectsView = dynamic(() => import("@/features/subjects/SubjectsView").then((m) => m.SubjectsView), { ssr: false });
-const SubjectView = dynamic(() => import("@/features/subjects/SubjectView").then((m) => m.SubjectView), { ssr: false });
-const NotesView = dynamic(() => import("@/features/notes/NotesView").then((m) => m.NotesView), { ssr: false });
-const NoteView = dynamic(() => import("@/features/notes/NoteView").then((m) => m.NoteView), { ssr: false });
-const SettingsView = dynamic(() => import("@/features/settings/SettingsView").then((m) => m.SettingsView), { ssr: false });
+// Dialogs that open on demand (and the desktop's glass engine) load in their
+// own scripts, fetched in the background once the first screen is up. Pages
+// don't: a page loaded on first visit showed blank for a moment.
 const GlassLayer = dynamic(() => import("@/glass/GlassLayer").then((m) => m.GlassLayer), { ssr: false });
 const FormulaHost = dynamic(() => import("@/ui/FormulaDialog").then((m) => m.FormulaHost), { ssr: false });
 const SourcesHost = dynamic(() => import("@/features/sources/SourcesSheet").then((m) => m.SourcesHost), { ssr: false });
@@ -78,18 +77,9 @@ const PhotoNoteDialog = dynamic(() => import("@/features/ai/PhotoNote").then((m)
 const CommandPalette = dynamic(() => import("@/features/command/CommandPalette").then((m) => m.CommandPalette), { ssr: false });
 const AskNotesDialog = dynamic(() => import("@/features/ai/StudyAi").then((m) => m.AskNotesDialog), { ssr: false });
 const SubjectStudyDialog = dynamic(() => import("@/features/ai/StudyAi").then((m) => m.SubjectStudyDialog), { ssr: false });
-function preloadPages() {
+function preloadDialogs() {
   const load = () => {
     for (const page of [
-      () => import("@/features/week/WeekView"),
-      () => import("@/features/calendar/CalendarView"),
-      () => import("@/features/assignments/AssignmentsView"),
-      () => import("@/features/assignments/AssignmentView"),
-      () => import("@/features/subjects/SubjectsView"),
-      () => import("@/features/subjects/SubjectView"),
-      () => import("@/features/notes/NotesView"),
-      () => import("@/features/notes/NoteView"),
-      () => import("@/features/settings/SettingsView"),
       () => import("@/glass/GlassLayer"),
       () => import("@/features/command/CommandPalette"),
       () => import("@/features/ai/StudyAi"),
@@ -142,7 +132,7 @@ export function Shell() {
   useEffect(() => {
     startDayTicker();
     startChunkRecovery();
-    preloadPages();
+    preloadDialogs();
     // Web: Google's Calendar access runs out hourly; one click renews it.
     // (Checked only while the app is in view, so the offer isn't missed.)
     const calendarCheck = setInterval(() => {
@@ -208,9 +198,8 @@ function Workspace() {
   const collapsed = useUI((s) => s.sidebarCollapsed);
   const drawer = useUI((s) => s.sidebarOpen);
   // The shut drawer is hidden once it has slid away (and shown before it moves).
-  const [drawerShown, setDrawerShown] = useState(false);
   const drawerSwipe = useDrawerSwipe(drawer, useCallback((open: boolean) => ui.set({ sidebarOpen: open }), []));
-  if ((drawer || drawerSwipe.pulling) && !drawerShown) setDrawerShown(true);
+  const drawerShown = drawer || drawerSwipe.shown;
   // The shade over the page darkens as far as the drawer is out.
   const scrimOpacity = useTransform(drawerSwipe.x, [-DRAWER_W, 0], [0, 1]);
   const glass = useGlassOn();
@@ -373,12 +362,6 @@ function Workspace() {
               "glass-overlay fixed inset-y-0 left-0 z-40 w-[280px] shadow-modal will-change-transform lg:hidden max-md:top-[max(8px,env(safe-area-inset-top))] max-md:bottom-[max(8px,env(safe-area-inset-bottom))] max-md:left-2 max-md:w-[318px] max-md:max-w-[calc(100vw-56px)] max-md:overflow-hidden max-md:rounded-[30px] max-md:border max-md:border-line",
               !drawerShown && "invisible",
             )}
-            initial={false}
-            animate={drawerSwipe.pulling ? undefined : { x: drawer ? 0 : -330 }}
-            transition={springs.panel}
-            onAnimationComplete={() => {
-              if (!ui.get().sidebarOpen) setDrawerShown(false);
-            }}
             // Swipes back off to the left to close.
             {...drawerSwipe.handlers}
             style={{ x: drawerSwipe.x, touchAction: "pan-y" }}
@@ -788,15 +771,60 @@ const CLOSE_AT = 90;
 
 function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
   const x = useMotionValue(-DRAWER_W);
-  const [pulling, setPulling] = useState(false);
+  // Shown while open, being pulled, or sliding shut.
+  const [shown, setShown] = useState(false);
+  // A finger is moving the drawer: nothing else may animate it meanwhile.
+  const dragging = useRef(false);
+  // How fast the finger was going when it let go (the spring carries on at it).
+  const releaseSpeed = useRef(0);
   const start = useRef<{ x: number; y: number; t: number; axis: "x" | "y" | null } | null>(null);
 
-  // Pulling it in: listens on the whole window, for touches that start while
-  // the drawer is shut (it opens mid-gesture, so this mustn't depend on it).
+  // The drawer is moved here and only here: to wherever "open" says once no
+  // finger holds it. Nothing waits for an animation to finish, so one cut
+  // short (grabbed mid-slide, closed while opening) can't leave it stuck.
   const isOpen = useRef(open);
+  // (Opened by a button too: shown from then until it has slid shut.)
+  if (open && !shown) setShown(true);
   useEffect(() => {
     isOpen.current = open;
-  }, [open]);
+    if (dragging.current) return;
+    const velocity = releaseSpeed.current;
+    releaseSpeed.current = 0;
+    const controls = animate(x, open ? 0 : -DRAWER_W, {
+      ...springs.panel,
+      velocity,
+      onComplete: () => {
+        if (!isOpen.current) setShown(false);
+      },
+    });
+    return () => controls.stop();
+  }, [open, x]);
+
+  /** A finger let go of the drawer: it settles open or shut, at the finger's speed. */
+  const settle = useCallback(
+    (toOpen: boolean, velocity: number) => {
+      dragging.current = false;
+      releaseSpeed.current = velocity;
+      if (toOpen !== isOpen.current) {
+        if (toOpen) haptic();
+        setOpen(toOpen);
+        return;
+      }
+      // Already where it should be in state: just slide back into place.
+      releaseSpeed.current = 0;
+      void animate(x, toOpen ? 0 : -DRAWER_W, {
+        ...springs.panel,
+        velocity,
+        onComplete: () => {
+          if (!isOpen.current) setShown(false);
+        },
+      });
+    },
+    [setOpen, x],
+  );
+
+  // Pulling it in: listens on the whole window, for touches that start while
+  // the drawer is shut.
   useEffect(() => {
     if (!matchMedia("(max-width: 767px)").matches) return;
     let s: { x: number; y: number; t: number; axis: "x" | "y" | null } | null = null;
@@ -811,7 +839,7 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
         target?.closest('[data-hswipe], [data-overlay], [role="slider"], input, textarea, select, [contenteditable=true], .ql-editor') ??
         sideScroller(target);
       s =
-        !isOpen.current && !layered && !own && e.touches.length === 1 && !ui.get().editor && !ui.get().inspectorId
+        !isOpen.current && !dragging.current && !layered && !own && e.touches.length === 1 && !ui.get().editor && !ui.get().inspectorId
           ? { x: t.clientX, y: t.clientY, t: performance.now(), axis: null }
           : null;
     };
@@ -830,15 +858,12 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
           s = null;
           return;
         }
-        x.jump(-DRAWER_W);
-        // "Being pulled" must land before "open": rendered open but not
-        // pulled for even a frame, the drawer sprang all the way out under a
-        // slow finger, then snapped back to it.
-        flushSync(() => setPulling(true));
-        setOpen(true);
+        dragging.current = true;
+        v.reset();
+        setShown(true);
       }
       v.track(t.clientX);
-      // (jump, not set: nothing else may move it while the finger does.)
+      // (jump: it stops anything else moving the drawer.)
       x.jump(Math.min(0, -DRAWER_W + dx));
     };
     const up = (e: TouchEvent) => {
@@ -847,18 +872,9 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       if (!cur || cur.axis !== "x") return;
       const dx = (e.changedTouches[0]?.clientX ?? cur.x) - cur.x;
       const speed = dx / Math.max(1, performance.now() - cur.t);
-      // (The spring carries on at the finger's speed.)
       const velocity = v.speed();
       v.reset();
-      if (dx > OPEN_AT || (dx > 90 && speed > 0.9)) {
-        haptic();
-        void animate(x, 0, { ...springs.panel, velocity }).then(() => setPulling(false));
-      } else {
-        void animate(x, -DRAWER_W, { ...springs.panel, velocity }).then(() => {
-          setOpen(false);
-          setPulling(false);
-        });
-      }
+      settle(dx > OPEN_AT || (dx > 90 && speed > 0.9), velocity);
     };
     window.addEventListener("touchstart", down, { passive: true });
     window.addEventListener("touchmove", move, { passive: true });
@@ -870,13 +886,14 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       window.removeEventListener("touchend", up);
       window.removeEventListener("touchcancel", up);
     };
-  }, [setOpen, x]);
+  }, [settle, x]);
 
+  // Pushing it shut: a swipe that starts on the drawer or the shade beside it.
   const closeSpeed = useRef(fingerSpeed());
   const handlers = {
     onTouchStart(e: React.TouchEvent) {
       const t = e.touches[0];
-      start.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, t: performance.now(), axis: null } : null;
+      start.current = e.touches.length === 1 && isOpen.current ? { x: t.clientX, y: t.clientY, t: performance.now(), axis: null } : null;
       closeSpeed.current.reset();
     },
     onTouchMove(e: React.TouchEvent) {
@@ -888,6 +905,7 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       if (!s.axis) {
         if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
         s.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+        if (s.axis === "x") dragging.current = true;
       }
       if (s.axis === "x") {
         closeSpeed.current.track(t.clientX);
@@ -900,11 +918,8 @@ function useDrawerSwipe(open: boolean, setOpen: (open: boolean) => void) {
       if (!s || s.axis !== "x") return;
       const dx = (e.changedTouches[0]?.clientX ?? s.x) - s.x;
       const speed = dx / Math.max(1, performance.now() - s.t);
-      const velocity = closeSpeed.current.speed();
-      // (Shutting, the drawer's own spring picks up the finger's speed.)
-      if (dx < -CLOSE_AT || (dx < -40 && speed < -0.5)) setOpen(false);
-      else void animate(x, 0, { ...springs.panel, velocity });
+      settle(!(dx < -CLOSE_AT || (dx < -40 && speed < -0.5)), closeSpeed.current.speed());
     },
   };
-  return { x, handlers, pulling };
+  return { x, handlers, shown };
 }
