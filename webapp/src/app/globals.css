@@ -699,8 +699,10 @@ html.dark:not(.glass) .float-glass {
 .note-desk {
   background: #e8e8e6;
   /* The desk (and the page, scrolling under) fades into the glass above. */
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28px);
-  mask-image: linear-gradient(to bottom, transparent, #000 28px);
+  /* Eased (smoothstep), so neither end of the fade shows as a line. */
+  --desk-fade: linear-gradient(to bottom, rgb(0 0 0 / 0.000) 0.0px, rgb(0 0 0 / 0.020) 3.7px, rgb(0 0 0 / 0.074) 7.3px, rgb(0 0 0 / 0.156) 11.0px, rgb(0 0 0 / 0.259) 14.7px, rgb(0 0 0 / 0.376) 18.3px, rgb(0 0 0 / 0.500) 22.0px, rgb(0 0 0 / 0.624) 25.7px, rgb(0 0 0 / 0.741) 29.3px, rgb(0 0 0 / 0.844) 33.0px, rgb(0 0 0 / 0.926) 36.7px, rgb(0 0 0 / 0.980) 40.3px, rgb(0 0 0 / 1.000) 44.0px);
+  -webkit-mask-image: var(--desk-fade);
+  mask-image: var(--desk-fade);
 }
 .note-desk[data-page-theme="dark"] {
   background: #111113;

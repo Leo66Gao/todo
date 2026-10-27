@@ -388,7 +388,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
           className={cn(
             "mx-auto w-full",
             paged
-              ? "note-page mt-8 max-w-[816px] px-[72px] pt-12 pb-16 max-md:mx-3 max-md:w-auto max-md:px-5 max-md:pt-6 max-md:pb-10"
+              ? "note-page mt-11 max-w-[816px] px-[72px] pt-12 pb-16 max-md:mx-3 max-md:w-auto max-md:px-5 max-md:pt-6 max-md:pb-10"
               : "max-w-[720px] px-6 pt-4 max-sm:px-4",
           )}
         >
@@ -465,7 +465,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
             toolbar="full"
             toolbarClassName={
               paged
-                ? "note-toolbar sticky top-7 z-10 -mx-3 rounded-[12px] px-1.5 py-1 max-md:-mx-2"
+                ? "note-toolbar sticky top-11 z-10 -mx-3 rounded-[12px] px-1.5 py-1 max-md:-mx-2"
                 : "sticky top-0 z-10 -mx-2 bg-canvas/90 px-1 py-1.5 backdrop-blur-md"
             }
             readOnly={readOnly}
