@@ -698,6 +698,9 @@ html.dark:not(.glass) .float-glass {
 /* A note being edited: a plain page on a grey desk, like a word processor. */
 .note-desk {
   background: #e8e8e6;
+  /* The desk (and the page, scrolling under) fades into the glass above. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28px);
+  mask-image: linear-gradient(to bottom, transparent, #000 28px);
 }
 .note-desk[data-page-theme="dark"] {
   background: #111113;
