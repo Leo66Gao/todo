@@ -231,7 +231,7 @@ function MonthCard({
     else if (offset.x > 56 || velocity.x > 450) onSwipe(-1);
   };
   return (
-    <div className="card flex min-h-0 flex-1 flex-col overflow-hidden p-2 max-md:rounded-none max-md:border-b max-md:border-line max-md:bg-transparent max-md:px-0 max-md:pt-3 max-md:pb-3.5 max-md:shadow-none">
+    <div data-no-glass className="card flex min-h-0 flex-1 flex-col overflow-hidden p-2 max-md:rounded-none max-md:border-b max-md:border-line max-md:bg-transparent max-md:px-0 max-md:pt-3 max-md:pb-3.5 max-md:shadow-none">
       <div className="grid shrink-0 grid-cols-7 pb-1">
         {WEEKDAYS.map((d) => (
           <span
