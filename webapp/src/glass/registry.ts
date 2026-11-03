@@ -90,6 +90,49 @@ export function registerGlass(el: HTMLElement, spec: GlassSpec): () => void {
   };
 }
 
+/**
+ * Boxes styled as cards (`card`, `bg-card`) that no component made glass:
+ * in the Liquid Glass theme their colour is cleared, so without this they
+ * were only an outline. Each gets a raised plate of glass while it is on
+ * the page. (Fields stay as they are; a component's own glass wins.)
+ */
+const AUTO_GLASS = ".card, .bg-card, [data-auto-glass]";
+const NOT_AUTO = "input, textarea, select, kbd, [data-glass], [data-no-glass], [data-surface]";
+/** Already on glass, or on a solid page (the note being edited). */
+const INSIDE_NO_AUTO = "[data-task-card], .note-page, .note-desk, [data-no-glass]";
+
+export function startAutoGlass(): () => void {
+  const auto = new Map<HTMLElement, () => void>();
+  let queued = 0;
+  const scan = () => {
+    queued = 0;
+    for (const [el, stop] of auto) {
+      // (Gone, or no longer styled as a card.)
+      if (!el.isConnected || !el.matches(AUTO_GLASS)) {
+        stop();
+        auto.delete(el);
+      }
+    }
+    for (const el of document.querySelectorAll<HTMLElement>(AUTO_GLASS)) {
+      if (auto.has(el) || el.matches(NOT_AUTO) || el.parentElement?.closest(INSIDE_NO_AUTO)) continue;
+      const interactive = el.matches('button, a[href], [role="button"]');
+      auto.set(el, registerGlass(el, { level: 2, kind: "plate", interactive, inScroll: true }));
+    }
+  };
+  const queue = () => {
+    if (!queued) queued = requestAnimationFrame(scan);
+  };
+  const observer = new MutationObserver(queue);
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  scan();
+  return () => {
+    observer.disconnect();
+    cancelAnimationFrame(queued);
+    for (const stop of auto.values()) stop();
+    auto.clear();
+  };
+}
+
 /** Ref callback that registers the element as a glass surface while mounted. */
 export function useGlass<T extends HTMLElement>(spec: GlassSpec) {
   const { level, kind, radius, interactive, inScroll } = spec;

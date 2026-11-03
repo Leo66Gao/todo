@@ -27,6 +27,7 @@ import {
   addSubtaskFull,
   captureWorkspaceSession,
   deleteSubtask,
+  reorderSubtasks,
   patchTask,
   toggleSubtask,
   toggleTask,
@@ -49,6 +50,7 @@ import { DateField, SubjectField, TimeField } from "./fields";
 import { PRIORITY_LABEL, priorityColor, difficultyColor, workMinutes } from "./meta";
 import { WorkBack } from "./WorkBack";
 import { SubtaskSheet } from "./SubtaskSheet";
+import { Grip, SortableList, type DragHandle } from "./SubtaskList";
 import { format } from "date-fns";
 import { startTaskFocus } from "@/lib/focus";
 import { TaskCheck } from "./TaskCheck";
@@ -569,20 +571,9 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
       </div>
       {isAssignment ? (
         <div className="flex flex-col gap-1.5">
-          <AnimatePresence initial={false}>
-            {task.subtasks.map((sub) => (
-              <motion.div
-                key={sub.id}
-                layout="position"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={springs.layout}
-              >
-                <SubtaskTile task={task} sub={sub} onEdit={() => setSheet({ open: true, sub })} />
-              </motion.div>
-            ))}
-          </AnimatePresence>
+          <SortableList items={task.subtasks} onReorder={(ids) => reorderSubtasks(task.id, ids)} className="flex flex-col gap-1.5">
+            {(sub, handle) => <SubtaskTile task={task} sub={sub} handle={handle} onEdit={() => setSheet({ open: true, sub })} />}
+          </SortableList>
           <button
             type="button"
             onClick={() => setSheet({ open: true, sub: null })}
@@ -595,20 +586,9 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
         </div>
       ) : (
       <div className={cn(page && "card px-2 py-1.5")}>
-        <AnimatePresence initial={false}>
-          {task.subtasks.map((sub) => (
-            <motion.div
-              key={sub.id}
-              layout="position"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={springs.layout}
-            >
-              <SubtaskRow task={task} sub={sub} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        <SortableList items={task.subtasks} onReorder={(ids) => reorderSubtasks(task.id, ids)} className="-ml-3">
+          {(sub, handle) => <SubtaskRow task={task} sub={sub} handle={handle} />}
+        </SortableList>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -634,16 +614,17 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
 }
 
 /** An assignment's subtask: tap to edit it; a date makes it a milestone. */
-function SubtaskTile({ task, sub, onEdit }: { task: Task; sub: Subtask; onEdit: () => void }) {
+function SubtaskTile({ task, sub, handle, onEdit }: { task: Task; sub: Subtask; handle: DragHandle; onEdit: () => void }) {
   const [dateOpen, setDateOpen] = useState(false);
   const milestone = sub.date != null;
   return (
     <div
       className={cn(
-        "flex min-h-12 items-center gap-2 rounded-[14px] border border-line py-1 pr-1.5 pl-2",
+        "group flex min-h-12 items-center gap-2 rounded-[14px] border border-line py-1 pr-1.5 pl-0.5",
         milestone ? "bg-fill/60" : "bg-card",
       )}
     >
+      <Grip handle={handle} className="-mr-1.5" />
       <TaskCheck size={20} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} label={sub.title} />
       <button
         type="button"
@@ -691,7 +672,7 @@ function SubtaskTile({ task, sub, onEdit }: { task: Task; sub: Subtask; onEdit: 
   );
 }
 
-function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
+function SubtaskRow({ task, sub, handle }: { task: Task; sub: Subtask; handle: DragHandle }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(sub.title);
   const [dateOpen, setDateOpen] = useState(false);
@@ -734,6 +715,7 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
     : [];
   return (
     <div className="group flex min-h-8 items-center gap-1 rounded-box pr-1 transition-colors hover:bg-fill/60">
+      <Grip handle={handle} />
       <TaskCheck size={15} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} label={sub.title} />
       {editing ? (
         <input

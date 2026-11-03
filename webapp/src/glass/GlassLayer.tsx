@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { GlassEngine, ShapeTracker } from "./engine";
 import { isPhoto, PHOTO_IDS, PRESET_IDS, useGlassOn, useGlassPrefs } from "./prefs";
 import { loadedPhoto, loadPhoto } from "./photos";
-import { followGlassRadii } from "./registry";
+import { followGlassRadii, startAutoGlass } from "./registry";
 import { stepScroll, syncScrolling } from "./syncScroll";
 import { reportGlassTop } from "@/lib/native";
 
@@ -199,8 +199,10 @@ function GlassCanvas() {
     };
     canvas.addEventListener("webglcontextlost", onLost);
     requestAnimationFrame(() => canvas.classList.add("is-ready"));
+    const stopAutoGlass = startAutoGlass();
 
     return () => {
+      stopAutoGlass();
       cancelAnimationFrame(frame);
       stopScrolling();
       unsubscribe();

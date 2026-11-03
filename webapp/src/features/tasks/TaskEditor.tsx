@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { argbToCss } from "@/lib/dart";
 import { parseQuickAdd, type TokenKind } from "@/lib/quickAdd";
 import type { Priority, TaskType } from "@/lib/dart";
-import { hasExplicitDifficulty, isFieldVisible, type FieldId, type Task } from "@/lib/model";
+import { hasExplicitDifficulty, isFieldVisible, type FieldId, type Subtask, type Task } from "@/lib/model";
 import { formatClock, formatDuration, relativeDay, sameDay, startOfDay, today } from "@/lib/time";
 import { clockOf, withClock, type ClockTime } from "@/lib/timeParse";
 import { ui, useUI, type EditorState } from "@/shell/ui";
@@ -21,6 +21,7 @@ import { springs } from "@/ui/motion";
 import { toast } from "@/ui/toast";
 import { useAllTasks } from "./meta";
 import { RepeatField } from "./RepeatField";
+import { SubtaskEditor } from "./SubtaskList";
 import { dayString, readRepeat, type RepeatRule } from "@/lib/repeat";
 import { applyToUpcoming, changesShared, repeatSummary, setRepeat, upcomingOf } from "@/store/repeat";
 import {
@@ -67,6 +68,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     return start ? clockOf(start) : null;
   });
   const [notes, setNotes] = useState(existing?.notes ?? defaults.notes ?? "");
+  const [subtasks, setSubtasks] = useState<Subtask[]>(existing?.subtasks ?? defaults.subtasks ?? []);
   const [minutes, setMinutes] = useState(() => {
     if (existing) return existing.durationMinutes;
     if (defaults.durationMinutes != null) return defaults.durationMinutes;
@@ -165,6 +167,8 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     const extra = { ...(existing?.extra ?? defaults.extra) };
     if (difficultyActive && difficulty === 1) extra.difficultySelected = true;
     else delete extra.difficultySelected;
+    // (A subtask left without a title isn't one.)
+    const cleanSubtasks = subtasks.filter((s) => s.title.trim()).map((s) => ({ ...s, title: s.title.trim() }));
     const fields = {
       title: finalTitle,
       notes,
@@ -182,7 +186,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     const finalRepeat: RepeatRule | null =
       repeat?.kind === "days" ? { kind: "days", days: [...new Set([...repeat.days, dayString(fields.date)])].sort() } : repeat;
     if (!existing) {
-      const task = newTask({ ...defaults, ...fields, remainingMinutes: finalMinutes });
+      const task = newTask({ ...defaults, ...fields, subtasks: cleanSubtasks, remainingMinutes: finalMinutes });
       addTask(task);
       ui.closeEditor();
       if (finalRepeat) {
@@ -199,6 +203,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     const updated: Task = {
       ...existing,
       ...fields,
+      subtasks: cleanSubtasks,
       remainingMinutes: existing.durationMinutes === finalMinutes ? existing.remainingMinutes : finalMinutes,
     };
     let domino = false;
@@ -422,6 +427,11 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
     if (id === "date") rows.push(repeatRow);
   }
   if (!rows.includes(repeatRow)) rows.push(repeatRow);
+  rows.push(
+    <Row key="subtasks" label="Subtasks" top>
+      <SubtaskEditor value={subtasks} onChange={setSubtasks} parentDone={existing?.isDone} />
+    </Row>,
+  );
 
   return (
     <form

@@ -448,6 +448,8 @@ function MonthCell({
   return (
     <div
       ref={cellRef}
+      // (Its selected look is an outline, not a plate of glass.)
+      data-no-glass
       onPointerDown={(e) => (pointer.current = e.pointerType)}
       onClick={onClick}
       className={cn(
