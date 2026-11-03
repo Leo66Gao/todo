@@ -869,3 +869,18 @@ html.dark:not(.glass) .float-glass {
   :is(button, a, span, input:not([type="checkbox"], [type="radio"], [type="range"]), select, kbd, label, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="tab"]):is(.rounded, [class*="rounded-[4px]"], [class*="rounded-[5px]"], [class*="rounded-[6px]"], [class*="rounded-[7px]"], [class*="rounded-[8px]"], [class*="rounded-[9px]"], [class*="rounded-[10px]"], [class*="rounded-[12px]"]):not([data-square]) {
   border-radius: 9999px;
 }
+/* Task cards round off well past a control's corner (a one-line card is a
+   capsule); the day strip's box is a capsule, while its days keep theirs. */
+@media (min-width: 768px) {
+  :root.corners-round .task-plate:not(.rounded-box) {
+    border-radius: 22px;
+  }
+}
+:root.corners-round .week-plate {
+  border-radius: 14px;
+}
+:root.corners-round .strip-box {
+  border-radius: 9999px;
+  /* (Room for the arrows inside the round ends.) */
+  padding-inline: 14px;
+}

@@ -445,7 +445,9 @@ export class GlassEngine {
           frosted: f * 0.6,
           dispersion: 0.17,
           rim: 1.2,
-          shadow: dark ? 0.24 : 0.12,
+          // The same shadow as the other buttons and plates (a darker one
+          // made primary buttons and the header capsule look heavier).
+          shadow: dark ? 0.16 : 0.08,
           shadowBlur: 12 * dpr,
         };
       case "card":

@@ -89,7 +89,7 @@ export function TodayView() {
       <div className="@container flex min-h-0 flex-1 flex-col">
         {!phone && (
           <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 @min-[1060px]:max-w-[1160px]">
-            <div className="card p-1.5">
+            <div className="strip-box card p-1.5">
               <DayStrip day={day} onPick={setDay} tasks={all} />
             </div>
           </div>
