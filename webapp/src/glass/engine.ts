@@ -34,7 +34,7 @@ export interface Shape {
   /** Direction towards the light for this shape (GL space, y up), eased over time. */
   light: [number, number];
   /** The box it's clipped to, that box's corner radius, and how far inside its edge shadows fade out (CSS px). */
-  clip: { x: number; y: number; w: number; h: number; r: number; fade: number } | null;
+  clip: { x: number; y: number; w: number; h: number; r: number; fade: number; top?: number } | null;
   /** It lies on another level-2 shape (a segmented thumb on its track, a block in the schedule). */
   onGlass: boolean;
 }
@@ -339,7 +339,7 @@ export class GlassEngine {
     const optic = new Float32Array(MAX_SHAPES * 4);
     const state = new Float32Array(MAX_SHAPES * 4);
     const clip = new Float32Array(MAX_SHAPES * 4);
-    const clipRadius = new Float32Array(MAX_SHAPES * 2);
+    const clipRadius = new Float32Array(MAX_SHAPES * 4);
     const extra = new Float32Array(MAX_SHAPES * 4);
     for (let i = 0; i < n; i++) {
       const s = shapes[i];
@@ -360,7 +360,7 @@ export class GlassEngine {
       state.set([s.hover, s.press, s.opacity, (s.kind === "well" ? 1 : 4) + (s.onGlass ? 2 : 0)], i * 4);
       const c = s.clip ?? { x: -1e5, y: -1e5, w: 2e5, h: 2e5, r: 0, fade: 10 };
       clip.set([c.x * dpr, this.height - (c.y + c.h) * dpr, (c.x + c.w) * dpr, this.height - c.y * dpr], i * 4);
-      clipRadius.set([c.r * dpr, c.fade * dpr], i * 2);
+      clipRadius.set([c.r * dpr, c.fade * dpr, (c.top ?? 0) * dpr, 0], i * 4);
     }
     gl.uniform1i(p.loc("uCount"), n);
     gl.uniform4fv(p.loc("uRect"), rect);
@@ -369,7 +369,7 @@ export class GlassEngine {
     gl.uniform4fv(p.loc("uOptic"), optic);
     gl.uniform4fv(p.loc("uState"), state);
     gl.uniform4fv(p.loc("uClip"), clip);
-    gl.uniform2fv(p.loc("uClipR[0]"), clipRadius);
+    gl.uniform4fv(p.loc("uClipR[0]"), clipRadius);
     gl.uniform4fv(p.loc("uExtra"), extra);
     this.draw();
   }
@@ -732,7 +732,7 @@ export class ShapeTracker {
       const x1 = Math.min(sides ? b.right - inset : 1e5, clip ? clip.x + clip.w : 1e5);
       const y1 = Math.min(b.bottom - inset, clip ? clip.y + clip.h : 1e5);
       // (Inside a box of glass, shadows reach almost to its rim.)
-      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0), r: Math.max(0, this.cornerOf(entry.scroller, refreshRadius) - inset), fade: inset > 0 ? 3 : 10 };
+      clip = { x: x0, y: y0, w: Math.max(0, x1 - x0), h: Math.max(0, y1 - y0), r: Math.max(0, this.cornerOf(entry.scroller, refreshRadius) - inset), fade: inset > 0 ? 3 : 10, top: Number(sc.dataset.fadeTop) || 0 };
     }
     // Nothing to draw when it is scrolled or clipped out of sight.
     const view = clip ?? { x: 0, y: 0, w: document.documentElement.clientWidth, h: document.documentElement.clientHeight };

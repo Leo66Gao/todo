@@ -699,6 +699,15 @@ html.dark:not(.glass) .float-glass {
   }
 }
 
+/* A list that fades out at its top as it scrolls under what sits above it
+   (eased, so neither end shows as a line). The glass engine fades its cards
+   the same way, from the list's data-fade-top. */
+.list-fade {
+  --list-fade: linear-gradient(to bottom, rgb(0 0 0 / 0.000) 0px, rgb(0 0 0 / 0.028) 2.5px, rgb(0 0 0 / 0.104) 5px, rgb(0 0 0 / 0.216) 7.5px, rgb(0 0 0 / 0.352) 10px, rgb(0 0 0 / 0.5) 12.5px, rgb(0 0 0 / 0.648) 15px, rgb(0 0 0 / 0.784) 17.5px, rgb(0 0 0 / 0.896) 20px, rgb(0 0 0 / 0.972) 22.5px, rgb(0 0 0 / 1) 25px);
+  -webkit-mask-image: var(--list-fade);
+  mask-image: var(--list-fade);
+}
+
 /* A note being edited: a plain page on a grey desk, like a word processor. */
 .note-desk {
   background: #e8e8e6;

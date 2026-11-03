@@ -88,13 +88,17 @@ export function TodayView() {
       />
       <div className="@container flex min-h-0 flex-1 flex-col">
         {!phone && (
-          <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 @min-[1060px]:max-w-[1160px]">
+          <div className="mx-auto w-full max-w-[820px] shrink-0 px-6 pb-1 @min-[1060px]:max-w-[1160px]">
             <DayStrip day={day} onPick={setDay} tasks={all} />
           </div>
         )}
         <div className="mx-auto flex min-h-0 w-full max-w-[820px] flex-1 gap-8 px-6 max-sm:px-3 @min-[1060px]:max-w-[1160px]">
           {/* The list reaches into the page margin, so the cards' shadows fade out before its edge. */}
-          <div className="scroll-area -mx-6 min-w-0 flex-1 px-6 pb-bar max-sm:-mx-3 max-sm:px-3">
+          {/* (Below the day strip it fades out as it scrolls, rather than ending in a hard line.) */}
+          <div
+            data-fade-top={phone ? undefined : 25}
+            className={`scroll-area -mx-6 min-w-0 flex-1 px-6 pb-bar max-sm:-mx-3 max-sm:px-3 ${phone ? "" : "list-fade pt-3"}`}
+          >
             {/* On phones the strip floats over the list, which scrolls past its lower corners. */}
             {phone && (
               // The page colour fills behind its top corners; below, the list shows through.

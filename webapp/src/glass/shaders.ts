@@ -270,7 +270,7 @@ uniform vec4 uTint[${MAX_SHAPES}];  // frost (haze) colour, amount
 uniform vec4 uOptic[${MAX_SHAPES}]; // blur, dispersion, highlights, shadow strength
 uniform vec4 uState[${MAX_SHAPES}]; // hover, press, opacity, form (+1 recessed well, +2 lying on another shape, +4 lens edge)
 uniform vec4 uClip[${MAX_SHAPES}];  // x0, y0, x1, y1
-uniform vec2 uClipR[${MAX_SHAPES}];  // the clip's corner radius, how far inside it shadows fade out
+uniform vec4 uClipR[${MAX_SHAPES}];  // the clip's corner radius, how far inside it shadows fade out, how far its top edge fades the glass away
 uniform vec4 uExtra[${MAX_SHAPES}];  // legibility (+1 light, -1 dark, 0 free), light direction xy, frost
 uniform vec2 uLight;                // towards the light, GL space
 uniform vec3 uPointer;              // xy, influence
@@ -376,6 +376,7 @@ void main() {
     vec2 cc = 0.5 * (C0.xy + C0.zw);
     vec2 ch = 0.5 * (C0.zw - C0.xy);
     inClip *= smoothstep(0.0, uClipR[i].y, -sdRoundBox(p - cc, ch, min(uClipR[i].x, min(ch.x, ch.y))));
+    if (uClipR[i].z > 0.0) inClip *= smoothstep(0.0, uClipR[i].z, C0.w - p.y);
     float k = uOptic[i].w * uState[i].z * inClip;
     float own = k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2);
     shade = max(shade, own);
@@ -411,6 +412,8 @@ void main() {
     vec2 cc = 0.5 * (C.xy + C.zw);
     vec2 ch = 0.5 * (C.zw - C.xy);
     float clip = clamp(0.5 - sdRoundBox(p - cc, ch, min(uClipR[i].x, min(ch.x, ch.y))), 0.0, 1.0);
+    // A list can fade out under what sits above it (Today's day strip).
+    if (uClipR[i].z > 0.0) clip *= smoothstep(0.0, uClipR[i].z, C.w - p.y);
     float d = sdRoundBox(q, R.zw, S.x);
     float cover = clamp(0.5 - d, 0.0, 1.0) * clip * uState[i].z;
     if (cover <= 0.0) continue;
