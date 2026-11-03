@@ -91,12 +91,12 @@ export function registerGlass(el: HTMLElement, spec: GlassSpec): () => void {
 }
 
 /**
- * Boxes styled as cards (`card`, `bg-card`) that no component made glass:
+ * Boxes styled as cards (`card`, `bg-card`, `task-group`) that no component made glass:
  * in the Liquid Glass theme their colour is cleared, so without this they
  * were only an outline. Each gets a raised plate of glass while it is on
  * the page. (Fields stay as they are; a component's own glass wins.)
  */
-const AUTO_GLASS = ".card, .bg-card, [data-auto-glass]";
+const AUTO_GLASS = ".card, .bg-card, .task-group, [data-auto-glass]";
 const NOT_AUTO = "input, textarea, select, kbd, [data-glass], [data-no-glass], [data-surface]";
 /** Already on glass, or on a solid page (the note being edited). */
 const INSIDE_NO_AUTO = "[data-task-card], .note-page, .note-desk, [data-no-glass]";

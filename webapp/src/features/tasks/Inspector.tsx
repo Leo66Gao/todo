@@ -495,6 +495,7 @@ function NotesEditor({ task, page }: { task: Task; page?: boolean }) {
   }, []);
   return (
     <div
+      data-auto-glass
       className={cn(
         "px-3.5 pt-3 pb-2 transition-colors",
         page ? "card" : "rounded-[calc(var(--radius-box)_+_2px)] border border-line focus-within:border-line-strong",
@@ -576,6 +577,7 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
           </SortableList>
           <button
             type="button"
+            data-auto-glass
             onClick={() => setSheet({ open: true, sub: null })}
             className="flex h-11 items-center justify-center gap-2 rounded-[14px] border border-line text-sm font-semibold transition-colors hover:bg-fill pointer-fine:active:scale-[0.99]"
           >
@@ -619,6 +621,7 @@ function SubtaskTile({ task, sub, handle, onEdit }: { task: Task; sub: Subtask; 
   const milestone = sub.date != null;
   return (
     <div
+      data-auto-glass
       className={cn(
         "group flex min-h-12 items-center gap-2 rounded-[14px] border border-line py-1 pr-1.5 pl-0.5",
         milestone ? "bg-fill/60" : "bg-card",

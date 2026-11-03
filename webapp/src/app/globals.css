@@ -870,7 +870,7 @@ html.dark:not(.glass) .float-glass {
   border-radius: 9999px;
 }
 /* Cards (subjects, notes, assignments, settings) round off more, and task
-   cards (Today and Week) more again; the day strip's box is a capsule. */
+   cards (Today and Week) more again; the days in Today's strip too. */
 :root.corners-round {
   --radius-card: 24px;
 }
@@ -885,16 +885,10 @@ html.dark:not(.glass) .float-glass {
     border-radius: inherit;
   }
 }
-/* The days follow the capsule's curve (its radius less its padding). */
 @media (min-width: 768px) {
   :root.corners-round .day-cell {
-    border-radius: 29px;
+    border-radius: 22px;
   }
-}
-:root.corners-round .strip-box {
-  border-radius: 9999px;
-  /* (Room for the arrows inside the round ends.) */
-  padding-inline: 14px;
 }
 /* Blocks in the schedule: one corner for every block, whatever its length. */
 :root.corners-round .schedule-block {

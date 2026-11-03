@@ -113,7 +113,7 @@ function DueRow({ task }: { task: Task }) {
       <span className="flex h-7 items-center rounded-full bg-ink px-3 font-mono text-[12px] text-on-ink tnum">{format(task.date, "EEE, MMM d")}</span>
       <span className={cn("text-[13px]", overdue ? "font-medium text-danger" : "text-ink-3")}>{countdown}</span>
       {hasExplicitDifficulty(task) && (
-        <span className="ml-auto flex h-7 items-center gap-1.5 rounded-full border border-line px-3 text-[12px] text-ink-2">
+        <span data-auto-glass className="ml-auto flex h-7 items-center gap-1.5 rounded-full border border-line px-3 text-[12px] text-ink-2">
           <span className="size-[7px] rounded-full" style={{ background: difficultyColor(task.difficulty) }} />
           Level {task.difficulty}
         </span>

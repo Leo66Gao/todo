@@ -80,7 +80,7 @@ export function AssignmentsView() {
         }
       />
       <div className="scroll-area flex-1 pb-bar">
-        <div className="mx-auto w-full max-w-[820px] px-6 max-md:px-4 max-md:pt-3">
+        <div className="mx-auto w-full max-w-[820px] px-6 max-md:px-4 max-md:pt-3 md:pt-5">
           {open.length > 0 && (
             <div ref={statsPlate} className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-[18px] border border-line bg-card shadow-card">
               <Stat value={String(stats.dueSoon)} label="Due in 7 days" />
@@ -100,7 +100,7 @@ export function AssignmentsView() {
             </div>
           ) : (
             groups.map((group) => (
-              <motion.section key={group.title} layout="position" transition={springs.layout} className="mt-6">
+              <motion.section key={group.title} layout="position" transition={springs.layout} className="mt-6 md:mt-9">
                 <h2 className="flex items-baseline gap-2 px-1 pb-2.5">
                   <span className={cn("text-[11px] font-semibold tracking-[0.11em] uppercase", group.title === "Overdue" ? "text-danger" : "text-ink-3")}>
                     {group.title}

@@ -103,7 +103,7 @@ export function NotesView() {
         }
       />
       <div className="scroll-area flex-1 pb-bar">
-        <div className="mx-auto w-full max-w-[760px] px-6 max-md:px-5 max-md:pt-4">
+        <div className="mx-auto w-full max-w-[760px] px-6 max-md:px-5 max-md:pt-4 md:pt-5">
           <div className="flex items-center gap-2">
             <label ref={searchWell} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm shadow-card transition-colors max-md:h-12 max-md:gap-2.5 max-md:rounded-full max-md:border max-md:border-line max-md:px-4 max-md:text-[15px]">
               <Search className="size-3.5 text-ink-3 max-md:size-[18px]" />
@@ -165,7 +165,7 @@ export function NotesView() {
             </div>
           ) : (
             groups.map((g) => (
-              <section key={g.title} className="mt-6">
+              <section key={g.title} className="mt-6 md:mt-9">
                 <h2 className="flex items-baseline gap-2 px-1 pb-2.5 text-[11px] font-semibold tracking-[0.11em] text-ink-3 uppercase">
                   {g.title}
                   <span className="text-ink-3/70 tnum">{g.items.length}</span>
