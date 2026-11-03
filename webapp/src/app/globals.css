@@ -866,7 +866,7 @@ html.dark:not(.glass) .float-glass {
   border-radius: 20px;
 }
 :root.corners-round
-  :is(button, a, span, input:not([type="checkbox"], [type="radio"], [type="range"]), select, kbd, label, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="tab"]):is(.rounded, [class*="rounded-[4px]"], [class*="rounded-[5px]"], [class*="rounded-[6px]"], [class*="rounded-[7px]"], [class*="rounded-[8px]"], [class*="rounded-[9px]"], [class*="rounded-[10px]"], [class*="rounded-[12px]"]):not([data-square]) {
+  :is(button, a, span, input:not([type="checkbox"], [type="radio"], [type="range"]), select, kbd, label, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="tab"]):is(.rounded, [class*="rounded-[4px]"], [class*="rounded-[5px]"], [class*="rounded-[6px]"], [class*="rounded-[7px]"], [class*="rounded-[8px]"], [class*="rounded-[9px]"], [class*="rounded-[10px]"], [class*="rounded-[12px]"]):not([data-square], .schedule-block) {
   border-radius: 9999px;
 }
 /* Task cards round off well past a control's corner (a one-line card is a
@@ -879,8 +879,18 @@ html.dark:not(.glass) .float-glass {
 :root.corners-round .week-plate {
   border-radius: 14px;
 }
+/* The days follow the capsule's curve (its radius less its padding). */
+@media (min-width: 768px) {
+  :root.corners-round .day-cell {
+    border-radius: 29px;
+  }
+}
 :root.corners-round .strip-box {
   border-radius: 9999px;
   /* (Room for the arrows inside the round ends.) */
   padding-inline: 14px;
+}
+/* Blocks in the schedule: one corner for every block, whatever its length. */
+:root.corners-round .schedule-block {
+  border-radius: 16px;
 }

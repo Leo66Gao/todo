@@ -194,7 +194,7 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
                   animate={{ opacity: 1, top: top(dropSlot.minutes) + 1 }}
                   exit={{ opacity: 0, transition: { duration: 0.1 } }}
                   transition={springs.snappy}
-                  className="pointer-events-none absolute inset-x-1 z-20 flex items-start rounded-[7px] border border-dashed border-accent bg-[color-mix(in_srgb,var(--accent)_12%,var(--raised))] px-2 py-1 text-2xs font-medium text-accent tnum"
+                  className="schedule-block pointer-events-none absolute inset-x-1 z-20 flex items-start rounded-[7px] border border-dashed border-accent bg-[color-mix(in_srgb,var(--accent)_12%,var(--raised))] px-2 py-1 text-2xs font-medium text-accent tnum"
                   style={{ height: (Math.max(MIN_BLOCK, dropSlot.duration) / 60) * HOUR - 2 }}
                 >
                   {formatClock(atMinutes(day, dropSlot.minutes))}–{formatClock(atMinutes(day, dropSlot.minutes + Math.max(dropSlot.duration, SNAP)))}
@@ -203,7 +203,7 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
             </AnimatePresence>
             {hover != null && !dropSlot && (
               <div
-                className="pointer-events-none absolute inset-x-1 flex items-center rounded-[7px] border border-dashed border-line-strong px-2 text-2xs text-ink-3"
+                className="schedule-block pointer-events-none absolute inset-x-1 flex items-center rounded-[7px] border border-dashed border-line-strong px-2 text-2xs text-ink-3"
                 style={{ top: top(hover) + 1, height: HOUR / 2 - 2 }}
               >
                 New task at {formatClock(atMinutes(day, hover))}
@@ -296,7 +296,7 @@ function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent
       tabIndex={-1}
       {...handlers}
       className={cn(
-        "absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] px-2 select-none",
+        "schedule-block absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] px-2 select-none",
         compact ? "justify-center py-0" : "py-1",
         shift !== 0 && "z-10 shadow-[0_4px_14px_-6px_rgb(0_0_0/0.25)]",
       )}
@@ -349,7 +349,7 @@ function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
         data-task-id={task.id}
         {...handlers}
         className={cn(
-          "absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] px-2 select-none",
+          "schedule-block absolute flex cursor-default touch-none flex-col overflow-hidden rounded-[7px] px-2 select-none",
           compact ? "justify-center py-0" : "py-1",
           selected ? "bg-accent-soft" : "bg-fill hover:bg-fill-strong",
           task.isDone && "opacity-55",

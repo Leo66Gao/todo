@@ -1,11 +1,20 @@
 "use client";
 
-import { forwardRef, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { createContext, forwardRef, useContext, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { Slider as RSlider, Switch as RSwitch } from "radix-ui";
 import { cn } from "./cn";
 import { springs } from "./motion";
 import { useGlass, useMergedRefs } from "@/glass/registry";
+import { useAppearance } from "@/lib/appearance";
+
+/**
+ * Icon buttons in a page header's actions. With Round corners they become
+ * round glass buttons beside the header's glass capsules, instead of bare
+ * icons that only grey on hover. (A capsule that already holds buttons in
+ * one box of glass turns it off for them.)
+ */
+export const HeaderGlass = createContext(false);
 
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "accent";
 type Size = "sm" | "md";
@@ -64,9 +73,14 @@ export const IconButton = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & { label: string; size?: "sm" | "md"; active?: boolean }
 >(function IconButton({ label, size = "md", active, className, children, type = "button", ...rest }, ref) {
+  const plate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true });
+  const inHeader = useContext(HeaderGlass);
+  const round = useAppearance((s) => s.corners === "round");
+  const glassy = inHeader && round && !rest.disabled;
+  const refs = useMergedRefs(ref, glassy ? plate : undefined);
   return (
     <button
-      ref={ref}
+      ref={refs}
       type={type}
       aria-label={label}
       className={cn(
@@ -77,6 +91,8 @@ export const IconButton = forwardRef<
         "disabled:pointer-events-none disabled:opacity-40",
         active && "bg-fill text-ink",
         size === "sm" ? "size-6" : "size-[30px]",
+        // (The glass lights up under the pointer, so no grey disc on top.)
+        glassy && "md:text-ink-2 md:hover:bg-transparent pointer-fine:md:active:bg-transparent",
         className,
       )}
       {...rest}

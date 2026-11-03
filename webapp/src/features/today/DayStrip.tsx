@@ -158,7 +158,7 @@ function DayCell({
       type="button"
       onClick={() => onPick(date)}
       className={cn(
-        "relative flex h-[58px] flex-col items-center justify-center gap-[3px] rounded-[calc(var(--radius-box)_+_2px)] transition-colors duration-100 max-md:h-[62px] max-md:gap-[5px] max-md:rounded-[20px]",
+        "day-cell relative flex h-[58px] flex-col items-center justify-center gap-[3px] rounded-[calc(var(--radius-box)_+_2px)] transition-colors duration-100 max-md:h-[62px] max-md:gap-[5px] max-md:rounded-[20px]",
         !selected && "hover:bg-fill",
         isOver && !selected && "bg-accent-soft",
         className,
@@ -199,7 +199,7 @@ function SelectedDay() {
       ref={glass}
       layoutId="day-strip-selected"
       transition={springs.snappy}
-      className="absolute inset-0 rounded-[calc(var(--radius-box)_+_2px)] bg-ink max-md:rounded-[20px]"
+      className="day-cell absolute inset-0 rounded-[calc(var(--radius-box)_+_2px)] bg-ink max-md:rounded-[20px]"
     />
   );
 }

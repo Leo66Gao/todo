@@ -41,7 +41,7 @@ import type { SlotDropData } from "@/features/today/ScheduleRail";
 import { calendarJustExpired, connectCalendar, milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
 import { useMedia } from "@/ui/useMedia";
-import { Button, IconButton, Spinner } from "@/ui/controls";
+import { Button, HeaderGlass, IconButton, Spinner } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { AskHost, Tooltip, TooltipProvider } from "@/ui/overlay";
 import { FocusTimer } from "@/features/focus/FocusTimer";
@@ -494,7 +494,7 @@ export function PageHeader({
         )}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:gap-2 max-md:[&>button]:size-11 max-md:[&>button]:rounded-full max-md:[&>button]:lens-chip max-md:[&>button]:text-ink">
-        {actions}
+        <HeaderGlass.Provider value={true}>{actions}</HeaderGlass.Provider>
       </div>
     </header>
   );
@@ -531,6 +531,7 @@ export function Stepper({
   const capsule = useGlass<HTMLDivElement>({ level: 2, kind: "ink" });
   return (
     <div ref={phone ? undefined : capsule} className="relative flex items-center max-md:h-11 max-md:rounded-full md:rounded-ctl md:px-0.5">
+      <HeaderGlass.Provider value={false}>
       <GlassLens radius={22} bezel={15} className="lens-soft md:hidden" />
       <Tooltip label={prev} shortcut={prevShortcut}>
         <IconButton label={prev} onClick={() => { haptic(); onPrev(); }} className="relative max-md:h-[42px] max-md:w-11 max-md:rounded-full max-md:text-ink">
@@ -566,6 +567,7 @@ export function Stepper({
           <ChevronRight className="size-4 max-md:size-[18px]" />
         </IconButton>
       </Tooltip>
+      </HeaderGlass.Provider>
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { useNavigate } from "@/shell/nav";
 import { PageHeader } from "@/shell/Shell";
 import { useWorkspace } from "@/store/workspace";
 import { useGlass } from "@/glass/registry";
-import { Button, IconButton } from "@/ui/controls";
+import { Button, HeaderGlass, IconButton } from "@/ui/controls";
 import { springs } from "@/ui/motion";
 import { Menu, Tooltip } from "@/ui/overlay";
 import { openSources } from "@/features/sources/library";
@@ -73,6 +73,7 @@ export function NotesView() {
               ref={tools}
               className="flex items-center md:rounded-ctl md:px-0.5 max-md:gap-2 max-md:[&_button]:size-11 max-md:[&_button]:rounded-full max-md:[&_button]:lens-chip max-md:[&_button]:text-ink"
             >
+              <HeaderGlass.Provider value={false}>
               <Tooltip label="Sources">
                 <IconButton label="Sources" onClick={() => openSources()}>
                   <BookMarked className="size-4" />
@@ -88,6 +89,7 @@ export function NotesView() {
                   <FileUp className="size-4" />
                 </IconButton>
               </Tooltip>
+              </HeaderGlass.Provider>
             </div>
             <Button
               variant="primary"
