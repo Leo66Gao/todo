@@ -189,7 +189,7 @@ export function SourcesHost() {
               ) : (
                 <ul className="p-1.5">
                   {shown.map((source) => (
-                    <li key={source.id} className="group flex items-start gap-1 rounded-ctl transition-colors hover:bg-fill">
+                    <li key={source.id} className="group flex items-start gap-1 rounded-box transition-colors hover:bg-fill">
                       <button type="button" onClick={() => cite(source)} className="min-w-0 flex-1 px-3 py-2.5 text-left">
                         <Reference runs={reference(source, style)} className="block text-[13px] leading-5 text-ink" />
                         <span className="mt-1 flex items-center gap-2 text-xs text-ink-3">

@@ -97,6 +97,7 @@ function preloadDialogs() {
 export function Shell() {
   const isLoading = useWorkspace((s) => s.isLoading);
   const themeMode = useAppearance((s) => s.themeMode);
+  const corners = useAppearance((s) => s.corners);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -128,6 +129,10 @@ export function Shell() {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [themeMode, mounted]);
+
+  useEffect(() => {
+    if (mounted) document.documentElement.classList.toggle("corners-round", corners === "round");
+  }, [corners, mounted]);
 
   useEffect(() => {
     startDayTicker();

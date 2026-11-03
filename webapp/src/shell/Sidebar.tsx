@@ -72,7 +72,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex h-full w-full flex-col bg-sidebar max-md:px-1">
       <div className="flex h-[52px] shrink-0 items-center gap-2 pr-2.5 pl-4 max-md:h-auto max-md:gap-3 max-md:pt-12 max-md:pb-1 max-md:pl-[18px]">
-        <span className="flex size-[22px] items-center justify-center rounded-[6px] bg-ink max-md:size-[34px] max-md:rounded-[10px]">
+        <span data-square className="flex size-[22px] items-center justify-center rounded-[6px] bg-ink max-md:size-[34px] max-md:rounded-[10px]">
           <svg viewBox="0 0 16 16" className="size-3.5 max-md:size-5">
             <path d="M4 8.4l2.6 2.6L12 5.4" fill="none" stroke="var(--on-ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -168,7 +168,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           className={cn(
             "flex w-full items-center gap-2.5 text-left transition-colors hover:bg-fill max-md:h-auto max-md:gap-3 max-md:rounded-[22px] max-md:border max-md:border-line max-md:bg-fill/50 max-md:py-2.5 max-md:pr-3 max-md:pl-3",
             // On glass, concentric with the sidebar's corners: its radius less the 10px gap.
-            glass ? "h-13 rounded-[calc(var(--glass-radius,22px)_-_10px)] px-2.5" : "h-10 rounded-ctl px-2",
+            glass ? "h-13 rounded-[calc(var(--glass-radius,22px)_-_10px)] px-2.5" : "h-10 rounded-box px-2",
             route.view === "settings" && "bg-fill",
           )}
         >
@@ -267,7 +267,7 @@ function ActivePill() {
 function DayDrop({ children }: { children: ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: "sidebar-today", data: { type: "day", date: today() } });
   return (
-    <div ref={setNodeRef} className={cn("rounded-ctl transition-shadow", isOver && "shadow-[inset_0_0_0_1.5px_var(--accent-line)]")}>
+    <div ref={setNodeRef} className={cn("rounded-box transition-shadow", isOver && "shadow-[inset_0_0_0_1.5px_var(--accent-line)]")}>
       {children}
     </div>
   );
@@ -288,7 +288,7 @@ function SubjectItem({
   const { setNodeRef, isOver } = useDroppable({ id: `subject-${project.id}`, data: { type: "subject", id: project.id } });
   return (
     <ContextMenu items={() => subjectMenu(project, navigate)}>
-      <div ref={setNodeRef} className={cn("rounded-ctl transition-shadow", isOver && "shadow-[inset_0_0_0_1.5px_var(--accent-line)]")}>
+      <div ref={setNodeRef} className={cn("rounded-box transition-shadow", isOver && "shadow-[inset_0_0_0_1.5px_var(--accent-line)]")}>
         <NavItem
           icon={
             <span className="flex size-4 items-center justify-center max-md:w-5">

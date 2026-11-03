@@ -8,7 +8,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis } from "./restrict";
 import { ChevronRight, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { argbToCss, argbToHex } from "@/lib/dart";
-import { setThemeMode, useAppearance } from "@/lib/appearance";
+import { setCorners, setThemeMode, useAppearance } from "@/lib/appearance";
 import { firebaseConfigured } from "@/lib/firebase";
 import { getBool } from "@/lib/prefs";
 import { DEFAULT_FIELD_ORDER, FIELD_VISIBILITY_KEY, uuid, type FieldId, type TaskLabel } from "@/lib/model";
@@ -162,6 +162,7 @@ function AccountSection() {
 
 function AppearanceSection() {
   const mode = useAppearance((s) => s.themeMode);
+  const corners = useAppearance((s) => s.corners);
   // Liquid Glass is a desktop theme; phones only have the standard look.
   const phone = useGlassPrefs((s) => s.phone);
   const glass = useGlassPrefs((s) => s.enabled) && !phone;
@@ -193,6 +194,17 @@ function AppearanceSection() {
             { value: "system", label: "System" },
             { value: "light", label: "Light" },
             { value: "dark", label: "Dark" },
+          ]}
+        />
+      </Item>
+      <Item title="Corners" detail="Round turns buttons, fields and menus into capsules, like the newest macOS.">
+        <Segmented
+          size="sm"
+          value={corners}
+          onChange={setCorners}
+          options={[
+            { value: "standard", label: "Standard" },
+            { value: "round", label: "Round" },
           ]}
         />
       </Item>

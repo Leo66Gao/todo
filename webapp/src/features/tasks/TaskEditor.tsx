@@ -315,7 +315,7 @@ function TaskEditor({ editor }: { editor: NonNullable<EditorState> }) {
       case "notes":
         return (
           <Row label="Notes" top>
-            <div className="rounded-ctl bg-fill px-3 py-2 transition-colors focus-within:bg-fill-strong/60">
+            <div className="rounded-box bg-fill px-3 py-2 transition-colors focus-within:bg-fill-strong/60">
               <RichText value={notes} onChange={setNotes} placeholder="Add notes" minHeight={40} />
             </div>
           </Row>

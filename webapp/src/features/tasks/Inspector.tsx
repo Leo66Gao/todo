@@ -455,7 +455,7 @@ function TitleEditor({ task, large }: { task: Task; large?: boolean }) {
       }}
       aria-label="Title"
       className={cn(
-        "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-ctl bg-transparent px-2 py-1 outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
+        "field-sizing-content -mx-2 block w-[calc(100%+16px)] resize-none rounded-box bg-transparent px-2 py-1 outline-none transition-colors hover:bg-fill/60 focus:bg-fill/60",
         large ? "font-display text-xl font-semibold tracking-[-0.015em] max-md:text-[28px] max-md:leading-[1.2] max-md:font-bold max-md:tracking-[-0.02em]" : "text-lg font-semibold tracking-[-0.01em]",
         task.isDone && "text-ink-3 line-through decoration-ink-4",
       )}
@@ -495,7 +495,7 @@ function NotesEditor({ task, page }: { task: Task; page?: boolean }) {
     <div
       className={cn(
         "px-3.5 pt-3 pb-2 transition-colors",
-        page ? "card" : "rounded-[calc(var(--radius-ctl)_+_2px)] border border-line focus-within:border-line-strong",
+        page ? "card" : "rounded-[calc(var(--radius-box)_+_2px)] border border-line focus-within:border-line-strong",
       )}
     >
       <RichText
@@ -614,7 +614,7 @@ function SubtaskSection({ task, page }: { task: Task; page?: boolean }) {
             e.preventDefault();
             add();
           }}
-          className="flex items-center gap-1.5 rounded-ctl pl-1 transition-colors focus-within:bg-fill/60"
+          className="flex items-center gap-1.5 rounded-box pl-1 transition-colors focus-within:bg-fill/60"
         >
           <span className="flex size-[22px] items-center justify-center text-ink-3">
             <Plus className="size-3.5" />
@@ -733,7 +733,7 @@ function SubtaskRow({ task, sub }: { task: Task; sub: Subtask }) {
       ]
     : [];
   return (
-    <div className="group flex min-h-8 items-center gap-1 rounded-ctl pr-1 transition-colors hover:bg-fill/60">
+    <div className="group flex min-h-8 items-center gap-1 rounded-box pr-1 transition-colors hover:bg-fill/60">
       <TaskCheck size={15} checked={sub.isDone || task.isDone} onToggle={() => toggleSubtask(task.id, sub.id)} label={sub.title} />
       {editing ? (
         <input

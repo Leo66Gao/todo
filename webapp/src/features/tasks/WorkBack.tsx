@@ -144,7 +144,7 @@ export function WorkBack({ task, open, onOpenChange }: { task: Task; open: boole
                 onChange={(e) => setRequest(e.target.value)}
                 rows={2}
                 placeholder="Anything to keep in mind? For example: the data is already collected, or no work on Wednesdays."
-                className="w-full resize-none rounded-ctl border border-line-strong bg-card px-3 py-2 text-sm leading-5 outline-none transition-[border-color,box-shadow] placeholder:text-ink-4 focus:border-accent focus:ring-3 focus:ring-accent-soft"
+                className="w-full resize-none rounded-box border border-line-strong bg-card px-3 py-2 text-sm leading-5 outline-none transition-[border-color,box-shadow] placeholder:text-ink-4 focus:border-accent focus:ring-3 focus:ring-accent-soft"
               />
               <div className="mt-2.5 flex items-center gap-3">
                 <Button variant={steps ? "secondary" : "primary"} onClick={() => void suggest()} disabled={busy} icon={busy ? <Spinner className="size-3.5" /> : undefined}>
@@ -164,7 +164,7 @@ export function WorkBack({ task, open, onOpenChange }: { task: Task; open: boole
                 >
                   <ul className={cn("scroll-area max-h-[46vh] px-3 py-2 transition-opacity", busy && "opacity-50")}>
                     {steps.map((s) => (
-                      <li key={s.key} className="flex items-center gap-2.5 rounded-ctl px-2 py-1.5 transition-colors hover:bg-fill/60">
+                      <li key={s.key} className="flex items-center gap-2.5 rounded-box px-2 py-1.5 transition-colors hover:bg-fill/60">
                         <TaskCheck size={16} checked={s.include} onToggle={() => update(s.key, { include: !s.include })} ariaLabel={`Include “${s.title}”`} />
                         <div className={cn("min-w-0 flex-1", !s.include && "opacity-45")}>
                           <input

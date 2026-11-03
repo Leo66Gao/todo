@@ -10,6 +10,7 @@
  * single calm cobalt marks "now", selection and assignments.
  */
 :root {
+  --radius-box: 10px;
   --canvas: #f8f8f7;
   --sidebar: #f8f8f7;
   --card: #ffffff;
@@ -128,6 +129,9 @@
   --shadow-modal: var(--shadow-modal);
   --shadow-lift: var(--shadow-lift);
   --radius-ctl: 10px;
+  /* Boxes that look like controls but can grow tall (text areas, rows that
+     wrap, thumbnails): the same corner, but never rounded into a capsule. */
+  --radius-box: 10px;
   --radius-pop: 14px;
   --radius-modal: 22px;
   --radius-card: 18px;
@@ -845,4 +849,23 @@ html.dark:not(.glass) .float-glass {
   to {
     background-position: -150% 0;
   }
+}
+
+/* Round corners (Settings › Appearance), like the newest macOS: buttons,
+   fields, chips, tabs and menu items become capsules, and menus and popovers
+   round off more. Panels, cards, dialogs, the note page, text areas and
+   other boxes that can grow tall (rounded-box) keep their corners. */
+:root.corners-round {
+  --radius-ctl: 999px;
+  --radius-pop: 20px;
+}
+:root.corners-round [class*="rounded-ctl"] {
+  border-radius: 9999px;
+}
+:root.corners-round .rounded-pop {
+  border-radius: 20px;
+}
+:root.corners-round
+  :is(button, a, span, input:not([type="checkbox"], [type="radio"], [type="range"]), select, kbd, label, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], [role="tab"]):is(.rounded, [class*="rounded-[4px]"], [class*="rounded-[5px]"], [class*="rounded-[6px]"], [class*="rounded-[7px]"], [class*="rounded-[8px]"], [class*="rounded-[9px]"], [class*="rounded-[10px]"], [class*="rounded-[12px]"]):not([data-square]) {
+  border-radius: 9999px;
 }

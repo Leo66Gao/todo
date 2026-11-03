@@ -238,7 +238,7 @@ function WeekCard({ task, sortable }: { task: Task; sortable: boolean }) {
           }}
           onDoubleClick={() => !task.milestone && ui.editTask(task.id)}
           className={cn(
-            "mb-1 flex items-center gap-1 rounded-[calc(var(--radius-ctl)_+_1px)] py-1.5 pr-2 pl-0.5 transition-colors duration-100",
+            "mb-1 flex items-center gap-1 rounded-[calc(var(--radius-box)_+_1px)] py-1.5 pr-2 pl-0.5 transition-colors duration-100",
             selected ? "bg-accent-soft" : "hover:bg-fill",
           )}
         >

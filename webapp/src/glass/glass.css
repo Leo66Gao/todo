@@ -140,6 +140,7 @@ html.glass .scroll-area {
 html.glass {
   --glass-radius: 24px;
   --radius-ctl: max(6px, calc(var(--glass-radius, 22px) * 0.38));
+  --radius-box: max(6px, calc(var(--glass-radius, 22px) * 0.38));
   --radius-pop: calc(var(--glass-radius, 22px) * 0.56);
   --radius-modal: calc(var(--glass-radius, 22px) * 0.78);
   --radius-card: calc(var(--glass-radius, 22px) * 0.5);

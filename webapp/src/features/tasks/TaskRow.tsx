@@ -298,7 +298,7 @@ const TaskRowView = memo(function TaskRowView({
       className={cn(
         // Each task is its own rounded card on the page.
         "relative transition-opacity duration-200",
-        plain ? "rounded-ctl" : cn("md:card", compact ? "md:mb-1.5 md:rounded-[14px]" : "md:mb-2"),
+        plain ? "rounded-box" : cn("md:card", compact ? "md:mb-1.5 md:rounded-[14px]" : "md:mb-2"),
         done && !completing && "opacity-70",
         dragging && "z-10 opacity-40",
       )}
