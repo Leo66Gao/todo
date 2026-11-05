@@ -75,6 +75,7 @@ export function MiniCalendar({
                 <button
                   key={day.toISOString()}
                   type="button"
+                  data-lens={selected ? "ink" : undefined}
                   onClick={() => onPick(day)}
                   className={cn(
                     "relative mx-auto flex size-8 items-center justify-center rounded-full text-xs tnum transition-colors duration-100",
@@ -202,6 +203,7 @@ export function TimePanel({
             <button
               key={slot.hour * 60 + slot.minute}
               type="button"
+              data-lens={selected ? "ink" : undefined}
               onClick={() => onPick(slot)}
               className={cn(
                 "flex h-[28px] w-full items-center rounded-[6px] px-2 text-sm tnum transition-colors",

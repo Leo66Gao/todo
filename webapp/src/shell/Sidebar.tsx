@@ -88,6 +88,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="px-2.5 pb-2 max-md:pt-4 max-md:pb-3">
         <button
           ref={searchWell}
+          data-lens=""
           type="button"
           onClick={() => {
             ui.set({ paletteOpen: true });
@@ -163,6 +164,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className={cn("shrink-0 border-t border-line p-2.5 max-md:border-t-0 max-md:px-1.5 max-md:pb-3.5", glass && "border-t-0")}>
         <button
           ref={profilePlate}
+          data-lens=""
           type="button"
           onClick={() => go({ view: "settings" })}
           className={cn(

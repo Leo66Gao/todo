@@ -39,7 +39,7 @@ const splashBoot = `try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNat
 
 // Applies the saved appearance (and Liquid Glass, which phones don't use)
 // before first paint so it never flashes.
-const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||'"system"');var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);var g=JSON.parse(localStorage.getItem("todo.web.glass")||"{}");var c=window.Capacitor,ph=(c&&c.isNativePlatform&&c.isNativePlatform())||matchMedia("(max-width: 767px)").matches;if(JSON.parse(localStorage.getItem("todo.web.corners")||'"standard"')==="round")document.documentElement.classList.add("corners-round");if(g.enabled&&!ph){document.documentElement.classList.add("glass","glass-bg-"+(g.background||"harbour"))}}catch(e){}`;
+const themeBoot = `try{var m=JSON.parse(localStorage.getItem("todo.web.theme")||'"system"');var d=m==="dark"||(m!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);var g=JSON.parse(localStorage.getItem("todo.web.glass")||"{}");var c=window.Capacitor,ph=(c&&c.isNativePlatform&&c.isNativePlatform())||matchMedia("(max-width: 767px)").matches;if(JSON.parse(localStorage.getItem("todo.web.corners")||'"standard"')==="round")document.documentElement.classList.add("corners-round");if(g.phoneGlass&&ph)document.documentElement.classList.add("phone-glass");if(g.enabled&&!ph){document.documentElement.classList.add("glass","glass-bg-"+(g.background||"harbour"))}}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

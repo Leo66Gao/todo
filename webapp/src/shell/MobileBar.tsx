@@ -43,6 +43,9 @@ export function createForRoute(route: Route, navigate: (r: Route) => void) {
 
 const HAS_ADD: Route["view"][] = ["today", "week", "calendar", "assignments", "subject", "notes"];
 
+/** How far the tabs slide to sit centred without the add button: half of it and its gap. */
+const CENTRED = (58 + 10) / 2;
+
 /**
  * Phone navigation: a floating capsule of icon-only tabs within thumb reach,
  * with everything else (Week, Subjects, Settings) under More, and the add
@@ -65,12 +68,16 @@ export function MobileTabBar({ route, navigate }: { route: Route; navigate: (r: 
   const shown = pending ?? current;
   // The add button keeps its place where there is nothing to add, or while
   // hidden (it only fades), so the bar never changes width: resizing the
-  // glass every frame dropped its refraction mid-animation.
+  // glass every frame dropped its refraction mid-animation. Where there is
+  // nothing to add, the bar slides over to the centre instead.
   const canAdd = HAS_ADD.includes(route.view);
   const off = hidden || !canAdd;
   return (
     <nav className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end px-4 pb-[max(12px,env(safe-area-inset-bottom))] md:hidden">
-      <div className="pointer-events-auto relative grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]">
+      <div
+        className="pointer-events-auto relative grid h-[58px] min-w-0 flex-1 grid-cols-5 rounded-full p-[5px]"
+        style={{ translate: canAdd ? "0 0" : `${CENTRED}px 0`, transition: "translate 480ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+      >
         <GlassLens radius={29} bezel={22} className="lens-bar" />
         {TABS.map((tab) => (
           <TabButton
@@ -128,7 +135,7 @@ function TabButton({ label, icon, active, onClick }: { label: string; icon: Reac
     >
       {active && (
         <motion.span layoutId="tab-pill" transition={springs.pill} className="absolute inset-0 rounded-full">
-          <GlassLens radius={24} bezel={14} frost={0.75} className="lens-pill" />
+          <GlassLens radius={24} bezel={14} frost={1} tone="saturate(2.2) brightness(0.97) contrast(1.06)" className="lens-pill" />
         </motion.span>
       )}
       {/* The icon lifts a little as it becomes the current tab. */}

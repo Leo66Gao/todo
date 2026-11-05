@@ -176,7 +176,7 @@ export function SourcesHost() {
               </Button>
             </form>
             {sources.length > 6 && (
-              <label className="mx-5 mb-2 flex h-8 items-center gap-2 rounded-ctl bg-fill px-2.5 text-sm">
+              <label data-lens="" className="mx-5 mb-2 flex h-8 items-center gap-2 rounded-ctl bg-fill px-2.5 text-sm">
                 <Search className="size-3.5 text-ink-3" />
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search sources" className="flex-1 bg-transparent outline-none placeholder:text-ink-3" />
               </label>

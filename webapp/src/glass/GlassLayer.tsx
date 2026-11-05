@@ -36,6 +36,11 @@ export function useGlassDocumentClasses() {
   useEffect(() => {
     document.documentElement.classList.toggle("glass-light-text", enabled && lightText);
   }, [enabled, lightText]);
+
+  const phoneGlass = useGlassPrefs((s) => s.phone && s.phoneGlass);
+  useEffect(() => {
+    document.documentElement.classList.toggle("phone-glass", phoneGlass);
+  }, [phoneGlass]);
 }
 
 /**

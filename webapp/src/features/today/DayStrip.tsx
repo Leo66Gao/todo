@@ -197,6 +197,7 @@ function SelectedDay() {
   return (
     <motion.span
       ref={glass}
+      data-lens="thumb"
       layoutId="day-strip-selected"
       transition={springs.snappy}
       className="day-cell absolute inset-0 rounded-[calc(var(--radius-box)_+_2px)] bg-ink max-md:rounded-[20px]"

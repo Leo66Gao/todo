@@ -330,6 +330,7 @@ function MonthPicker({ month, onPick }: { month: Date; onPick: (d: Date) => void
               <button
                 key={m}
                 type="button"
+                data-lens={current ? "ink" : undefined}
                 onClick={() => {
                   onPick(new Date(year, m, 1));
                   setOpen(false);
@@ -409,6 +410,7 @@ function MonthCell({
         className="relative flex h-[46px] flex-col items-center justify-center gap-0.5 transition-transform duration-150 pointer-fine:active:scale-[0.92]"
       >
         <span
+          data-lens={selected && !isToday ? "ink" : undefined}
           className={cn(
             "flex size-[34px] items-center justify-center rounded-full text-[15px] leading-none tnum transition-colors duration-150",
             selected

@@ -418,7 +418,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
       <Menu
         align="end"
         trigger={
-          <button type="button" className={pill}>
+          <button type="button" data-lens="" className={pill}>
             <span
               className="size-2 shrink-0 rounded-full"
               style={{ background: subject ? argbToCss(subject.colorValue) : "var(--ink-4)" }}
@@ -441,7 +441,7 @@ function NoteEditor({ note, back }: { note: StudyNote; back: React.ReactNode }) 
       <Menu
         align="end"
         trigger={
-          <button type="button" className={pill}>
+          <button type="button" data-lens="" className={pill}>
             <Folder className="size-3.5 shrink-0 text-ink-3" />
             <span className="truncate">{folder?.name ?? "No folder"}</span>
             <ChevronDown className="size-3.5 shrink-0 text-ink-3" />

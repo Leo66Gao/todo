@@ -604,10 +604,10 @@ html.dark:not(.glass) .float-glass {
 }
 .dark {
   --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0.05) 50%, rgb(255 255 255 / 0.08) 100%);
-  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.28), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.07), inset 0 0 10px rgb(255 255 255 / 0.03), 0 12px 30px -10px rgb(0 0 0 / 0.75);
-  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 0.38) 0%, rgb(255 255 255 / 0.07) 12%, rgb(255 255 255 / 0) 28%,
-    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.07) 90%, rgb(255 255 255 / 0.24) 100%);
+  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.14), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.08),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.035), inset 0 0 10px rgb(255 255 255 / 0.015), 0 12px 30px -10px rgb(0 0 0 / 0.75);
+  --lens-rim: linear-gradient(180deg, rgb(255 255 255 / 0.19) 0%, rgb(255 255 255 / 0.035) 12%, rgb(255 255 255 / 0) 28%,
+    rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.035) 90%, rgb(255 255 255 / 0.12) 100%);
 }
 /* The buttons at the top of a page: the same glass, less frosted. */
 :root {
@@ -627,16 +627,42 @@ html.dark:not(.glass) .float-glass {
 .dark .lens-bar {
   --lens-fill: var(--lens-fill-round);
 }
+/* A ball of glass rather than a flat disc: light caught along the top and
+   bottom edges, the sides falling into shade, a soft bloom under the top edge
+   and a glow of gathered light above the bottom one. */
+:root {
+  --lens-ball-rim: linear-gradient(180deg, rgb(255 255 255 / 1) 0%, rgb(255 255 255 / 0.3) 11%, rgb(255 255 255 / 0) 26%,
+    rgb(20 28 45 / 0.22) 50%, rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.3) 89%, rgb(255 255 255 / 0.92) 100%);
+  --lens-ball-sides: inset 8px 0 10px -8px rgb(20 28 45 / 0.24), inset -8px 0 10px -8px rgb(20 28 45 / 0.24);
+  --lens-ball-gloss: radial-gradient(ellipse 60% 24% at 50% 6%, rgb(255 255 255 / 0.6), transparent),
+    radial-gradient(ellipse 70% 20% at 50% 97%, rgb(255 255 255 / 0.42), transparent),
+    radial-gradient(ellipse 74% 80% at 50% 50%, transparent 56%, rgb(20 28 45 / 0.09) 100%);
+  --lens-ball-shadow: var(--lens-ball-sides), var(--lens-shadow);
+  --lens-ball-fill-soft: var(--lens-ball-gloss), var(--lens-fill-soft);
+}
+.dark {
+  --lens-ball-rim: linear-gradient(180deg, rgb(255 255 255 / 0.19) 0%, rgb(255 255 255 / 0.035) 11%, rgb(255 255 255 / 0) 26%,
+    rgb(0 0 0 / 0.4) 50%, rgb(255 255 255 / 0) 74%, rgb(255 255 255 / 0.035) 89%, rgb(255 255 255 / 0.12) 100%);
+  --lens-ball-sides: inset 8px 0 10px -8px rgb(0 0 0 / 0.65), inset -8px 0 10px -8px rgb(0 0 0 / 0.65);
+  --lens-ball-gloss: radial-gradient(ellipse 60% 24% at 50% 6%, rgb(255 255 255 / 0.07), transparent),
+    radial-gradient(ellipse 70% 20% at 50% 97%, rgb(255 255 255 / 0.04), transparent),
+    radial-gradient(ellipse 74% 80% at 50% 50%, transparent 52%, rgb(0 0 0 / 0.3) 100%);
+}
+.lens-bar {
+  --lens-rim: var(--lens-ball-rim);
+  --lens-shadow: var(--lens-ball-shadow);
+}
 /* The selected tab's bubble: the same glass as the buttons (bright at the
    top and bottom), with a lighter tint and half their frost. */
 .lens-pill {
-  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.16) 0%, rgb(240 242 246 / 0.1) 50%, rgb(255 255 255 / 0.15) 100%);
-  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 1), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.8),
-    inset 0 0 0 0.5px rgb(40 50 70 / 0.08), 0 4px 12px -4px rgb(20 25 40 / 0.2);
+  --lens-rim: var(--lens-ball-rim);
+  --lens-fill: var(--lens-ball-gloss), linear-gradient(180deg, rgb(255 255 255 / 0.1) 0%, rgb(240 242 246 / 0.03) 50%, rgb(255 255 255 / 0.09) 100%);
+  --lens-shadow: var(--lens-ball-sides), inset 0 1px 1px -0.5px rgb(255 255 255 / 1), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.8),
+    inset 0 0 0 0.5px rgb(40 50 70 / 0.12), 0 4px 12px -4px rgb(20 25 40 / 0.28);
 }
 .dark .lens-pill {
-  --lens-fill: linear-gradient(180deg, rgb(255 255 255 / 0.055) 0%, rgb(255 255 255 / 0.028) 50%, rgb(255 255 255 / 0.045) 100%);
-  --lens-shadow: inset 0 1px 1px -0.5px rgb(255 255 255 / 0.32), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.16),
+  --lens-fill: var(--lens-ball-gloss), linear-gradient(180deg, rgb(255 255 255 / 0.055) 0%, rgb(255 255 255 / 0.028) 50%, rgb(255 255 255 / 0.045) 100%);
+  --lens-shadow: var(--lens-ball-sides), inset 0 1px 1px -0.5px rgb(255 255 255 / 0.16), inset 0 -1px 1px -0.5px rgb(255 255 255 / 0.08),
     0 4px 12px -4px rgb(0 0 0 / 0.5);
 }
 /* The caught light: a thin ring, brightest at the top and bottom. */
@@ -656,16 +682,16 @@ html.dark:not(.glass) .float-glass {
 .lens-surface {
   background: var(--lens-fill);
   box-shadow: var(--lens-shadow);
-  -webkit-backdrop-filter: blur(10px) saturate(1.9);
-  backdrop-filter: blur(10px) saturate(1.9);
+  -webkit-backdrop-filter: blur(13px) saturate(1.9);
+  backdrop-filter: blur(13px) saturate(1.9);
 }
 @utility lens-chip {
   position: relative;
   background: var(--lens-fill-soft);
   border-color: transparent;
   box-shadow: var(--lens-shadow);
-  -webkit-backdrop-filter: blur(10px) saturate(1.9);
-  backdrop-filter: blur(0.5px) saturate(1.6) url(#lens-c44);
+  -webkit-backdrop-filter: blur(13px) saturate(1.9);
+  backdrop-filter: blur(0.65px) saturate(1.6) url(#lens-c44);
   &::before {
     content: "";
     position: absolute;
@@ -681,10 +707,11 @@ html.dark:not(.glass) .float-glass {
 }
 @utility lens-round {
   position: relative;
-  background: var(--lens-fill-round, var(--lens-fill));
-  box-shadow: var(--lens-shadow);
-  -webkit-backdrop-filter: blur(10px) saturate(1.9);
-  backdrop-filter: blur(1px) saturate(1.9) brightness(1.04) url(#lens-c58);
+  --lens-rim: var(--lens-ball-rim);
+  background: var(--lens-ball-gloss), var(--lens-fill-round, var(--lens-fill));
+  box-shadow: var(--lens-ball-shadow);
+  -webkit-backdrop-filter: blur(13px) saturate(1.9);
+  backdrop-filter: blur(1.3px) saturate(1.9) brightness(1.04) url(#lens-c58);
   &::before {
     content: "";
     position: absolute;
@@ -696,6 +723,58 @@ html.dark:not(.glass) .float-glass {
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
+  }
+}
+
+/* The phone's Liquid Glass setting: the same ball of glass on the controls
+   marked data-lens (search fields, selectors, buttons, icon buttons), and on
+   the header's round buttons, which already are glass. (Those keep their own
+   refraction, so the rules here leave them be.) */
+html.phone-glass body {
+  --lens-rim: var(--lens-ball-rim);
+  --lens-shadow: var(--lens-ball-shadow);
+  --lens-fill-soft: var(--lens-ball-fill-soft);
+}
+@media (max-width: 767px) {
+  html.phone-glass [data-lens]:not(header button) {
+    background: var(--lens-fill-soft);
+    border-color: transparent;
+    box-shadow: var(--lens-shadow);
+    -webkit-backdrop-filter: blur(1.3px) saturate(1.8) brightness(1.04);
+    backdrop-filter: blur(1.3px) saturate(1.8) brightness(1.04);
+  }
+  /* (A segmented control's thumb is placed absolutely already.) */
+  html.phone-glass [data-lens]:not(header button, [data-lens="thumb"]) {
+    position: relative;
+  }
+  html.phone-glass [data-lens]:not(header button)::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--lens-rim);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  /* What was solid ink turns to denser glass, so its text is ink too. */
+  html.phone-glass [data-lens="ink"]:not(header button) {
+    --on-ink: var(--ink);
+    background: var(--lens-ball-gloss), var(--lens-fill);
+    color: var(--ink);
+  }
+  html.phone-glass [data-lens="icon"]:not(header button) {
+    border-radius: 9999px;
+  }
+  html.phone-glass .day-cell {
+    --on-ink: var(--ink);
+  }
+  html.phone-glass [role="menu"] {
+    background: color-mix(in srgb, var(--raised) 68%, transparent);
+    -webkit-backdrop-filter: blur(26px) saturate(1.8);
+    backdrop-filter: blur(26px) saturate(1.8);
   }
 }
 

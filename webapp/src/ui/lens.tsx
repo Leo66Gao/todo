@@ -106,7 +106,8 @@ export function LensDefs() {
 export function GlassLens({
   radius,
   bezel = 20,
-  frost = 1.5,
+  frost = 1.95,
+  tone = "saturate(1.9) brightness(1.04)",
   refract = true,
   className,
 }: {
@@ -114,6 +115,8 @@ export function GlassLens({
   bezel?: number;
   /** Blur behind the glass, in px. */
   frost?: number;
+  /** What else the glass does to the page behind it (CSS filter functions). */
+  tone?: string;
   /** Bend the page at the rim (off: plain frosted glass). */
   refract?: boolean;
   className?: string;
@@ -188,7 +191,7 @@ export function GlassLens({
       ref={ref}
       aria-hidden
       className={cn("lens-surface pointer-events-none absolute inset-0 rounded-[inherit]", className)}
-      style={size || !refract ? { backdropFilter: `blur(${frost}px) saturate(1.9) brightness(1.04)${!refract || settling || !ready ? "" : ` url(#${id})`}` } : undefined}
+      style={size || !refract ? { backdropFilter: `blur(${frost}px) ${tone}${!refract || settling || !ready ? "" : ` url(#${id})`}` } : undefined}
     >
       {refract && size && <LensFilter id={id} w={size.w} h={size.h} radius={Math.min(radius, size.h / 2)} bezel={bezel} scale={48} />}
     </span>
