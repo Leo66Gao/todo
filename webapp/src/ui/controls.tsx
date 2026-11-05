@@ -53,7 +53,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={refs}
       type={type}
-      data-lens={rest.disabled ? undefined : variant === "primary" ? "ink" : variant === "secondary" ? "" : undefined}
       className={cn(
         "inline-flex shrink-0 select-none items-center justify-center font-medium whitespace-nowrap",
         "transition-[background-color,color,transform,opacity] duration-150 pointer-fine:active:scale-[0.97]",
@@ -84,7 +83,6 @@ export const IconButton = forwardRef<
       ref={refs}
       type={type}
       aria-label={label}
-      data-lens={size === "md" && !rest.disabled ? "icon" : undefined}
       className={cn(
         "inline-flex shrink-0 select-none items-center justify-center rounded-ctl text-ink-3",
         // (Pressed with a mouse it sinks and darkens; a touch gets the shared
@@ -165,7 +163,6 @@ export function Segmented<T extends string>({
   return (
     <div
       ref={trackGlass}
-      data-lens=""
       role="radiogroup"
       // (Sliding along it picks an option; it mustn't pull the menu drawer.)
       data-hswipe
@@ -214,7 +211,6 @@ export function Segmented<T extends string>({
             {selected && (
               <motion.span
                 ref={thumbGlass}
-                data-lens="thumb"
                 layoutId={`seg-${id}`}
                 transition={springs.snappy}
                 // Lifted, the thumb swells past the track like a drop of glass.

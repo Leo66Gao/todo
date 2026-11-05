@@ -319,7 +319,6 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       type="button"
       aria-pressed={active}
-      data-lens={active ? "ink" : ""}
       onClick={onClick}
       className={cn(
         "h-8 rounded-full border px-3 text-sm transition-colors",

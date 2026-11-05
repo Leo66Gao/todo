@@ -595,7 +595,6 @@ export function NoteAiButton({ quill, note }: { quill: QuillType | null; note: S
                       <button
                         key={i}
                         type="button"
-                        data-lens={f.kind === result.focus.kind ? "ink" : ""}
                         onClick={() => setFocus(f)}
                         className={cn(
                           "max-w-[220px] truncate rounded-full border px-2.5 py-1 text-xs transition-colors",

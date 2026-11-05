@@ -154,7 +154,6 @@ function SheetBody({ task, existing, close }: { task: Task; existing: Subtask | 
       <button
         type="submit"
         disabled={!title.trim()}
-        data-lens="ink"
         className="mt-2 h-12 rounded-[16px] bg-ink text-[15px] font-semibold text-on-ink transition-[opacity,transform] pointer-fine:active:scale-[0.99] disabled:opacity-40"
       >
         {existing ? "Save subtask" : "Add subtask"}

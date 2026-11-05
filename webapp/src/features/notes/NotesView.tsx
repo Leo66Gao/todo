@@ -105,7 +105,7 @@ export function NotesView() {
       <div className="scroll-area flex-1 pb-bar">
         <div className="mx-auto w-full max-w-[760px] px-6 max-md:px-5 max-md:pt-4 md:pt-5">
           <div className="flex items-center gap-2">
-            <label ref={searchWell} data-lens="" className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm shadow-card transition-colors max-md:h-12 max-md:gap-2.5 max-md:rounded-full max-md:border max-md:border-line max-md:px-4 max-md:text-[15px]">
+            <label ref={searchWell} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm shadow-card transition-colors max-md:h-12 max-md:gap-2.5 max-md:rounded-full max-md:border max-md:border-line max-md:px-4 max-md:text-[15px]">
               <Search className="size-3.5 text-ink-3 max-md:size-[18px]" />
               <input
                 value={query}
@@ -118,7 +118,7 @@ export function NotesView() {
               <Menu
                 align="end"
                 trigger={
-                  <button ref={subjectPlate} data-lens="" type="button" className="flex h-8 max-w-[45%] min-w-0 shrink-0 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm whitespace-nowrap shadow-card transition-colors hover:bg-fill data-[state=open]:bg-fill max-md:h-12 max-md:rounded-full max-md:border max-md:border-line max-md:pr-3.5 max-md:pl-4 max-md:font-medium">
+                  <button ref={subjectPlate} type="button" className="flex h-8 max-w-[45%] min-w-0 shrink-0 items-center gap-2 rounded-ctl bg-card px-2.5 text-sm whitespace-nowrap shadow-card transition-colors hover:bg-fill data-[state=open]:bg-fill max-md:h-12 max-md:rounded-full max-md:border max-md:border-line max-md:pr-3.5 max-md:pl-4 max-md:font-medium">
                     {subject && <span className="size-2 shrink-0 rounded-full" style={{ background: argbToCss(subject.colorValue) }} />}
                     <span className="truncate">{subject?.title ?? "All subjects"}</span>
                     <ChevronDown className="size-3.5 shrink-0 text-ink-3" />
@@ -154,7 +154,6 @@ export function NotesView() {
                   </Button>
                   <button
                     type="button"
-                    data-lens="ink"
                     onClick={() => createNote(navigate, { subjectId: subject?.id ?? null })}
                     className="mt-6 flex h-12 items-center gap-2 rounded-full bg-ink pr-5 pl-4 text-[15px] font-semibold text-on-ink transition-transform pointer-fine:active:scale-[0.97] md:hidden"
                   >

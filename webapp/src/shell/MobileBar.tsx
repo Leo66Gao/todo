@@ -135,7 +135,7 @@ function TabButton({ label, icon, active, onClick }: { label: string; icon: Reac
     >
       {active && (
         <motion.span layoutId="tab-pill" transition={springs.pill} className="absolute inset-0 rounded-full">
-          <GlassLens radius={24} bezel={14} frost={1} tone="saturate(2.2) brightness(0.97) contrast(1.06)" className="lens-pill" />
+          <GlassLens radius={24} bezel={14} frost={0.85} tone="saturate(2.2) brightness(0.97) contrast(1.06)" className="lens-pill" />
         </motion.span>
       )}
       {/* The icon lifts a little as it becomes the current tab. */}

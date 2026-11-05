@@ -163,9 +163,8 @@ function AccountSection() {
 function AppearanceSection() {
   const mode = useAppearance((s) => s.themeMode);
   const corners = useAppearance((s) => s.corners);
-  // Liquid Glass is a desktop theme; phones have the standard look, with glass on their controls as an option.
+  // Liquid Glass is a desktop theme; phones only have the standard look.
   const phone = useGlassPrefs((s) => s.phone);
-  const phoneGlass = useGlassPrefs((s) => s.phoneGlass);
   const glass = useGlassPrefs((s) => s.enabled) && !phone;
   const blur = useGlassPrefs((s) => s.blur);
   const frost = useGlassPrefs((s) => s.frost);
@@ -184,11 +183,6 @@ function AppearanceSection() {
               { value: "glass", label: "Liquid Glass" },
             ]}
           />
-        </Item>
-      )}
-      {phone && (
-        <Item title="Liquid Glass" detail="Glass on search fields, selectors and buttons, not just the tab bar.">
-          <Switch checked={phoneGlass} onChange={(v) => setGlassPrefs({ phoneGlass: v })} label="Liquid Glass" />
         </Item>
       )}
       <Item title="Mode" detail="Match the system, or choose light or dark.">

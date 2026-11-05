@@ -106,7 +106,7 @@ export function LensDefs() {
 export function GlassLens({
   radius,
   bezel = 20,
-  frost = 1.95,
+  frost = 1.65,
   tone = "saturate(1.9) brightness(1.04)",
   refract = true,
   className,

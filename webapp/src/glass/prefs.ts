@@ -30,11 +30,9 @@ export interface GlassPrefs {
   lightText: boolean;
   /** Highlights follow the pointer (desktop). */
   pointerLight: boolean;
-  /** Phones: glass on search fields, selectors and buttons too, not just the floating chrome. */
-  phoneGlass: boolean;
 }
 
-const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", blur: 0.75, frost: 0.4, lightText: false, pointerLight: true, phoneGlass: false };
+const DEFAULTS: GlassPrefs = { enabled: false, background: "harbour", blur: 0.75, frost: 0.4, lightText: false, pointerLight: true };
 const KEY = "glass";
 
 interface GlassState extends GlassPrefs {
@@ -44,8 +42,7 @@ interface GlassState extends GlassPrefs {
   /**
    * The Android app and phone-width windows. Liquid Glass is a desktop theme:
    * phones keep the standard look, with a fixed, subtle glass on the floating
-   * chrome (tab bar, add button, focus timer), and on their controls too with
-   * the `phoneGlass` setting.
+   * chrome only (tab bar, add button, focus timer).
    */
   phone: boolean;
 }
@@ -72,8 +69,8 @@ function watchPhone() {
 }
 
 function persist() {
-  const { enabled, background, blur, frost, lightText, pointerLight, phoneGlass } = useGlassPrefs.getState();
-  setLocal(KEY, { enabled, background, blur, frost, lightText, pointerLight, phoneGlass });
+  const { enabled, background, blur, frost, lightText, pointerLight } = useGlassPrefs.getState();
+  setLocal(KEY, { enabled, background, blur, frost, lightText, pointerLight });
 }
 
 export function restoreGlassPrefs() {

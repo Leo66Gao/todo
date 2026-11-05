@@ -236,7 +236,6 @@ export function LabelField({
     <button
       key={name}
       type="button"
-      data-lens={selected ? "ink" : ""}
       onClick={() => onChange(name)}
       className={cn(
         "inline-flex h-7 items-center gap-1.5 rounded-[7px] border px-2.5 text-xs font-medium transition-[background-color,border-color,color,transform] duration-150 pointer-fine:active:scale-[0.97]",

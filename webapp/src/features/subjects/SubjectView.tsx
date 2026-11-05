@@ -663,7 +663,6 @@ function MaterialsPanel({ project }: { project: Project }) {
           }}
           placeholder="Search titles, links and file paths"
           aria-label="Search materials"
-          data-lens=""
           className="mb-1.5 h-8 w-full rounded-[9px] bg-fill px-3 text-sm outline-none placeholder:text-ink-3 focus:bg-fill-strong"
         />
       )}
@@ -888,7 +887,6 @@ function FolderChip({ label, active, onClick, icon }: { label: string; active: b
   return (
     <button
       type="button"
-      data-lens={active ? "ink" : ""}
       onClick={onClick}
       className={cn(
         "flex h-7 items-center gap-1.5 rounded-[7px] border px-2.5 text-xs font-medium transition-colors",

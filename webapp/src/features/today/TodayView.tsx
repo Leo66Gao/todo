@@ -103,7 +103,7 @@ export function TodayView() {
             {phone && (
               // The page colour fills behind its top corners; below, the list shows through.
               <div className="sticky top-0 z-10 bg-[linear-gradient(var(--canvas)_50%,transparent_50%)]">
-                <div data-lens="" className="rounded-[26px] border border-line bg-card p-1.5">
+                <div className="rounded-[26px] border border-line bg-card p-1.5">
                   <DayStrip day={day} onPick={setDay} tasks={all} />
                 </div>
               </div>
