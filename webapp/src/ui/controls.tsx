@@ -71,13 +71,21 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 export const IconButton = forwardRef<
   HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement> & { label: string; size?: "sm" | "md"; active?: boolean }
->(function IconButton({ label, size = "md", active, className, children, type = "button", ...rest }, ref) {
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    label: string;
+    size?: "sm" | "md";
+    active?: boolean;
+    /** Always ink glass, like the New task button beside it (rather than only as a header button with Round corners). */
+    ink?: boolean;
+  }
+>(function IconButton({ label, size = "md", active, ink, className, children, type = "button", ...rest }, ref) {
   const plate = useGlass<HTMLButtonElement>({ level: 2, kind: "plate", interactive: true });
+  const inkGlass = useGlass<HTMLButtonElement>({ level: 2, kind: "ink", interactive: true });
   const inHeader = useContext(HeaderGlass);
   const round = useAppearance((s) => s.corners === "round");
-  const glassy = inHeader && round && !rest.disabled;
-  const refs = useMergedRefs(ref, glassy ? plate : undefined);
+  // (One kind of glass per button: two registered on it fought over it.)
+  const glassy = (ink || (inHeader && round)) && !rest.disabled;
+  const refs = useMergedRefs(ref, !glassy ? undefined : ink ? inkGlass : plate);
   return (
     <button
       ref={refs}

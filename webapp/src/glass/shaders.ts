@@ -380,16 +380,18 @@ void main() {
     float k = uOptic[i].w * uState[i].z * inClip;
     float own = k * exp(-max(d, 0.0) / (blur * 0.55)) * smoothstep(-blur, blur * 0.2, d + blur * 0.2);
     shade = max(shade, own);
-    bool onGlass = mod(uState[i].w, 4.0) > 1.5;
-    if (onGlass) onShade = max(onShade, own);
+    if (mod(uState[i].w, 4.0) > 1.5) onShade = max(onShade, own);
     float d0 = sdRoundBox(p - R.xy, R.zw, S.x);
     // A 1 px darkening just outside the sides, against the edge light on
     // the top and bottom (outside, so the sides don't look pinched in).
-    // (Not round a recessed well: it has an even rim instead.)
+    // (Not round a recessed well: it has an even rim instead.) On a box of
+    // glass, which is lighter and frosted, they are drawn twice as dark, or
+    // they all but vanished (the tasks in Week's days).
+    bool onGlass = mod(uState[i].w, 4.0) > 1.5;
     if (d0 > -1.0 && d0 < 2.0 * uDpr && mod(uState[i].w, 2.0) < 0.5) {
       float sideLine = 1.0 - smoothstep(0.15 * uDpr, 1.15 * uDpr, d0);
       float side = edgeWeights(p - R.xy, R.zw, S.x).y;
-      float darken = 1.0 - sideLine * side * 0.11 * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
+      float darken = 1.0 - sideLine * side * 0.11 * (onGlass ? 2.0 : 1.0) * min(uOptic[i].z, 1.0) * uState[i].z * inClip * (uDark > 0.5 ? 1.25 : 1.0);
       col *= darken;
       if (onGlass) onSide *= darken;
     }
@@ -500,7 +502,7 @@ void main() {
       float bl0 = dot(base, vec3(0.299, 0.587, 0.114));
       base = mix(base, vec3(bl0), (uAsh > 0.5 ? 0.35 : 0.25) * fr);
       vec3 ice = uAsh > 0.5 || uDark > 0.5 ? vec3(0.84, 0.9, 0.96) : vec3(1.0);
-      base = mix(base, ice, fr * (uAsh > 0.5 ? 0.32 : uDark > 0.5 ? 0.2 : 0.55));
+      base = mix(base, ice, fr * (uAsh > 0.5 ? 0.16 : uDark > 0.5 ? 0.1 : 0.55));
     }
     // A tint (solid surfaces, the search well, primary actions).
     base = mix(base, T.rgb, T.a * (1.0 - st.y * 0.25));

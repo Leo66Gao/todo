@@ -147,6 +147,7 @@ html.glass {
   --radius-pop: calc(var(--glass-radius, 22px) * 0.56);
   --radius-modal: calc(var(--glass-radius, 22px) * 0.78);
   --radius-card: calc(var(--glass-radius, 22px) * 0.5);
+  --radius-task: calc(var(--glass-radius, 22px) * 0.39);
 }
 html.glass [data-surface="sidebar"],
 html.glass [data-surface="inspector"],
@@ -377,7 +378,7 @@ html.glass:not(.glass-css) [data-glass-kind="ink"] {
 /* Tasks sit on their own thin plate of glass. The renderer draws it; this is
    the stand-in for the CSS fallback. */
 html.glass [data-task-card] {
-  border-radius: calc(var(--glass-radius, 22px) * 0.46);
+  border-radius: var(--radius-task);
   /* (Neighbouring margins overlap: this is the gap between two tasks.) */
   margin-block: 5.25px;
   transition: background-color 0.16s, box-shadow 0.16s;

@@ -40,8 +40,6 @@ export function CalendarView() {
   const selected = useUI((s) => s.calendarDay);
   const list = useUI((s) => s.calendarList);
   const all = useAllTasks();
-  // The same glass as New task beside it.
-  const togglePlate = useGlass<HTMLButtonElement>({ level: 2, kind: "ink", interactive: true });
   const phone = useMedia(PHONE);
   const month = new Date(selected.getFullYear(), selected.getMonth(), 1);
   const monthKey = month.getTime();
@@ -100,7 +98,8 @@ export function CalendarView() {
   // The original app's Schedule: everything ahead, day by day.
   const listToggle = (
     <Tooltip label={list ? "Month" : "Upcoming"}>
-      <IconButton ref={togglePlate} label={list ? "Show the month" : "Show upcoming"} onClick={() => ui.setCalendarList(!list)}>
+      {/* (The same glass as New task beside it.) */}
+      <IconButton ink label={list ? "Show the month" : "Show upcoming"} onClick={() => ui.setCalendarList(!list)}>
         {list ? <CalendarDays className="size-4" /> : <List className="size-4" />}
       </IconButton>
     </Tooltip>

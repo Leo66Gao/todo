@@ -11,6 +11,8 @@
  */
 :root {
   --radius-box: 10px;
+  /* Task boxes: Week's and the blocks in Today's schedule share one corner. */
+  --radius-task: 9px;
   --canvas: #f8f8f7;
   --sidebar: #f8f8f7;
   --card: #ffffff;
@@ -908,8 +910,11 @@ html.dark:not(.glass) .float-glass {
   border-radius: 24px;
 }
 @media (min-width: 768px) {
+  :root.corners-round {
+    --radius-task: 19px;
+  }
   :root.corners-round [data-task-card]:not(.rounded-box) {
-    border-radius: 22px;
+    border-radius: var(--radius-task);
   }
   :root.corners-round .week-plate {
     border-radius: inherit;
@@ -920,7 +925,8 @@ html.dark:not(.glass) .float-glass {
     border-radius: 22px;
   }
 }
-/* Blocks in the schedule: one corner for every block, whatever its length. */
+/* Blocks in the schedule: one corner for every block, whatever its length
+   (the same as a task box's). */
 :root.corners-round .schedule-block {
-  border-radius: 16px;
+  border-radius: var(--radius-task);
 }
