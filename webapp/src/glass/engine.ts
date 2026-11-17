@@ -388,7 +388,8 @@ export class GlassEngine {
     const solid = look.solid;
     // Blur only softens what shows through; frost turns the glass milky and
     // grained. Reading surfaces also keep a fixed, gentle legibility band.
-    const haze = dark ? [0.4, 0.41, 0.44] : [1, 1, 1];
+    // (Icy white in the dark too: a grey haze read as a shadow.)
+    const haze = dark ? [0.84, 0.9, 0.96] : [1, 1, 1];
     const hold = 0.55;
     switch (kind) {
       case "slab":
@@ -422,32 +423,35 @@ export class GlassEngine {
       case "control":
         // Selection pills: a clear lens with the edge light, no haze. It
         // holds its label legible (light text on a bright backdrop washed out).
+        // Under light text it is lightly frosted instead of darkened, so it
+        // doesn't look like a shadow.
         return {
           bezel: Math.min(14 * dpr, halfShort * 0.6),
           height: Math.min(halfShort * 1.1, 22 * dpr),
           tint: [1, 1, 1, 0],
-          legible: (dark ? -1 : 1) * hold * 0.6,
-          blur: 0,
-          frosted: 0,
+          legible: dark ? -hold * 0.25 : hold * 0.6,
+          blur: dark ? mix(0.08, 0.3, b) : 0,
+          frosted: dark ? 0.2 + f * 0.3 : 0,
           dispersion: 0.22,
           rim: 0.6,
-          shadow: dark ? 0.16 : 0.07,
+          shadow: dark ? 0.06 : 0.07,
           shadowBlur: 10 * dpr,
         };
       case "ink":
-        // Primary actions: a clear lens with a little frost and light.
+        // Primary actions: a clear lens with a little frost and light (under
+        // light text, more frost and blur in place of darkening).
         return {
           bezel: Math.min(14 * dpr, halfShort * 0.6),
           height: Math.min(halfShort * 1.3, 26 * dpr),
           tint: [...haze, dark ? 0.06 : 0.14],
-          legible: (dark ? -1 : 1) * hold * 0.9,
-          blur: mix(0.02, 0.45, b),
-          frosted: f * 0.6,
+          legible: dark ? -hold * 0.35 : hold * 0.9,
+          blur: dark ? mix(0.1, 0.55, b) : mix(0.02, 0.45, b),
+          frosted: dark ? 0.2 + f * 0.7 : f * 0.6,
           dispersion: 0.17,
           rim: 1.2,
           // The same shadow as the other buttons and plates (a darker one
           // made primary buttons and the header capsule look heavier).
-          shadow: dark ? 0.16 : 0.08,
+          shadow: dark ? 0.06 : 0.08,
           shadowBlur: 12 * dpr,
         };
       case "card":
@@ -458,25 +462,27 @@ export class GlassEngine {
           height: Math.min(14 * dpr, halfShort * 0.6),
           tint: [1, 1, 1, 0],
           legible: 0,
-          blur: 0,
-          frosted: 0,
+          // (Under light text, a touch of frost in place of a dark shadow.)
+          blur: dark ? mix(0.04, 0.25, b) : 0,
+          frosted: dark ? 0.1 + f * 0.25 : 0,
           dispersion: 0.12,
           rim: 1,
-          shadow: dark ? 0.16 : 0.08,
+          shadow: dark ? 0.06 : 0.08,
           shadowBlur: 12 * dpr,
         };
       case "plate":
-        // A raised box on a panel (the profile): lightly frosted, edge-lit.
+        // A raised box on a panel (the profile): lightly frosted, edge-lit
+        // (a little more frosted, rather than darkened, under light text).
         return {
           bezel: Math.min(18 * dpr, halfShort * 0.45),
           height: Math.min(halfShort * 0.8, 18 * dpr),
           tint: [1, 1, 1, 0],
-          legible: (dark ? -1 : 1) * hold * 0.6,
-          blur: mix(0.02, 0.4, b),
-          frosted: f * 0.5,
+          legible: dark ? -hold * 0.25 : hold * 0.6,
+          blur: dark ? mix(0.08, 0.5, b) : mix(0.02, 0.4, b),
+          frosted: dark ? 0.15 + f * 0.6 : f * 0.5,
           dispersion: 0.14,
           rim: 0.9,
-          shadow: dark ? 0.16 : 0.08,
+          shadow: dark ? 0.06 : 0.08,
           shadowBlur: 12 * dpr,
         };
       case "chip":
@@ -486,12 +492,12 @@ export class GlassEngine {
           bezel: Math.min(10 * dpr, halfShort * 0.45),
           height: Math.min(halfShort * 0.8, 12 * dpr),
           tint: [...haze, dark ? 0.104 : 0.156],
-          legible: (dark ? -1 : 1) * hold * 0.4,
+          legible: dark ? -hold * 0.2 : hold * 0.4,
           blur: mix(0.13, 0.715, b),
           frosted: Math.min(1, (f * 0.8 + 0.15) * 1.3),
           dispersion: 0.1,
           rim: 0.91,
-          shadow: dark ? 0.12 : 0.06,
+          shadow: dark ? 0.05 : 0.06,
           shadowBlur: 8 * dpr,
         };
       case "well":
@@ -499,10 +505,10 @@ export class GlassEngine {
         return {
           bezel: Math.min(radius, halfShort),
           height: Math.min(halfShort, 10 * dpr),
-          tint: dark ? [0, 0, 0, 0.12] : [0.2, 0.22, 0.26, 0.06],
+          tint: dark ? [0.84, 0.9, 0.96, 0.06] : [0.2, 0.22, 0.26, 0.06],
           legible: 0,
           blur: 0.85,
-          frosted: 0,
+          frosted: dark ? 0.15 : 0,
           dispersion: 0.1,
           rim: 0.55,
           shadow: 0,

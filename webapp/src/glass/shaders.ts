@@ -493,15 +493,14 @@ void main() {
     base = clamp(mix(vec3(lum), base, 1.0 + 0.22 * vivid) * (uDark > 0.5 ? 1.0 : 1.0 + 0.03 * vivid), 0.0, 1.0);
     // Frost: ice scatters light every way, so the glass turns milky.
     // What is behind melts into a soft glow, colour drains, and a haze lifts
-    // the whole surface: white in light mode, smoky in dark mode, and ash
-    // grey under light text in light mode (as macOS does), so white text
-    // reads without the glass going dark.
+    // the whole surface: white, cooled to icy blue-white (and laid on
+    // thinner) in dark mode and under light text, so white text still reads.
     if (fr > 0.0) {
       base = mix(base, ring(uHeavy, uvR, uvG, uvB, 20.0 * uDpr), 0.9 * fr);
       float bl0 = dot(base, vec3(0.299, 0.587, 0.114));
       base = mix(base, vec3(bl0), (uAsh > 0.5 ? 0.35 : 0.25) * fr);
-      vec3 ice = uAsh > 0.5 ? vec3(0.43, 0.43, 0.445) : uDark > 0.5 ? vec3(0.16, 0.16, 0.18) : vec3(1.0);
-      base = mix(base, ice, fr * (uAsh > 0.5 ? 0.6 : uDark > 0.5 ? 0.35 : 0.55));
+      vec3 ice = uAsh > 0.5 || uDark > 0.5 ? vec3(0.84, 0.9, 0.96) : vec3(1.0);
+      base = mix(base, ice, fr * (uAsh > 0.5 ? 0.32 : uDark > 0.5 ? 0.2 : 0.55));
     }
     // A tint (solid surfaces, the search well, primary actions).
     base = mix(base, T.rgb, T.a * (1.0 - st.y * 0.25));
