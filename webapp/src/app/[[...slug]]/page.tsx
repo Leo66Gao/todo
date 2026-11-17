@@ -5,7 +5,7 @@ export const dynamicParams = false;
 export function generateStaticParams() {
   return [
     { slug: [] },
-    ...["week", "calendar", "assignments", "assignment", "subjects", "subject", "notes", "note", "settings"].map(
+    ...["week", "calendar", "assignments", "assignment", "subjects", "subject", "notes", "note", "settings", "connect"].map(
       (s) => ({ slug: [s] }),
     ),
   ];

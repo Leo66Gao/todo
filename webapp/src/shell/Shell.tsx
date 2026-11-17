@@ -37,6 +37,7 @@ import { SubjectView } from "@/features/subjects/SubjectView";
 import { NotesView } from "@/features/notes/NotesView";
 import { NoteView } from "@/features/notes/NoteView";
 import { SettingsView } from "@/features/settings/SettingsView";
+import { ConnectView } from "@/features/connect/ConnectView";
 import type { SlotDropData } from "@/features/today/ScheduleRail";
 import { calendarJustExpired, connectCalendar, milestonesOf, moveTaskBefore, patchTask, rescheduleTask, startWorkspace, toggleTask, useWorkspace } from "@/store/workspace";
 import { cn } from "@/ui/cn";
@@ -436,6 +437,8 @@ function View({ route }: { route: Route }) {
       return <NoteView id={route.id} />;
     case "settings":
       return <SettingsView />;
+    case "connect":
+      return <ConnectView />;
   }
 }
 

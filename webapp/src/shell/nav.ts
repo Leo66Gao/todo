@@ -13,7 +13,9 @@ export type Route =
   | { view: "subject"; id: string }
   | { view: "notes" }
   | { view: "note"; id: string }
-  | { view: "settings" };
+  | { view: "settings" }
+  /** Approving the Todo connector for Claude (see features/connect). */
+  | { view: "connect" };
 
 export function parseRoute(pathname: string, params: URLSearchParams): Route {
   const seg = pathname.replace(/^\/+|\/+$/g, "").split("/")[0].replace(/\.html$/, "");
@@ -25,6 +27,7 @@ export function parseRoute(pathname: string, params: URLSearchParams): Route {
     case "subjects":
     case "notes":
     case "settings":
+    case "connect":
       return { view: seg };
     case "assignment":
     case "subject":

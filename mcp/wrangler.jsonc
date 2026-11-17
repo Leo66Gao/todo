@@ -1,0 +1,17 @@
+// The Todo MCP server. Secrets (not here): FIREBASE_API_KEY, ALLOWED_UID —
+// set with `npx wrangler secret put <NAME>`.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "todo-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "vars": {
+    "PUBLIC_URL": "https://todo-mcp.SUBDOMAIN.workers.dev",
+    "WEB_APP_ORIGIN": "https://todo-15566.web.app",
+    "FIREBASE_PROJECT_ID": "todo-15566",
+    "FIRESTORE_DATABASE": "todo-sync"
+  },
+  "observability": { "enabled": true }
+}
