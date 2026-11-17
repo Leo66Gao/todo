@@ -19,14 +19,14 @@ import { openEvent } from "@/features/events/EventSheet";
 
 const HOUR = 44;
 const SNAP = 15;
-const MIN_BLOCK = 30;
-
 /**
- * A block's corner: a task box's, but never more than 40% of the block's
- * height, so a short block stays a rounded box like the rest instead of
- * turning into a capsule.
+ * The least a block is drawn as, in minutes. As in Apple's Calendar, a short
+ * task gets a little more room than its length (27px), so every block can
+ * share one corner without the short ones turning into capsules.
  */
-const corner = (height: number) => `min(var(--radius-task), ${Math.round(height * 0.4)}px)`;
+const MIN_BLOCK = 40;
+/** That corner: a task box's, up to what the shortest block holds well. */
+const CORNER = "min(var(--radius-task), 11px)";
 
 const minutesOf = (d: Date) => d.getHours() * 60 + d.getMinutes();
 
@@ -204,7 +204,7 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
                   className="schedule-block pointer-events-none absolute inset-x-1 z-20 flex items-start border border-dashed border-accent bg-[color-mix(in_srgb,var(--accent)_12%,var(--raised))] px-2 py-1 text-2xs font-medium text-accent tnum"
                   style={{
                     height: (Math.max(MIN_BLOCK, dropSlot.duration) / 60) * HOUR - 2,
-                    borderRadius: corner((Math.max(MIN_BLOCK, dropSlot.duration) / 60) * HOUR - 2),
+                    borderRadius: CORNER,
                   }}
                 >
                   {formatClock(atMinutes(day, dropSlot.minutes))}–{formatClock(atMinutes(day, dropSlot.minutes + Math.max(dropSlot.duration, SNAP)))}
@@ -214,7 +214,7 @@ export function ScheduleRail({ day, tasks, events = [] }: { day: Date; tasks: Ta
             {hover != null && !dropSlot && (
               <div
                 className="schedule-block pointer-events-none absolute inset-x-1 flex items-center border border-dashed border-line-strong px-2 text-2xs text-ink-3"
-                style={{ top: top(hover) + 1, height: HOUR / 2 - 2, borderRadius: corner(HOUR / 2 - 2) }}
+                style={{ top: top(hover) + 1, height: (MIN_BLOCK / 60) * HOUR - 2, borderRadius: CORNER }}
               >
                 New task at {formatClock(atMinutes(day, hover))}
               </div>
@@ -313,7 +313,7 @@ function EventBlock({ placed, event, top, bounds }: BlockProps & { event: GEvent
       style={{
         top: top(shown) + 1,
         height: height - 2,
-        borderRadius: corner(height - 2),
+        borderRadius: CORNER,
         left: `calc(${(lane / lanes) * 100}% + 4px)`,
         width: `calc(${100 / lanes}% - 6px)`,
         // The calendar's own colour, softly: events read apart from tasks.
@@ -369,7 +369,7 @@ function Block({ placed, task, top, bounds }: BlockProps & { task: Task }) {
         style={{
           top: top(shown) + 1,
           height: height - 2,
-          borderRadius: corner(height - 2),
+          borderRadius: CORNER,
           left: `calc(${(lane / lanes) * 100}% + 4px)`,
           width: `calc(${100 / lanes}% - 6px)`,
         }}
