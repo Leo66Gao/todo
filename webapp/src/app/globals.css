@@ -13,6 +13,9 @@
   --radius-box: 10px;
   /* Task boxes: Week's and the blocks in Today's schedule share one corner. */
   --radius-task: 9px;
+  /* A schedule block's: the task corner, but no rounder than its shortest
+     block (half an hour, 20px tall) can hold, so every block matches. */
+  --radius-block: min(var(--radius-task), 10px);
   --canvas: #f8f8f7;
   --sidebar: #f8f8f7;
   --card: #ffffff;
@@ -925,8 +928,7 @@ html.dark:not(.glass) .float-glass {
     border-radius: 22px;
   }
 }
-/* Blocks in the schedule: one corner for every block, whatever its length
-   (the same as a task box's). */
+/* Blocks in the schedule: one corner for every block, whatever its length. */
 :root.corners-round .schedule-block {
-  border-radius: var(--radius-task);
+  border-radius: var(--radius-block);
 }
