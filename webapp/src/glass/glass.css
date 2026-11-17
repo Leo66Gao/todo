@@ -147,7 +147,7 @@ html.glass {
   --radius-pop: calc(var(--glass-radius, 22px) * 0.56);
   --radius-modal: calc(var(--glass-radius, 22px) * 0.78);
   --radius-card: calc(var(--glass-radius, 22px) * 0.5);
-  --radius-task: calc(var(--glass-radius, 22px) * 0.39);
+  --radius-task: calc(var(--glass-radius, 22px) * 0.46);
 }
 html.glass [data-surface="sidebar"],
 html.glass [data-surface="inspector"],
